@@ -963,6 +963,7 @@ def massaged_coordinator_actions_for_json(coordinator, oozie_bundle):
     related_job_ids.append('bundle_job_id=%s' %oozie_bundle.id)
 
   for action in coordinator_actions:
+    LOG.exception("actionDependencies: %s" % (action.missingDependencies))
     massaged_action = {
       'id': action.id,
       'url': action.externalId and reverse('oozie:list_oozie_workflow', kwargs={'job_id': action.externalId}) + '?%s' % '&'.join(related_job_ids) or '',
@@ -977,7 +978,7 @@ def massaged_coordinator_actions_for_json(coordinator, oozie_bundle):
       'lastModifiedTime': format_time(action.lastModifiedTime),
       'errorCode': action.errorCode,
       'errorMessage': action.errorMessage,
-      'missingDependencies': action.missingDependencies
+      'missingDependencies': action.missingDependencies.split('#')
     }
 
     actions.append(massaged_action)
