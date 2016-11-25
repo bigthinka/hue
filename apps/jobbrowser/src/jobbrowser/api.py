@@ -32,6 +32,7 @@ import hadoop.yarn.mapreduce_api as mapreduce_api
 import hadoop.yarn.node_manager_api as node_manager_api
 import hadoop.yarn.resource_manager_api as resource_manager_api
 import hadoop.yarn.spark_history_server_api as spark_history_server_api
+import time
 
 from jobbrowser.conf import SHARE_JOBS
 from jobbrowser.models import Job, JobLinkage, TaskList, Tracker
@@ -193,6 +194,8 @@ class YarnApi(JobBrowserApi):
       filters['finalStatus'] = state_filters[kwargs['state']]
     if kwargs.get('limit'):
       filters['limit'] = kwargs['limit']
+    # Only get last days
+    filters['startedTimeBegin']= int(time.time() - 60 * 60 * 24) * 1000
 
     json = self.resource_manager_api.apps(**filters)
     if type(json) == str and 'This is standby RM' in json:
