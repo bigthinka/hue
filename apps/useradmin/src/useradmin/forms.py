@@ -53,8 +53,8 @@ def validate_username(username_pattern):
 
   if not username_pattern:
     raise ValidationError(_('Username is required.'))
-  if len(username_pattern) > 30:
-    raise ValidationError(_('Username must be fewer than 30 characters.'))
+  if len(username_pattern) > 128:
+    raise ValidationError(_('Username must be fewer than 128 characters.'))
   if not validator.match(username_pattern):
     raise ValidationError(_("Username must not contain whitespaces and ':'"))
 
@@ -87,9 +87,9 @@ class UserChangeForm(django.contrib.auth.forms.UserChangeForm):
 
   username = forms.RegexField(
       label=_t("Username"),
-      max_length=30,
+      max_length=128,
       regex='^%s$' % (get_username_re_rule(),),
-      help_text = _t("Required. 30 characters or fewer. No whitespaces or colons."),
+      help_text = _t("Required. 128 characters or fewer. No whitespaces or colons."),
       error_messages = {'invalid': _t("Whitespaces and ':' not allowed") })
 
   password1 = forms.CharField(label=_t("New Password"),
@@ -223,7 +223,7 @@ class SuperUserChangeForm(UserChangeForm):
 class AddLdapUsersForm(forms.Form):
   username_pattern = forms.CharField(
       label=_t("Username"),
-      help_text=_t("Required. 30 characters or fewer with username. 64 characters or fewer with DN. No whitespaces or colons."),
+      help_text=_t("Required. 128 characters or fewer with username. 64 characters or fewer with DN. No whitespaces or colons."),
       error_messages={'invalid': _t("Whitespaces and ':' not allowed")})
   dn = forms.BooleanField(label=_t("Distinguished name"),
                           help_text=_t("Whether or not the user should be imported by "
