@@ -185,7 +185,7 @@ ${ fileBrowser.fileBrowser() }
         <div class="assist" data-bind="component: {
           name: 'assist-panel',
           params: {
-            user: '${user.username}',
+            user: '${user.usernamefull}',
             sql: {
               sourceTypes: [{
                 name: 'hive',
@@ -242,7 +242,7 @@ ${ fileBrowser.fileBrowser() }
 
     $(document).ready(function () {
       var options = {
-        user: '${ user.username }',
+        user: '${ user.usernamefull }',
         userGroups: userGroups,
         superuser: '${ user.is_superuser }' === 'True',
         i18n: {

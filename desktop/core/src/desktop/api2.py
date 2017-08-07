@@ -416,7 +416,8 @@ def import_documents(request):
       doc['fields'].pop('tags')
 
     # If doc is not owned by current user, make a copy of the document with current user as owner
-    if doc['fields']['owner'][0] != request.user.username:
+
+    if doc['fields']['owner'][0] != request.user.usernamefull:
       doc = _copy_document_with_owner(doc, request.user, uuids_map)
     else:  # Update existing doc or create new
       doc = _create_or_update_document_with_owner(doc, request.user, uuids_map)
@@ -489,7 +490,7 @@ def _get_dependencies(documents, deps_mode=True):
 def _copy_document_with_owner(doc, owner, uuids_map):
   home_dir = Directory.objects.get_home_directory(owner)
 
-  doc['fields']['owner'] = [owner.username]
+  doc['fields']['owner'] = [owner.usernamefull]
   doc['pk'] = None
   doc['fields']['version'] = 1
 

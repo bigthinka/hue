@@ -67,7 +67,6 @@ def can_kill_job(self, user):
 
   if can_modify_job(user.username, self):
     return True
-
   return user.username == self.user
 
 class JobLinkage(object):
