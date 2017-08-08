@@ -67,19 +67,14 @@ ${layout.menubar(section='coordinators', dashboard=True)}
       <thead>
         <tr>
           <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
-          <th width="11%">${ _('Next Submission') }</th>
+          <th width="22%">${ _('Next Submission') }</th>
           <th width="5%">${ _('Status') }</th>
-          <th width="20%">${ _('Name') }</th>
+          <th width="22%">${ _('Name') }</th>
           <th width="5%">${ _('Progress') }</th>
-          <th width="10%">${ _('Submitter') }</th>
-          % if enable_cron_scheduling:
-          <th width="8%">${ _('Frequency') }</th>
-          % else:
-          <th width="3%">${ _('Frequency') }</th>
-          <th width="5%">${ _('Time Unit') }</th>
-          % endif
-          <th width="12%">${ _('Start Time') }</th>
-          <th width="15%">${ _('Id') }</th>
+          <th width="0%"></th>
+          <th width="0%"></th>
+          <th width="22%">${ _('Start Time') }</th>
+          <th width="22%">${ _('Id') }</th>
         </tr>
       </thead>
       <tbody>

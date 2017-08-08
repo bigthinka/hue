@@ -279,7 +279,7 @@ ${ hueIcons.symbols() }
         </a>
         <ul class="dropdown-menu pull-right">
           <li>
-            <a href="${ url('useradmin.views.edit_user', username=user.username) }"><i class="fa fa-fw fa-key"></i>
+            <a href="${ url('useradmin.views.edit_user', username=user.usernamefull) }"><i class="fa fa-fw fa-key"></i>
               % if is_ldap_setup:
                 ${_('View Profile')}
               % else:
@@ -371,7 +371,7 @@ ${ hueIcons.symbols() }
            <li><a href="/${apps[query_apps[0]].display_name}"><i class="fa fa-terminal hideMoreThan950"></i><span class="hide950">${apps[query_apps[0]].nice_name}</span></a></li>
            % endif
        % endif
-       % if 'beeswax' in apps:
+       % if 'notebook' in apps:
         <%
           from notebook.conf import SHOW_NOTEBOOKS
         %>

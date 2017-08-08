@@ -63,6 +63,7 @@ def get_ordered_interpreters(user=None):
       "type": i,
       "interface": interpreters[i].INTERFACE.get(),
       "options": interpreters[i].OPTIONS.get(),
+      "permission": interpreters[i].PERMISSION.get(),
       "is_sql" : interpreters[i].INTERFACE.get() in ["hiveserver2", "rdbms", "jdbc", "solr"]
     }
     for i in reordered_interpreters
@@ -85,6 +86,12 @@ INTERPRETERS = UnspecifiedConfigSection(
           "interface",
           help="The backend connection to use to communicate with the server.",
           default="hiveserver2",
+          type=str,
+      ),
+      PERMISSION=Config(
+          "permission",
+          help="The permission to check to see if need to add",
+          default="",
           type=str,
       ),
       OPTIONS=Config(
