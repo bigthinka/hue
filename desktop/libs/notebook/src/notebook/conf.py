@@ -37,6 +37,7 @@ def get_interpreters(user=None):
       "name": interpreters[i].NAME.get(),
       "type": i,
       "interface": interpreters[i].INTERFACE.get(),
+      "permission": interpreters[i].PERMISSION.get(),
       "options": interpreters[i].OPTIONS.get()}
       for i in interpreters
   ]
@@ -69,6 +70,12 @@ INTERPRETERS = UnspecifiedConfigSection(
           "interface",
           help="The backend connection to use to communicate with the server.",
           default="hiveserver2",
+          type=str,
+      ),
+      PERMISSION=Config(
+          "permission",
+          help="The permission to check to see if need to add",
+          default="",
           type=str,
       ),
       OPTIONS=Config(

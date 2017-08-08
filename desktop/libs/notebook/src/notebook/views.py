@@ -73,11 +73,21 @@ def notebook(request):
   except:
     LOG.exception('Spark is not enabled')
 
+  user = request.user
+  interpreters = get_interpreters(user.usernamefull)
+
+  filtered_interpreters = []
+
+  for i in interpreters:
+    if user != None:
+      if (i['permission'] == '' or user.has_hue_permission(action="access", app=i['permission'])):
+        filtered_interpreters.append(i)
+
   return render('notebook.mako', request, {
       'editor_id': notebook_id or None,
       'notebooks_json': '{}',
       'options_json': json.dumps({
-          'languages': get_interpreters(request.user),
+          'languages': filtered_interpreters,
           'session_properties': SparkApi.get_properties(),
           'is_optimizer_enabled': has_optimizer(),
           'is_navigator_enabled': has_navigator(),
