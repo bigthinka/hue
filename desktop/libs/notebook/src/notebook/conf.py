@@ -62,9 +62,22 @@ def get_ordered_interpreters(user=None):
       "name": interpreters[i].NAME.get(),
       "type": i,
       "interface": interpreters[i].INTERFACE.get(),
+      "permission": interpreters[i].PERMISSION.get(),
       "options": interpreters[i].OPTIONS.get()}
       for i in reordered_interpreters
   ]
+
+def is_oozie_enabled():
+  """Oozie needs to be available as it is the backend."""
+  return len([app for app in appmanager.DESKTOP_MODULES if app.name == 'oozie']) > 0
+
+
+SHOW_NOTEBOOKS = Config(
+    key="show_notebooks",
+    help=_t("Show the notebook menu or not"),
+    type=coerce_bool,
+    default=True
+)
 
 INTERPRETERS = UnspecifiedConfigSection(
   "interpreters",
@@ -82,6 +95,12 @@ INTERPRETERS = UnspecifiedConfigSection(
           "interface",
           help="The backend connection to use to communicate with the server.",
           default="hiveserver2",
+          type=str,
+      ),
+      PERMISSION=Config(
+          "permission",
+          help="The permission to check to see if need to add",
+          default="",
           type=str,
       ),
       OPTIONS=Config(

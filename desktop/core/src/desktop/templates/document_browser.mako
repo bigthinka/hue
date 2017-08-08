@@ -649,7 +649,7 @@ from desktop.views import _ko
                 <%
                 from notebook.conf import SHOW_NOTEBOOKS
                 %>
-                % if SHOW_NOTEBOOKS.get():
+                % if SHOW_NOTEBOOKS.get() and 'notebook' in apps:
                   <li><a title="${_('Notebook')}" data-bind="attr: { href: addDirectoryParamToUrl('${ url('notebook:index') }') }, click: ${ is_embeddable and 'openResponsiveLink' or 'openExternalLink' }"><i style="font-size: 24px; line-height: 24px; vertical-align: middle; color: #338BB8;" class="fa app-icon fa-fw fa-file-text-o"></i> ${_('Notebook')}</a></li>
                 % endif
                 % if 'oozie' in apps:
