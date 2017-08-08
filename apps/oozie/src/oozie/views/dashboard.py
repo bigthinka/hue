@@ -360,8 +360,12 @@ def list_oozie_workflow(request, job_id):
             workflow_data = {}
         except Exception, e:
           LOG.exception('Graph data could not be generated from Workflow %s: %s' % (oozie_workflow.id, e))
+      workflow_graph = 'MISSING'
+      credentials = Credentials()
+    except:
+      LOG.exception("Error generating full page for running workflow %s" % job_id)
   else:
-    history = get_history().cross_reference_submission_history(request.user, job_id)
+    history = get_history().csross_reference_submission_history(request.user, job_id)
 
     hue_coord = history and history.get_coordinator() or get_history().get_coordinator_from_config(oozie_workflow.conf_dict)
     hue_workflow = (hue_coord and hue_coord.workflow) or (history and history.get_workflow()) or get_history().get_workflow_from_config(oozie_workflow.conf_dict)
@@ -418,7 +422,7 @@ def list_oozie_workflow(request, job_id):
       'parent_id': oozie_workflow.id
     }
     oozie_slas = oozie_api.get_oozie_slas(**params)
-
+#'layout_json': json.dumps(workflow_data.get('layout', ''), cls=JSONEncoderForHTML),
   return render('dashboard/list_oozie_workflow.mako', request, {
     'oozie_workflow': oozie_workflow,
     'oozie_coordinator': oozie_coordinator,
@@ -1036,7 +1040,7 @@ def massaged_coordinator_actions_for_json(coordinator, oozie_bundle):
       'lastModifiedTime': format_time(action.lastModifiedTime),
       'errorCode': action.errorCode,
       'errorMessage': action.errorMessage,
-      'missingDependencies': action.missingDependencies
+      'missingDependencies': action.missingDependencies.split('#')
     }
 
     actions.append(massaged_action)
