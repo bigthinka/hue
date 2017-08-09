@@ -75,7 +75,7 @@
 
     $(document).ready(function () {
       var options = {
-        user: '${ user.username }',
+        user: '${ user.usernamefull }',
         userGroups: userGroups,
         superuser: '${ user.is_superuser }' === 'True',
         i18n: {

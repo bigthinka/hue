@@ -347,6 +347,8 @@ def list_oozie_workflow(request, job_id):
         doc = Document2.objects.get(type='oozie-workflow2', **wid)
         new_workflow = get_workflow()(document=doc)
         workflow_data = new_workflow.get_data()
+      workflow_graph = 'MISSING'
+      credentials = Credentials()
 
     except Exception, e:
       LOG.exception("Error generating full page for running workflow %s with exception: %s" % (job_id, e.message))
@@ -361,10 +363,6 @@ def list_oozie_workflow(request, job_id):
             workflow_data = {}
         except Exception, e:
           LOG.exception('Graph data could not be generated from Workflow %s: %s' % (oozie_workflow.id, e))
-      workflow_graph = 'MISSING'
-      credentials = Credentials()
-    except:
-      LOG.exception("Error generating full page for running workflow %s" % job_id)
   else:
     history = get_history().csross_reference_submission_history(request.user, job_id)
 
