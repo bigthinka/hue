@@ -197,9 +197,6 @@ class YarnApi(JobBrowserApi):
       filters['limit'] = kwargs['limit']
     if kwargs.get('time_value'):
       filters['startedTimeBegin'] = self._get_started_time_begin(kwargs.get('time_value'), kwargs.get('time_unit'))
-    else:
-      # Only get last days
-      filters['startedTimeBegin'] = int(time.time() - 60 * 60 * 24) * 1000
 
     json = self.resource_manager_api.apps(**filters)
     if type(json) == str and 'This is standby RM' in json:
@@ -213,7 +210,7 @@ class YarnApi(JobBrowserApi):
     if kwargs['text']:
       text = kwargs['text'].lower()
       jobs = filter(lambda job:
-                    text in job.name.lower() or
+                    text in job.name.lower() or#/?caller_id=HIVE-877f3524-782c-4281-92d2-4370b83763c2
                     text in job.id.lower() or
                     text in job.user.lower() or
                     text in job.queue.lower(), jobs)
