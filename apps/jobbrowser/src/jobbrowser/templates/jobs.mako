@@ -256,7 +256,7 @@ ${ components.menubar(hiveserver2_impersonation_enabled) }
         emptyStringIfNull(job.queueName),
         emptyStringIfNull(job.priority),
         '<span title="' + emptyStringIfNull(job.durationMs) + '">' + (job.isRetired || ! job.durationFormatted ? '${_('N/A')}' : emptyStringIfNull(job.durationFormatted)) + '</span>',
-        '<span title="' + emptyStringIfNull(job.startTimeMs) + '">' + emptyStringIfNull(job.startTimeFormatted) + '</span>',
+        '<span title="' + emptyStringIfNull(job.startTimeMs) + '">' + moment(job.startTimeFormatted,"MM/DD/YY HH:mm:ss").format("L LTS") + '</span>',
         _killCell
       ]
     }
