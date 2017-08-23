@@ -280,11 +280,12 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
           <i class="fa fa-file-o"></i>
         </a>
         <!-- /ko -->
-
+        % if request.user.has_hue_permission(app='notebook', action='notebooks_list_access'):
         <a class="btn" data-bind="attr: { 'href': '${ url('notebook:notebooks') }?type=' + editorType(), 'title':  editorMode() ? '${ _('Queries') }' : '${ _('Notebooks') }'  }" rel="tooltip" data-placement="bottom">
           <i class="fa fa-tags"></i>
         </a>
-
+        % endif
+        <!-- /ko -->
         <a class="btn pointer" title="${ _('Context') }" rel="tooltip" data-placement="bottom" data-bind="css: {'active': $root.isContextPanelVisible }, click: function() { $root.isContextPanelVisible(!$root.isContextPanelVisible()); }">
           <i class="fa fa-cogs"></i>
         </a>
