@@ -35,13 +35,14 @@ from notebook.conf import get_ordered_interpreters
 from notebook.connectors.base import Notebook, get_api, _get_snippet_name
 from notebook.connectors.spark_shell import SparkApi
 from notebook.decorators import check_document_access_permission, check_document_modify_permission
+from desktop.decorators import hue_permission_required
 from notebook.management.commands.notebook_setup import Command
 from notebook.models import make_notebook
 
 
 LOG = logging.getLogger(__name__)
 
-
+@hue_permission_required("notebooks_list_access", "notebook")
 def notebooks(request):
   editor_type = request.GET.get('type', 'notebook')
 

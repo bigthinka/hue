@@ -93,7 +93,6 @@ def rewrite_user(user):
     user.usernamepart = user.username.replace("'", '').split('@')[0]
     user.username = user.usernamepart
 
-    LOG.warn('ReWriting user name from %s to %s' % (user.usernamefull, user.username))
   return user
 
 class DefaultUserAugmentor(object):
