@@ -54,7 +54,7 @@ ${ components.menubar(hiveserver2_impersonation_enabled) }
         <a class="btn btn-status btn-danger disable-feedback" data-value="failed">${ _('Failed') }</a>
         <a class="btn btn-status btn-inverse disable-feedback" data-value="killed">${ _('Killed') }</a>
       </span>
-      &nbsp;&nbsp;${_('in the last')} <input id="timeValue" class="input-mini no-margin" type="number" value="7" min="1" max="3650">
+      &nbsp;&nbsp;${_('in the last')} <input id="timeValue" class="input-mini no-margin" type="number" value="1" min="1" max="3650">
       <select id="timeUnit" class="input-small no-margin">
         <option value="days">${_('days')}</option>
         <option value="hours">${_('hours')}</option>
@@ -63,7 +63,7 @@ ${ components.menubar(hiveserver2_impersonation_enabled) }
     </%def>
   </%actionbar:render>
 
-  <div id ="JobCountBanner" class="pull-center alert alert-warning hide">${ _("Showing oldest 1000 jobs. Use days filter to get the recent ones.") }</div>
+  <div id ="JobCountBanner" class="pull-center alert alert-warning hide">${ _("Results limited to first(oldest) 1000 jobs in days filter range. Alter days filter range to adjust.") }</div>
   <div id="noJobs" class="alert"><i class="fa fa-exclamation-triangle"></i>&nbsp; ${_('There are no jobs that match your search criteria.')}</div>
 
   <table id="jobsTable" class="datatables table table-condensed">
@@ -256,7 +256,7 @@ ${ components.menubar(hiveserver2_impersonation_enabled) }
         emptyStringIfNull(job.queueName),
         emptyStringIfNull(job.priority),
         '<span title="' + emptyStringIfNull(job.durationMs) + '">' + (job.isRetired || ! job.durationFormatted ? '${_('N/A')}' : emptyStringIfNull(job.durationFormatted)) + '</span>',
-        '<span title="' + emptyStringIfNull(job.startTimeMs) + '">' + emptyStringIfNull(job.startTimeFormatted) + '</span>',
+        '<span title="' + emptyStringIfNull(job.startTimeMs) + '">' + moment(job.startTimeFormatted,"MM/DD/YY HH:mm:ss").format("L LTS") + '</span>',
         _killCell
       ]
     }

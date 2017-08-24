@@ -355,7 +355,7 @@ from desktop.views import _ko
                 <%
                 from notebook.conf import SHOW_NOTEBOOKS
                 %>
-                % if SHOW_NOTEBOOKS.get():
+                % % if SHOW_NOTEBOOKS.get() and request.user.has_hue_permission(app='notebook', action='notebook_create_access'):
                   <li>
                     <a title="${_('Notebook')}" data-bind="attr: { href: addDirectoryParamToUrl('${ url('notebook:index') }') }, click: ${ is_embeddable and 'openHue4Link' or 'openExternalLink' }">
                       <i style="font-size: 24px; line-height: 24px; vertical-align: middle; color: #0B7FAD;" class="fa app-icon fa-fw fa-file-text-o"></i> ${_('Notebook')}
