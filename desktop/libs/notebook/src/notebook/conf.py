@@ -69,10 +69,6 @@ def get_ordered_interpreters(user=None):
     for i in reordered_interpreters
   ]
 
-def is_oozie_enabled():
-  """Oozie needs to be available as it is the backend."""
-  return len([app for app in appmanager.DESKTOP_MODULES if app.name == 'oozie']) > 0
-
 
 SHOW_NOTEBOOKS = Config(
     key="show_notebooks",

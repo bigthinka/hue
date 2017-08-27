@@ -364,8 +364,6 @@ def list_oozie_workflow(request, job_id):
           LOG.exception('Graph data could not be generated from Workflow %s: %s' % (oozie_workflow.id, e))
       workflow_graph = 'MISSING'
       credentials = Credentials()
-    except:
-      LOG.exception("Error generating full page for running workflow %s" % job_id)
   else:
     history = get_history().csross_reference_submission_history(request.user, job_id)
 
