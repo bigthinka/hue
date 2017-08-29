@@ -285,7 +285,6 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
           <i class="fa fa-tags"></i>
         </a>
         % endif
-        <!-- /ko -->
         <a class="btn pointer" title="${ _('Context') }" rel="tooltip" data-placement="bottom" data-bind="css: {'active': $root.isContextPanelVisible }, click: function() { $root.isContextPanelVisible(!$root.isContextPanelVisible()); }">
           <i class="fa fa-cogs"></i>
         </a>
