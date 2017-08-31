@@ -85,8 +85,18 @@ def notebook(request, is_embeddable=False):
 
   for i in interpreters:
     if user != None:
-      if (i['permission'] == '' or user.has_hue_permission(action="access", app=i['permission'])):
-        filtered_interpreters.append(i)
+
+        permission = i['permission']
+        app = permission
+        action = "access"
+
+        parts = permission.split(':', 1)
+        if len(parts) > 1:
+            app = parts[0]
+            action = parts[1]
+
+        if (permission == '' or user.has_hue_permission(action=action, app=app)):
+            filtered_interpreters.append(i)
 
   return render('notebook.mako', request, {
       'editor_id': notebook_id or None,
