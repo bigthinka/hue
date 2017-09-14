@@ -45,6 +45,11 @@ try:
 except ImportError:
     logger.info(
         "Couldn't import snappy. Support for snappy compression disabled.")
+try:
+    import lzo
+except ImportError:
+    logger.info(
+        "Couldn't import lzo. Support for lzo compression disabled.")
 
 
 class ParquetFormatException(Exception):
@@ -233,10 +238,15 @@ def dump_metadata(filename, show_row_group_metadata, out=sys.stdout):
 def _read_page(file_obj, page_header, column_metadata):
     """Read the data page from the given file-object and convert it to raw, uncompressed bytes (if necessary)."""
     bytes_from_file = file_obj.read(page_header.compressed_page_size)
+    print('page size:%s' % column_metadata)
     codec = column_metadata.codec
     if codec is not None and codec != parquet_thrift.CompressionCodec.UNCOMPRESSED:
         if column_metadata.codec == parquet_thrift.CompressionCodec.SNAPPY:
             raw_bytes = snappy.decompress(bytes_from_file)
+        elif column_metadata.codec == parquet_thrift.CompressionCodec.LZO:
+            print('trying to decompress ...')
+            raw_bytes = lzo.decompress(bytes_from_file)
+            print('decompressed')
         elif column_metadata.codec == parquet_thrift.CompressionCodec.GZIP:
             io_obj = io.BytesIO(bytes_from_file)
             with gzip.GzipFile(fileobj=io_obj, mode='rb') as file_data:
