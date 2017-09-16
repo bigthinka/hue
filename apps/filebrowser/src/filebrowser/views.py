@@ -26,6 +26,7 @@ import re
 import shutil
 import stat as stat_module
 import urllib
+import subprocess
 
 from datetime import datetime
 from cStringIO import StringIO
@@ -180,14 +181,19 @@ def view(request, path):
         if request.fs.isdir(request.fs.trash_path(path)):
             return format_preserving_redirect(request, reverse(view, kwargs=dict(path=request.fs.trash_path(path))))
 
+    print('MH mark before start')
     try:
         decoded_path = urllib.unquote(path)
+        print('MH mark before path != decoded_path=%s and path =%s' % (decoded_path,path))
         if path != decoded_path:
           path = decoded_path
+        print('MH mark before fs stats %s' % request.fs)
         stats = request.fs.stats(path)
         if stats.isDir:
+            print('MH stats says listdir')
             return listdir_paged(request, path)
         else:
+            print('MH stats says dispaly')
             return display(request, path)
     except (IOError, WebHdfsException), e:
         msg = _("Cannot access: %(path)s. ") % {'path': escape(path)}
@@ -704,7 +710,7 @@ def read_contents(codec_type, path, fs, offset, length):
         elif codec_type == 'avro':
             contents = _read_avro(fhandle, path, offset, length, stats)
         elif codec_type == 'parquet':
-            contents = _read_parquet(fhandle, path, offset, length, stats)
+            contents = _read_parquet_java(fhandle, path, offset, length, stats)
         elif codec_type == 'snappy':
             contents = _read_snappy(fhandle, path, offset, length, stats)
         else:
@@ -762,6 +768,13 @@ def _read_avro(fhandle, path, offset, length, stats):
         raise PopupException(_("Failed to read Avro file."))
     return contents
 
+def _read_parquet_java(fhandle, path, offset, length, stats):
+    # hadoop jar parquet-tools-1.9.0.jar head -n100 s3://dl-data-prod/data/5/UTC/dmp_delta_user_hrange/daily/y=2017/m=09/d=09/part-r-00000.lzo.parquet
+    command = 'hadoop jar apps/filebrowser/src/java-lib/parquet-tools-1.9.0.jar head -n100  %s' % path
+    #command = 'ls -l apps/filebrowser/src/java-lib/parquet-tools-1.9.0.jar'
+    splits = command.split(' ')
+
+    return subprocess.check_output(splits)
 
 def _read_parquet(fhandle, path, offset, length, stats):
     try:
@@ -990,6 +1003,7 @@ def generic_op(form_class, request, op, parameter_names, piggyback=None, templat
         if form.is_valid():
             args = arg_extractor(request, form, parameter_names)
             try:
+                print('MH args: %s' % args)
                 op(*args)
             except (IOError, WebHdfsException), e:
                 msg = _("Cannot perform operation.")
