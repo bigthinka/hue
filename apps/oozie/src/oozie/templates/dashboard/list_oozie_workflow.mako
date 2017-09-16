@@ -148,7 +148,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
         ${ _('Workflow') } ${ oozie_workflow.appName }
       </h1>
       <ul class="nav nav-tabs">
-        % if workflow_graph != '':
+        % if workflow_graph not in ('', 'MISSING'):
         <li class="active"><a href="#graph" data-toggle="tab">${ _('Graph') }</a></li>
         <li><a href="#actions" data-toggle="tab">${ _('Actions') }</a></li>
         % else:
@@ -164,7 +164,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       </ul>
 
       <div id="workflow-tab-content" class="tab-content" style="min-height:200px; overflow: visible">
-        % if workflow_graph != 'MISSING':
+        % if workflow_graph not in ('', 'MISSING'):
         <div id="graph" class="tab-pane active">
         % if layout_json == '':
         ${ workflow_graph | n,unicode }
