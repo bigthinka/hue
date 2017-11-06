@@ -54,21 +54,22 @@ class ProxyFS(object):
   def _get_scheme(self, path):
     if path.lower().startswith(S3A_ROOT):
       from desktop.auth.backend import rewrite_user # Avoid cyclic loop
-      try:
-        # Here we have to fetch the user object again to check s3 permissions but must use the full username
-        username = self.user
-
-        if hasattr(self.user, 'usernamefull'):
-          username = self.user.usernamefull
-        else:
-          print('MH NO usernamefull for s3 user lookup')
-
-        user = User.objects.get(username=username)
-
-        if not has_s3_access(rewrite_user(user)):
-          raise IOError(errno.EPERM, "Missing S3 HUE permissions for %s on %s" % (self.user, path,))
-      except User.DoesNotExist:
-        raise IOError(errno.EPERM, "Can't check S3 HUE permissions user: %s not exists trying to access: %s" % (username, path))
+      # The following does not seem to work with LDAP in live even if middleware is updated to pass full user not just username
+      # try:
+      #   # Here we have to fetch the user object again to check s3 permissions but must use the full username
+      #   username = self.user
+      #
+      #   if hasattr(self.user, 'usernamefull'):
+      #     username = self.user.usernamefull
+      #   else:
+      #     print('MH NO usernamefull for s3 user lookup')
+      #
+      #   user = User.objects.get(username=username)
+      #
+      #   if not has_s3_access(rewrite_user(user)):
+      #     raise IOError(errno.EPERM, "Missing S3 HUE permissions for %s on %s" % (self.user, path,))
+      # except User.DoesNotExist:
+      #   raise IOError(errno.EPERM, "Can't check S3 HUE permissions user: %s not exists trying to access: %s" % (username, path))
 
     split = urlparse(path)
     if split.scheme:
