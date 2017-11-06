@@ -122,10 +122,9 @@ class ClusterMiddleware(object):
       del view_kwargs["fs"]
 
     request.fs = fsmanager.get_filesystem(request.fs_ref)
-
     if request.user.is_authenticated():
       if request.fs is not None:
-        request.fs.setuser(request.user.username)
+        request.fs.setuser(request.user)
 
       request.jt = cluster.get_default_mrcluster() # Deprecated, only there for MR1
       if request.jt is not None:
