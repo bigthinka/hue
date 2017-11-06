@@ -181,19 +181,15 @@ def view(request, path):
         if request.fs.isdir(request.fs.trash_path(path)):
             return format_preserving_redirect(request, reverse(view, kwargs=dict(path=request.fs.trash_path(path))))
 
-    print('MH mark before start')
     try:
         decoded_path = urllib.unquote(path)
-        print('MH mark before path != decoded_path=%s and path =%s' % (decoded_path,path))
         if path != decoded_path:
           path = decoded_path
-        print('MH mark before fs stats %s' % request.fs)
+
         stats = request.fs.stats(path)
         if stats.isDir:
-            print('MH stats says listdir')
             return listdir_paged(request, path)
         else:
-            print('MH stats says dispaly')
             return display(request, path)
     except (IOError, WebHdfsException), e:
         msg = _("Cannot access: %(path)s. ") % {'path': escape(path)}
@@ -1003,7 +999,6 @@ def generic_op(form_class, request, op, parameter_names, piggyback=None, templat
         if form.is_valid():
             args = arg_extractor(request, form, parameter_names)
             try:
-                print('MH args: %s' % args)
                 op(*args)
             except (IOError, WebHdfsException), e:
                 msg = _("Cannot perform operation.")
