@@ -543,6 +543,8 @@ ${ components.menubar(is_embeddable) }
         <input type="hidden" name="is_embeddable" value="true"/>
         <input type="hidden" name="start_time" value=""/>
         <input type="hidden" name="source_type" data-bind="value: $root.source().type"/>
+        <input type="hidden" name="namespace" data-bind="value: catalogEntry.namespace.id"/>
+        <input type="hidden" name="compute" data-bind="value: catalogEntry.compute.id"/>
     % else:
       <form data-bind="attr: { 'action': '/metastore/tables/drop/' +catalogEntry. name }" method="POST">
     % endif
@@ -1164,10 +1166,14 @@ ${ components.menubar(is_embeddable) }
       });
 
       huePubSub.subscribe('metastore.clear.selection', function () {
-        viewModel.selectedDatabases.removeAll();
-        if (viewModel.database()) {
-          viewModel.database().selectedTables.removeAll();
-        }
+        viewModel.sources().forEach(function (source) {
+          source.namespaces().forEach(function (namespace) {
+            namespace.selectedDatabases.removeAll();
+            namespace.databases().forEach(function (database) {
+              database.selectedTables.removeAll();
+            })
+          })
+        });
       }, 'metastore');
 
       viewModel.currentTab.subscribe(function(tab){
