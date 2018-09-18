@@ -16,16 +16,41 @@
 
 DataDefinition
  : SetRoleStatement
+ | SetSpecification
  ;
 
 DataDefinition_EDIT
  : SetRoleStatement_EDIT
  | 'SET' 'CURSOR'
    {
+     parser.suggestSetOptions();
      if (parser.isHive()) {
        parser.suggestKeywords(['ROLE']);
      }
+     if (parser.isImpala()) {
+       parser.suggestKeywords(['ALL']);
+     }
    }
+ ;
+
+SetSpecification
+ : 'SET' SetOption '=' SetValue
+ | 'SET' 'ALL'
+ ;
+
+SetOption
+ : RegularIdentifier
+ | SetOption AnyDot RegularIdentifier
+ ;
+
+SetValue
+ : RegularIdentifier
+ | SignedInteger
+ | SignedInteger RegularIdentifier
+ | QuotedValue
+ | 'TRUE'
+ | 'FALSE'
+ | 'NULL'
  ;
 
 SetRoleStatement

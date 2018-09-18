@@ -31,6 +31,12 @@ from aws import get_client
               <i class="fa fa-fw fa-cubes"></i> ${ get_client()._region }
             </span>
           </li>
+        %elif path.lower().find('adl:/') == 0:
+          <li style="padding-top: 12px">
+            <span class="breadcrumb-link homeLink">
+              <svg class="hi"><use xlink:href='#hi-adls'></use></svg>
+            </span>
+          </li>
         %else:
           <li><a class="pointer breadcrumb-link homeLink" data-bind="click: $root.openHome, attr:{'href': '${url('filebrowser.views.view', path=urlencode(path))}?default_to_home'}">
             <i class="fa fa-home"></i> ${_('Home')}</a>
@@ -54,13 +60,6 @@ from aws import get_client
           </a>
         </li>
         % endif
-        <li class="pull-right">
-          <div class="dropdown breadcrumb-link history">
-            <a href="javascript:void(0)" class="historyLink dropdown-toggle" title="${_('View History')}" data-toggle="dropdown" id="historyDropdown">
-              <i class="fa fa-caret-down"></i> ${_('History')}
-            </a>
-          </div>
-        </li>
       </ul>
     % else:
       <ul class="nav nav-pills hue-breadcrumbs-bar">

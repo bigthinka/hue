@@ -20,7 +20,7 @@ import os
 from collections import deque
 
 from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.translation import ugettext as _
 from mako.lookup import TemplateLookup
 
@@ -72,6 +72,7 @@ class MorphlineIndexer(object):
       name=_('Indexing into %s') % collection_name,
       editor_type='notebook',
       on_success_url=reverse('search:browse', kwargs={'name': collection_name}),
+      pub_sub_url='assist.collections.refresh',
       is_task=True,
       is_notebook=True,
       last_executed=start_time
@@ -126,16 +127,19 @@ class MorphlineIndexer(object):
 
   def guess_field_types(self, data):
     file_format = get_file_format_instance(data['file'], data['format'])
-    return file_format.get_fields() if file_format else {'columns':[]}
+    return file_format.get_fields() if file_format else {'columns': []}
 
   # Breadth first ordering of fields
-  def get_field_list(self, field_data):
+  def get_field_list(self, field_data, is_converting_types=False):
     fields = []
 
     queue = deque(field_data)
 
     while len(queue):
       curr_field = queue.popleft()
+      curr_field['type'] = curr_field['type']
+      if is_converting_types:
+        SolrClient._port_field_types(curr_field)
       fields.append(curr_field)
 
       for operation in curr_field["operations"]:
@@ -181,7 +185,7 @@ class MorphlineIndexer(object):
 
     properties = {
       "collection_name": collection_name,
-      "fields": self.get_field_list(data['columns']),
+      "fields": self.get_field_list(data['columns'], is_converting_types=True),
       "num_base_fields": len(data['columns']),
       "uuid_name" : uuid_name,
       "get_regex": MorphlineIndexer._get_regex_for_type,

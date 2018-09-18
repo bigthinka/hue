@@ -24,21 +24,92 @@
     it('should suggest facets for "|"', function () {
       testParser('', '', {
         suggestFacets: true,
-        facets: [ ]
+        suggestResults: true,
+        facets: {},
+        text: []
       });
     });
 
     it('should suggest facets for "TAGS: asdf |"', function () {
       testParser('TAGS: asdf ', '', {
         suggestFacets: true,
-        facets: [ 'TAGS' ]
+        suggestResults: true,
+        facets: {
+          'tags' : { 'asdf': true }
+        },
+        text: []
       });
     });
 
-    it('should suggest facet values for "tags: |"', function () {
-      testParser('tags: ', '', {
+    it('should suggest facet values for "type:table tags:"', function() {
+      testParser('type:table tags: ', '', {
         suggestFacetValues: 'tags',
-        facets: []
+        facets: {
+          'type': { 'table': true }
+        },
+        text: []
+      });
+    });
+
+    it('should suggest facet values for "type:table tags:a"', function() {
+      testParser('type:table tags:a', '', {
+        suggestFacetValues: 'tags',
+        facets: {
+          'type': { 'table': true },
+          'tags': { 'a': true }
+        },
+        text: []
+      });
+    });
+
+    it('should give correct facet values for "type:table type:column"', function() {
+      testParser('type:table type:column ', '', {
+        suggestFacets: true,
+        suggestResults: true,
+        facets: {
+          'type': { 'table': true, 'column': true }
+        },
+        text: []
+      });
+    });
+
+    it('should give correct text values for "some text goes |here \'quoted value\'"', function() {
+      testParser('some text goes ', 'here \'quoted value\'', {
+        suggestFacets: true,
+        suggestResults: true,
+        facets: {},
+        text: ['some', 'text', 'goes', 'here', 'quoted value']
+      });
+    });
+
+    it('should give correct text and values for "some boo:\'asdfa adsf\' text goes |here \'quoted value\' foo:bar"', function() {
+      testParser('some boo:\'asdfa adsf\' text goes ', 'here \'quoted value\' foo:bar', {
+        suggestFacets: true,
+        suggestResults: true,
+        facets: {
+          boo: { 'asdfa adsf': true },
+          foo: { 'bar': true }
+        },
+        text: ['some', 'text', 'goes', 'here', 'quoted value']
+      });
+    });
+
+    it('should give correct text and values for "type:foo bar|"', function() {
+      testParser('type:foo bar', '', {
+        suggestFacets: true,
+        suggestResults: true,
+        facets: {
+          type: { 'foo': true }
+        },
+        text: ['bar']
+      });
+    });
+
+    it('should suggest facet values for "TAGS: |"', function () {
+      testParser('TAGS: ', '', {
+        suggestFacetValues: 'tags',
+        facets: {},
+        text: []
       });
     });
   });

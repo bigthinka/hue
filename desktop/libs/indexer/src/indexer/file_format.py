@@ -18,13 +18,14 @@ import gzip
 import operator
 import itertools
 import logging
+import StringIO
 
 from django.utils.translation import ugettext as _
 
 from desktop.lib import i18n
 
 from indexer.argument import CheckboxArgument, TextDelimiterArgument
-from indexer.conf import ENABLE_NEW_INDEXER
+from indexer.conf import ENABLE_SCALABLE_INDEXER
 from indexer.fields import Field, guess_field_type_from_samples
 from indexer.indexers.morphline_operations import get_operator
 
@@ -32,14 +33,14 @@ from indexer.indexers.morphline_operations import get_operator
 LOG = logging.getLogger(__name__)
 
 
-IMPORT_PEEK_SIZE = 1024 * 1024 * 5
+IMPORT_PEEK_SIZE = 1024 * 1024
 IMPORT_PEEK_NLINES = 20
 
 
 def get_format_types():
   formats = [CSVFormat]
 
-  if ENABLE_NEW_INDEXER.get():
+  if ENABLE_SCALABLE_INDEXER.get():
     formats.extend([
       ApacheCombinedFormat,
       SyslogFormat,
@@ -78,6 +79,7 @@ def get_file_format_instance(file, format_=None):
   matches = [type_ for type_ in get_format_types() if file_extension in type_.get_extensions()]
 
   return (matches[0] if matches else get_format_types()[0]).get_instance(file_stream, format_)
+
 
 class FileFormat(object):
   _name = None
@@ -164,6 +166,7 @@ class FileFormat(object):
 
     return obj
 
+
 class GrokkedFormat(FileFormat):
   _grok = None
   _customizable = False
@@ -175,7 +178,7 @@ class GrokkedFormat(FileFormat):
   def get_format(self):
     format_ = super(GrokkedFormat, self).get_format()
     specific_format = {
-      "grok":self.get_grok()
+      "grok": self.get_grok()
     }
     format_.update(specific_format)
 
@@ -184,6 +187,7 @@ class GrokkedFormat(FileFormat):
   @property
   def fields(self):
     return self._fields
+
 
 class HueLogFormat(GrokkedFormat):
   _name = "hue"
@@ -210,7 +214,7 @@ class HueLogFormat(GrokkedFormat):
       Field("component", "string"),
       Field("log_level", "string"),
       Field("details", "string"),
-      Field("message", "text_en"),
+      Field("message", "text_general"),
       Field("ip", "string", [geo_ip_operation]),
       Field("user", "string"),
       Field("http_method", "string"),
@@ -218,8 +222,10 @@ class HueLogFormat(GrokkedFormat):
       Field("protocol", "string")
     ]
 
+
 class GrokLineFormat(GrokkedFormat):
   _parse_type = "grok_line"
+
 
 class ApacheCombinedFormat(GrokLineFormat):
   _name = "combined_apache"
@@ -240,8 +246,9 @@ class ApacheCombinedFormat(GrokLineFormat):
       Field("response", "long"),
       Field("bytes", "long"),
       Field("referrer", "string"),
-      Field("field_line", "text_en")
+      Field("field_line", "text_general")
     ]
+
 
 class RubyLogFormat(GrokLineFormat):
   _name = "ruby_log"
@@ -255,9 +262,10 @@ class RubyLogFormat(GrokLineFormat):
       Field("pid", "long"),
       Field("loglevel", "string"),
       Field("progname", "string"),
-      Field("message", "text_en"),
-      Field("field_line", "text_en")
+      Field("message", "text_general"),
+      Field("field_line", "text_general")
     ]
+
 
 class SyslogFormat(GrokLineFormat):
   _name = "syslog"
@@ -273,7 +281,7 @@ class SyslogFormat(GrokLineFormat):
       Field("logsource", "string"),
       Field("program", "string"),
       Field("pid", "string"),
-      Field("message", "text_en"),
+      Field("message", "text_general"),
     ]
 
 
@@ -309,39 +317,128 @@ class CSVFormat(FileFormat):
 
   @staticmethod
   def format_character(string):
+    # Morphline supports only one char representation
     string = string.replace('"', '\\"')
     string = string.replace('\t', '\\t')
     string = string.replace('\n', '\\n')
     string = string.replace('\u0001', '\\u0001')
+    string = string.replace('\x00', '\\u0000')
+    string = string.replace('\x01', '\\u0001')
+    string = string.replace('\x02', '\\u0002')
+    string = string.replace('\x03', '\\u0003')
 
     return string
 
   @classmethod
   def _valid_character(self, char):
-    return isinstance(char, basestring) and len(char) == 1
+    return isinstance(char, basestring) and len(char) == 1 or char.startswith('\\')
 
   @classmethod
   def _guess_dialect(cls, sample):
     sniffer = csv.Sniffer()
     dialect = sniffer.sniff(sample)
-    has_header = sniffer.has_header(sample)
+    has_header = cls._hasHeader(sniffer, sample, dialect)
     return dialect, has_header
+
+  # Copied from python2.7/csv.py with small modification to 1st line
+  # Results in large performance gain from not having to reprocess the file if dialect is known.
+  @classmethod
+  def _hasHeader(self, sniffer, sample, dialect):
+    # ******Changed from********
+    # rdr = reader(StringIO(sample), self.sniff(sample))
+    from _csv import reader
+    rdr = reader(StringIO.StringIO(sample), dialect)
+
+    header = rdr.next()  # assume first row is header
+
+    columns = len(header)
+    columnTypes = {}
+    for i in range(columns): columnTypes[i] = None
+
+    checked = 0
+    for row in rdr:
+      # arbitrary number of rows to check, to keep it sane
+      if checked > 20:
+        break
+      checked += 1
+
+      if len(row) != columns:
+        continue  # skip rows that have irregular number of columns
+
+      for col in columnTypes.keys():
+
+        for thisType in [int, long, float, complex]:
+          try:
+            thisType(row[col])
+            break
+          except (ValueError, OverflowError):
+            pass
+        else:
+          # fallback to length of string
+          thisType = len(row[col])
+
+        # treat longs as ints
+        if thisType == long:
+          thisType = int
+
+        if thisType != columnTypes[col]:
+          if columnTypes[col] is None:  # add new column type
+            columnTypes[col] = thisType
+          else:
+            # type is inconsistent, remove column from
+            # consideration
+            del columnTypes[col]
+
+    # finally, compare results against first row and "vote"
+    # on whether it's a header
+    hasHeader = 0
+    for col, colType in columnTypes.items():
+      if type(colType) == type(0):  # it's a length
+        if len(header[col]) != colType:
+          hasHeader += 1
+        else:
+          hasHeader -= 1
+      else:  # attempt typecast
+        try:
+          colType(header[col])
+        except (ValueError, TypeError):
+          hasHeader += 1
+        else:
+          hasHeader -= 1
+
+    return hasHeader > 0
 
   @classmethod
   def valid_format(cls, format_):
     valid = super(CSVFormat, cls).valid_format(format_)
-    valid = valid and cls._valid_character(format_["fieldSeparator"])
-    valid = valid and cls._valid_character(format_["recordSeparator"])
-    valid = valid and cls._valid_character(format_["quoteChar"])
+    valid = valid and cls._valid_character(cls.format_character(format_["fieldSeparator"]))
+    valid = valid and cls._valid_character(cls.format_character(format_["recordSeparator"]))
+    valid = valid and cls._valid_character(cls.format_character(format_["quoteChar"]))
     valid = valid and isinstance(format_["hasHeader"], bool)
 
     return valid
 
   @classmethod
+  def _get_sample(cls, file_stream):
+    encoding = i18n.get_site_encoding()
+
+    for reader in [TextFileReader, GzipFileReader]:
+      file_stream.seek(0)
+      sample_data, sample_lines = reader.readlines(file_stream, encoding)
+      file_stream.seek(0)
+
+      if sample_data is not None:
+        yield sample_data, sample_lines
+
+  @classmethod
   def _guess_from_file_stream(cls, file_stream):
-    for sample in  cls._get_sample(file_stream):
+    for sample_data, sample_lines in cls._get_sample(file_stream):
       try:
-        dialect, has_header = cls._guess_dialect(sample)
+        lines = itertools.islice(StringIO.StringIO(sample_data), IMPORT_PEEK_NLINES)
+        sample_data_lines = ''
+        for line in lines:
+          sample_data_lines += line
+        dialect, has_header = cls._guess_dialect(sample_data_lines) # Only use first few lines for guessing. Greatly improves performance of CSV library.
         delimiter = dialect.delimiter
         line_terminator = dialect.lineterminator
         quote_char = dialect.quotechar
@@ -351,7 +448,7 @@ class CSVFormat(FileFormat):
           "line_terminator": line_terminator,
           "quote_char": quote_char,
           "has_header": has_header,
-          "sample": sample
+          "sample": sample_data
         })
       except Exception:
         LOG.exception('Warning, cannot read the file format.')
@@ -360,20 +457,8 @@ class CSVFormat(FileFormat):
     return cls()
 
   @classmethod
-  def _get_sample(cls, file_stream):
-    encoding = i18n.get_site_encoding()
-
-    for reader in [TextFileReader, GzipFileReader]:
-      file_stream.seek(0)
-      lines = reader.readlines(file_stream, encoding)
-      file_stream.seek(0)
-
-      if lines is not None:
-        yield '\n'.join(lines)
-
-  @classmethod
   def _from_format(cls, file_stream, format_):
-    for sample in cls._get_sample(file_stream):
+    for sample_data, sample_lines in cls._get_sample(file_stream):
       try:
         delimiter = format_["fieldSeparator"].encode('utf-8')
         line_terminator = format_["recordSeparator"].encode('utf-8')
@@ -385,7 +470,7 @@ class CSVFormat(FileFormat):
           "line_terminator": line_terminator,
           "quote_char": quote_char,
           "has_header": has_header,
-          "sample": sample
+          "sample": sample_data
         })
       except Exception:
         LOG.exception('Warning, cannot read the file format.')
@@ -461,7 +546,9 @@ class CSVFormat(FileFormat):
   def _get_sample_reader(self, sample):
     if self.line_terminator != '\n':
       sample = sample.replace('\n', '\\n')
-    return csv.reader(sample.split(self.line_terminator), delimiter=self.delimiter, quotechar=self.quote_char)
+      return csv.reader(sample.split(self.line_terminator), delimiter=self.delimiter, quotechar=self.quote_char)
+    else:
+      return csv.reader(StringIO.StringIO(sample), delimiter=self.delimiter, quotechar=self.quote_char)
 
   def _guess_field_names(self, sample):
     reader = self._get_sample_reader(sample)
@@ -469,7 +556,9 @@ class CSVFormat(FileFormat):
     first_row = reader.next()
 
     if self._has_header:
-      header = first_row
+      header = []
+      for i, field in enumerate(first_row):
+        header.append(field if field not in header else '%s_%s' % (field, i))
     else:
       header = ["field_%d" % (i + 1) for i in range(self._num_columns)]
 
@@ -508,11 +597,11 @@ class GzipFileReader(object):
     try:
       data = gz.read(IMPORT_PEEK_SIZE)
     except IOError:
-      return None
+      return None, None
     try:
-      return data.splitlines()[:IMPORT_PEEK_NLINES]
+      return data, itertools.islice(csv.reader(StringIO.StringIO(data)), IMPORT_PEEK_NLINES)
     except UnicodeError:
-      return None
+      return None, None
 
 
 class TextFileReader(object):
@@ -522,14 +611,15 @@ class TextFileReader(object):
   def readlines(fileobj, encoding):
     try:
       data = fileobj.read(IMPORT_PEEK_SIZE)
-      return data.splitlines()[:IMPORT_PEEK_NLINES]
+      return data, itertools.islice(csv.reader(StringIO.StringIO(data)), IMPORT_PEEK_NLINES)
     except UnicodeError:
-      return None
+      return None, None
 
 
 class HiveFormat(CSVFormat):
+
   FIELD_TYPE_TRANSLATE = {
-    "BOOLEAN_TYPE": "string",
+    "BOOLEAN_TYPE": "boolean",
     "TINYINT_TYPE": "long",
     "SMALLINT_TYPE": "long",
     "INT_TYPE": "long",
@@ -557,7 +647,7 @@ class HiveFormat(CSVFormat):
 
   @classmethod
   def get_instance(cls, file_stream, format_):
-    sample = cls._get_sample(file_stream)
+    sample_data, sample_lines = cls._get_sample(file_stream)
 
     fields = []
 
@@ -572,6 +662,6 @@ class HiveFormat(CSVFormat):
       "line_terminator": '\n',
       "quote_char": '"',
       "has_header": False,
-      "sample": sample,
+      "sample": sample_data,
       "fields": format_["fields"]
     })

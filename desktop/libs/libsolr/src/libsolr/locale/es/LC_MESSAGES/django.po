@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-05-16 08:40-0700\n"
+"POT-Creation-Date: 2018-03-07 10:04-0800\n"
 "PO-Revision-Date: 2013-10-28 10:31-0700\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: es <LL@li.org>\n"
@@ -17,27 +17,32 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 0.9.6\n"
 
-#: src/libsolr/api.py:307 src/libsolr/api.py:319 src/libsolr/api.py:330
-#: src/libsolr/api.py:341 src/libsolr/api.py:353 src/libsolr/api.py:368
-#: src/libsolr/api.py:388 src/libsolr/api.py:410 src/libsolr/api.py:427
-#: src/libsolr/api.py:443 src/libsolr/api.py:461 src/libsolr/api.py:479
-#: src/libsolr/api.py:486 src/libsolr/api.py:495 src/libsolr/api.py:505
-#: src/libsolr/api.py:515 src/libsolr/api.py:528 src/libsolr/api.py:538
-#: src/libsolr/api.py:548 src/libsolr/api.py:570 src/libsolr/api.py:586
-#: src/libsolr/api.py:604 src/libsolr/api.py:616 src/libsolr/api.py:790
+#: src/libsolr/api.py:369 src/libsolr/api.py:381 src/libsolr/api.py:392
+#: src/libsolr/api.py:403 src/libsolr/api.py:414 src/libsolr/api.py:428
+#: src/libsolr/api.py:447 src/libsolr/api.py:459 src/libsolr/api.py:474
+#: src/libsolr/api.py:500 src/libsolr/api.py:512 src/libsolr/api.py:526
+#: src/libsolr/api.py:549 src/libsolr/api.py:567 src/libsolr/api.py:584
+#: src/libsolr/api.py:603 src/libsolr/api.py:623 src/libsolr/api.py:633
+#: src/libsolr/api.py:643 src/libsolr/api.py:654 src/libsolr/api.py:665
+#: src/libsolr/api.py:678 src/libsolr/api.py:688 src/libsolr/api.py:707
+#: src/libsolr/api.py:729 src/libsolr/api.py:745 src/libsolr/api.py:757
+#: src/libsolr/api.py:776 src/libsolr/api.py:788 src/libsolr/api.py:803
+#: src/libsolr/api.py:841 src/libsolr/api.py:863 src/libsolr/api.py:882
+#: src/libsolr/api.py:1064
 msgid "Error while accessing Solr"
 msgstr "Error al acceder a Solr"
 
-#: src/libsolr/api.py:423
+#: src/libsolr/api.py:496
 #, python-format
-msgid ""
-"Could not create or edit alias. Check response:\n"
-"%s"
-msgstr ""
-"No se puede crear o editar el alias. Compruebe la respuesta:\n"
-"%s"
+msgid "Collection could not be created: %(failure)s"
+msgstr "La colección no se ha podido crear: %(failure)s"
 
-#: src/libsolr/api.py:439
+#: src/libsolr/api.py:563
+#, python-format
+msgid "Could not create or edit alias: %s"
+msgstr "No se ha podido crear ni editar el alias: %s."
+
+#: src/libsolr/api.py:580
 #, python-format
 msgid ""
 "Could not delete alias. Check response:\n"
@@ -46,7 +51,7 @@ msgstr ""
 "No se pudo eliminar el alias. Compruebe la respuesta:\n"
 "%s"
 
-#: src/libsolr/conf.py:26
+#: src/libsolr/conf.py:33
 msgid ""
 "In secure mode (HTTPS), if Solr SSL certificates have to be verified "
 "against certificate authority"
@@ -54,6 +59,6 @@ msgstr ""
 "En el modo seguro (HTTPS), si los certificados SSL de Solr se deben "
 "verificar con la autoridad certificadora"
 
-#: src/libsolr/conf.py:33
+#: src/libsolr/conf.py:55
 msgid "Default path to Solr in ZooKeeper"
 msgstr "Ruta predeterminada a Solr en ZooKeeper"

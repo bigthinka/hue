@@ -18,17 +18,17 @@
 var SqlUtils = (function () {
 
   var hiveReservedKeywords = {
-    ALL: true, ALTER: true, AND: true, ARRAY: true, AS: true, AUTHORIZATION: true, BETWEEN: true, BIGINT: true, BINARY: true, BOOLEAN: true, BOTH: true, BY: true, CASE: true, CAST: true,
-    CHAR: true, COLUMN: true, CONF: true, CREATE: true, CROSS: true, CUBE: true, CURRENT: true, CURRENT_DATE: true, CURRENT_TIMESTAMP: true, CURSOR: true,
-    DATABASE: true, DATE: true, DECIMAL: true, DELETE: true, DESCRIBE: true, DISTINCT: true, DOUBLE: true, DROP: true, ELSE: true, END: true, EXCHANGE: true, EXISTS: true,
-    EXTENDED: true, EXTERNAL: true, FALSE: true, FETCH: true, FLOAT: true, FOLLOWING: true, FOR: true, FROM: true, FULL: true, FUNCTION: true, GRANT: true, GROUP: true,
-    GROUPING: true, HAVING: true, IF: true, IMPORT: true, IN: true, INNER: true, INSERT: true, INT: true, INTERSECT: true, INTERVAL: true, INTO: true, IS: true, JOIN: true, LATERAL: true,
-    LEFT: true, LESS: true, LIKE: true, LOCAL: true, MACRO: true, MAP: true, MORE: true, NONE: true, NOT: true, NULL: true, OF: true, ON: true, OR: true, ORDER: true, OUT: true, OUTER: true, OVER: true,
-    PARTIALSCAN: true, PARTITION: true, PERCENT: true, PRECEDING: true, PRESERVE: true, PROCEDURE: true, RANGE: true, READS: true, REDUCE: true,
-    REGEXP: true, REVOKE: true, RIGHT: true, RLIKE: true, ROLLUP: true, ROW: true, ROWS: true,
-    SELECT: true, SET: true, SMALLINT: true, TABLE: true, TABLESAMPLE: true, THEN: true, TIMESTAMP: true, TO: true, TRANSFORM: true, TRIGGER: true, TRUE: true,
-    TRUNCATE: true, UNBOUNDED: true, UNION: true, UNIQUEJOIN: true, UPDATE: true, USER: true, USING: true, VALUES: true, VARCHAR: true, WHEN: true, WHERE: true,
-    WINDOW: true, WITH: true
+    ALL: true, ALTER: true, AND: true, ARRAY: true, AS: true, AUTHORIZATION: true, BETWEEN: true, BIGINT: true, BINARY: true, BOOLEAN: true, BOTH: true, BY: true, CACHE: true, CASE: true,
+    CAST: true, CHAR: true, COLUMN: true, COMMIT: true, CONF: true, CONSTRAINT: true, CREATE: true, CROSS: true, CUBE: true, CURRENT: true, CURRENT_DATE: true, CURRENT_TIMESTAMP: true,
+    CURSOR: true, DATABASE: true, DATE: true, DAYOFWEEK: true, DECIMAL: true, DELETE: true, DESCRIBE: true, DISTINCT: true, DIV: true, DOUBLE: true, DROP: true, ELSE: true, END: true,
+    EXCHANGE: true, EXTRACT: true, EXISTS: true, EXTENDED: true, EXTERNAL: true, FALSE: true, FETCH: true, FLOAT: true, FLOOR: true, FOLLOWING: true, FOR: true, FOREIGN: true,FROM: true,
+    FULL: true, FUNCTION: true, GRANT: true, GROUP: true, GROUPING: true, HAVING: true, IF: true, IMPORT: true, IN: true, INNER: true, INSERT: true, INT: true, INTEGER: true,
+    INTERSECT: true, INTERVAL: true, INTO: true, IS: true, JOIN: true, LATERAL: true, LEFT: true, LESS: true, LIKE: true, LOCAL: true, MACRO: true, MAP: true, MORE: true, NONE: true,
+    NOT: true, NULL: true, NUMERIC: true, OF: true, ON: true, ONLY: true, OR: true, ORDER: true, OUT: true, OUTER: true, OVER: true, PARTIALSCAN: true, PARTITION: true, PERCENT: true,
+    PRECEDING: true, PRECISION: true, PRESERVE: true, PRIMARY: true, PROCEDURE: true, RANGE: true, READS: true, REDUCE: true, REFERENCES: true, REGEXP: true, REVOKE: true, RIGHT: true,
+    RLIKE: true, ROLLBACK: true, ROLLUP: true, ROW: true, ROWS: true, SELECT: true, SET: true, SMALLINT: true, START: true, TABLE: true, TABLESAMPLE: true, THEN: true, TIME: true,
+    TIMESTAMP: true, TO: true, TRANSFORM: true, TRIGGER: true, TRUE: true, TRUNCATE: true, UNBOUNDED: true, UNION: true, UNIQUEJOIN: true, UPDATE: true, USER: true, USING: true,
+    VALUES: true, VARCHAR: true, VIEWS: true, WHEN: true, WHERE: true, WINDOW: true, WITH: true
   };
 
   var extraHiveReservedKeywords = {
@@ -36,16 +36,207 @@ var SqlUtils = (function () {
   };
 
   var impalaReservedKeywords = {
-    ADD: true, AGGREGATE: true, ALL: true, ALTER: true, AND: true, API_VERSION: true, AS: true, ASC: true, AVRO: true, BETWEEN: true, BIGINT: true, BINARY: true, BOOLEAN: true, BY: true, CACHED: true, CASE: true, CAST: true, CHANGE: true, CHAR: true, CLASS: true, CLOSE_FN: true,
+    ADD: true, AGGREGATE: true, ALL: true, ALTER: true, AND: true, API_VERSION: true, ARRAY: true, AS: true, ASC: true, AVRO: true, BETWEEN: true, BIGINT: true, BINARY: true, BOOLEAN: true, BY: true, CACHED: true, CASE: true, CAST: true, CHANGE: true, CHAR: true, CLASS: true, CLOSE_FN: true,
     COLUMN: true, COLUMNS: true, COMMENT: true, COMPUTE: true, CREATE: true, CROSS: true, DATA: true, DATABASE: true, DATABASES: true, DATE: true, DATETIME: true, DECIMAL: true, DELIMITED: true, DESC: true, DESCRIBE: true, DISTINCT: true, DIV: true, DOUBLE: true, DROP: true, ELSE: true, END: true,
-    ESCAPED: true, EXISTS: true, EXPLAIN: true, EXTERNAL: true, FALSE: true, FIELDS: true, FILEFORMAT: true, FINALIZE_FN: true, FIRST: true, FLOAT: true, FORMAT: true, FORMATTED: true, FROM: true, FULL: true, FUNCTION: true, FUNCTIONS: true, GROUP: true, HAVING: true, IF: true, IN: true, INCREMENTAL: true,
-    INIT_FN: true, INNER: true, INPATH: true, INSERT: true, INT: true, INTEGER: true, INTERMEDIATE: true, INTERVAL: true, INTO: true, INVALIDATE: true, IS: true, JOIN: true, KEY: true, KUDU: true, LAST: true, LEFT: true, LIKE: true, LIMIT: true, LINES: true, LOAD: true, LOCATION: true, MERGE_FN: true, METADATA: true,
-    NOT: true, NULL: true, NULLS: true, OFFSET: true, ON: true, OR: true, ORDER: true, OUTER: true, OVERWRITE: true, PARQUET: true, PARQUETFILE: true, PARTITION: true, PARTITIONED: true, PARTITIONS: true, PREPARE_FN: true, PRIMARY: true, PRODUCED: true, RCFILE: true, REAL: true, REFRESH: true, REGEXP: true, RENAME: true,
-    REPLACE: true, RETURNS: true, RIGHT: true, RLIKE: true, ROW: true, SCHEMA: true, SCHEMAS: true, SELECT: true, SEMI: true, SEQUENCEFILE: true, SERDEPROPERTIES: true, SERIALIZE_FN: true, SET: true, SHOW: true, SMALLINT: true, STATS: true, STORED: true, STRAIGHT_JOIN: true, STRING: true, SYMBOL: true, TABLE: true,
-    TABLES: true, TBLPROPERTIES: true, TERMINATED: true, TEXTFILE: true, THEN: true, TIMESTAMP: true, TINYINT: true, TO: true, TRUE: true, UNCACHED: true, UNION: true, UPDATE_FN: true, USE: true, USING: true, VALUES: true, VIEW: true, WHEN: true, WHERE: true, WITH: true
+    ESCAPED: true, EXISTS: true, EXPLAIN: true, EXTERNAL: true, FALSE: true, FIELDS: true, FILEFORMAT: true, FILES: true, FINALIZE_FN: true, FIRST: true, FLOAT: true, FORMAT: true, FORMATTED: true, FROM: true, FULL: true, FUNCTION: true, FUNCTIONS: true, GROUP: true, HAVING: true, IF: true, ILIKE: true, IN: true, INCREMENTAL: true,
+    INIT_FN: true, INNER: true, INPATH: true, INSERT: true, INT: true, INTEGER: true, INTERMEDIATE: true, INTERVAL: true, INTO: true, INVALIDATE: true, IS: true, JOIN: true, KEY: true, KUDU: true, LAST: true, LEFT: true, LIKE: true, LIMIT: true, LINES: true, LOAD: true, LOCATION: true, MAP: true, MERGE_FN: true, METADATA: true,
+    NOT: true, NULL: true, NULLS: true, OFFSET: true, ON: true, OR: true, ORDER: true, OUTER: true, OVERWRITE: true, PARQUET: true, PARQUETFILE: true, PARTITION: true, PARTITIONED: true, PARTITIONS: true, PREPARE_FN: true, PRIMARY: true, PRODUCED: true, PURGE: true, RCFILE: true, REAL: true, REFRESH: true, REGEXP: true, RENAME: true,
+    REPEATABLE: true, REPLACE: true, RETURNS: true, RIGHT: true, RLIKE: true, ROW: true, SCHEMA: true, SCHEMAS: true, SELECT: true, SEMI: true, SEQUENCEFILE: true, SERDEPROPERTIES: true, SERIALIZE_FN: true, SET: true, SHOW: true, SMALLINT: true, SORT: true, STATS: true, STORED: true, STRAIGHT_JOIN: true, STRING: true, STRUCT: true, SYMBOL: true, TABLE: true,
+    TABLES: true, TABLESAMPLE: true, TBLPROPERTIES: true, TERMINATED: true, TEXTFILE: true, THEN: true, TIMESTAMP: true, TINYINT: true, TO: true, TRUE: true, UNCACHED: true, UNION: true, UPDATE_FN: true, UPSERT: true, USE: true, USING: true, VALUES: true, VIEW: true, WHEN: true, WHERE: true, WITH: true
+  };
+
+  var autocompleteFilter = function (filter, entries) {
+    var lowerCaseFilter = filter.toLowerCase();
+    return entries.filter(function (suggestion) {
+      // TODO: Extend with fuzzy matches
+      var foundIndex = suggestion.value.toLowerCase().indexOf(lowerCaseFilter);
+      if (foundIndex !== -1) {
+        if (foundIndex === 0 || (suggestion.filterValue && suggestion.filterValue.toLowerCase().indexOf(lowerCaseFilter) === 0)) {
+          suggestion.filterWeight = 3;
+        } else  {
+          suggestion.filterWeight = 2;
+        }
+      } else {
+        if (suggestion.details && suggestion.details.comment && lowerCaseFilter.indexOf(' ') === -1) {
+          foundIndex = suggestion.details.comment.toLowerCase().indexOf(lowerCaseFilter);
+          if (foundIndex !== -1) {
+            suggestion.filterWeight = 1;
+            suggestion.matchComment = true;
+          }
+        }
+      }
+      if (foundIndex !== -1) {
+        suggestion.matchIndex = foundIndex;
+        suggestion.matchLength = filter.length;
+        return true;
+      }
+      return false;
+    });
+  };
+
+  var sortSuggestions = function (suggestions, filter, sortOverride) {
+    suggestions.sort(function (a, b) {
+      if (filter) {
+        if (typeof a.filterWeight !== 'undefined' && typeof b.filterWeight !== 'undefined' && b.filterWeight !== a.filterWeight) {
+          return b.filterWeight - a.filterWeight;
+        }
+        if (typeof a.filterWeight !== 'undefined' && typeof b.filterWeight === 'undefined') {
+          return -1;
+        }
+        if (typeof a.filterWeight === 'undefined' && typeof b.filterWeight !== 'undefined') {
+          return 1;
+        }
+      }
+      if (sortOverride && sortOverride.partitionColumnsFirst) {
+        if (a.partitionKey && !b.partitionKey) {
+          return -1;
+        }
+        if (b.partitionKey && !a.partitionKey) {
+          return 1;
+        }
+      }
+      var aWeight = a.category.weight + (a.weightAdjust || 0);
+      var bWeight = b.category.weight + (b.weightAdjust || 0);
+      if (typeof aWeight !== 'undefined' && typeof bWeight !== 'undefined' && bWeight !== aWeight) {
+        return bWeight - aWeight;
+      }
+      if (typeof aWeight !== 'undefined' && typeof bWeight === 'undefined') {
+        return -1;
+      }
+      if (typeof aWeight === 'undefined' && typeof bWeight !== 'undefined') {
+        return 1;
+      }
+      return a.value.localeCompare(b.value);
+    });
+  };
+
+  var identifierChainToPath = function (identifierChain) {
+    return $.map(identifierChain, function (identifier) {
+      return identifier.name
+    })
+  };
+
+  /**
+   *
+   * @param {Object} options
+   * @param {String} options.sourceType
+   * @param {ContextNamespace} options.namespace
+   * @param {ContextCompute} options.compute
+   * @param {Object[]} [options.identifierChain]
+   * @param {Object[]} [options.tables]
+   * @param {Object} [options.cancellable]
+   * @param {Object} [options.cachedOnly]
+   *
+   * @return {CancellablePromise}
+   */
+  var resolveCatalogEntry = function (options) {
+    var cancellablePromises = [];
+    var deferred = $.Deferred();
+    var promise = new CancellablePromise(deferred, undefined, cancellablePromises);
+    DataCatalog.applyCancellable(promise, options);
+
+    if (!options.identifierChain) {
+      deferred.reject();
+      return promise;
+    }
+
+    var findInTree = function (currentEntry, fieldsToGo) {
+      if (fieldsToGo.length === 0) {
+        deferred.reject();
+        return;
+      }
+
+      var nextField;
+      if (currentEntry.getType() === 'map') {
+        nextField = 'value';
+      } else if (currentEntry.getType() === 'array') {
+        nextField = 'item';
+      } else {
+        nextField = fieldsToGo.shift();
+      }
+
+      cancellablePromises.push(currentEntry.getChildren({
+        cancellable: options.cancellable,
+        cachedOnly: options.cachedOnly,
+        silenceErrors: true
+      }).done(function (childEntries) {
+        var foundEntry = undefined;
+        childEntries.some(function (childEntry) {
+          if (SqlUtils.identifierEquals(childEntry.name, nextField)) {
+            foundEntry = childEntry;
+            return true;
+          }
+        });
+        if (foundEntry && fieldsToGo.length) {
+          findInTree(foundEntry, fieldsToGo);
+        } else if (foundEntry) {
+          deferred.resolve(foundEntry);
+        } else {
+          deferred.reject();
+        }
+      }).fail(deferred.reject))
+    };
+
+    var findTable = function (tablesToGo) {
+      if (tablesToGo.length === 0) {
+        deferred.reject();
+        return;
+      }
+
+      var nextTable = tablesToGo.pop();
+      if (typeof nextTable.subQuery !== 'undefined') {
+        findTable(tablesToGo);
+        return;
+      }
+
+      cancellablePromises.push(DataCatalog.getChildren({
+        sourceType: options.sourceType,
+        namespace: options.namespace,
+        compute: options.compute,
+        path: SqlUtils.identifierChainToPath(nextTable.identifierChain),
+        cachedOnly: options && options.cachedOnly,
+        cancellable: options && options.cancellable,
+        silenceErrors: true
+      }).done(function (childEntries) {
+        var foundEntry = undefined;
+        childEntries.some(function (childEntry) {
+          if (SqlUtils.identifierEquals(childEntry.name, options.identifierChain[0].name)) {
+            foundEntry = childEntry;
+            return true;
+          }
+        });
+
+        if (foundEntry && options.identifierChain.length > 1) {
+          findInTree(foundEntry, SqlUtils.identifierChainToPath(options.identifierChain.slice(1)));
+        } else if (foundEntry) {
+          deferred.resolve(foundEntry);
+        } else {
+          findTable(tablesToGo)
+        }
+      }).fail(deferred.reject));
+    };
+
+    if (options.tables) {
+      findTable(options.tables.concat())
+    } else {
+      DataCatalog.getEntry({
+        sourceType: options.sourceType,
+        namespace: options.namespace,
+        compute: options.compute,
+        path: [],
+        cachedOnly: options && options.cachedOnly,
+        cancellable: options && options.cancellable,
+        silenceErrors: true
+      }).done(function (entry) {
+        findInTree(entry, SqlUtils.identifierChainToPath(options.identifierChain))
+      })
+    }
+
+    return promise;
   };
 
   return {
+    autocompleteFilter : autocompleteFilter,
     backTickIfNeeded: function (sourceType, identifier) {
       if (identifier.indexOf('`') === 0) {
         return identifier;
@@ -64,7 +255,15 @@ var SqlUtils = (function () {
         return '`' + identifier + '`';
       }
       return identifier;
-    }
+    },
+    locationEquals: function (a, b) {
+      return a && b && a.first_line === b.first_line && a.first_column === b.first_column && a.last_line === b.last_line && a.last_column === b.last_column;
+    },
+    identifierEquals: function (a, b) {
+      return a && b && a.replace(/^\s*`/, '').replace(/`\s*$/, '').toLowerCase() === b.replace(/^\s*`/, '').replace(/`\s*$/, '').toLowerCase();
+    },
+    sortSuggestions: sortSuggestions,
+    resolveCatalogEntry: resolveCatalogEntry,
+    identifierChainToPath: identifierChainToPath
   }
-
 })();

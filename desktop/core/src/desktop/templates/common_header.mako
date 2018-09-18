@@ -22,14 +22,18 @@ from desktop.lib.i18n import smart_unicode
 
 from metadata.conf import has_optimizer, OPTIMIZER
 
-home_url = url('desktop.views.home')
+from desktop.auth.backend import is_admin
+
+home_url = url('desktop_views_home')
 if USE_NEW_EDITOR.get():
-  home_url = url('desktop.views.home2')
+  home_url = url('desktop_views_home2')
 %>
 
-<%namespace name="koComponents" file="/ko_components.mako" />
-<%namespace name="hueIcons" file="/hue_icons.mako" />
+<%namespace name="charting" file="/charting.mako" />
 <%namespace name="commonHeaderFooterComponents" file="/common_header_footer_components.mako" />
+<%namespace name="hueAceAutocompleter" file="/hue_ace_autocompleter.mako" />
+<%namespace name="hueIcons" file="/hue_icons.mako" />
+<%namespace name="koComponents" file="/ko_components.mako" />
 
 <!DOCTYPE html>
 <%def name="is_selected(selected)">
@@ -82,6 +86,9 @@ if USE_NEW_EDITOR.get():
         background-color: #F9F9F9;
         z-index: 1033;
       }
+      .main-content {
+        top: 106px!important;
+      }
       .navigator {
         top: 30px!important;
       }
@@ -116,14 +123,18 @@ if USE_NEW_EDITOR.get():
     var IS_HUE_4 = false;
   </script>
 
-  ${ commonHeaderFooterComponents.header_i18n_redirection(user, is_s3_enabled, apps) }
+  ${ commonHeaderFooterComponents.header_i18n_redirection() }
 
-  % if not conf.DJANGO_DEBUG_MODE.get():
+  % if user.is_authenticated():
+  <script src="/desktop/globalJsConstants.js"></script>
+  % endif
+
+  % if not conf.DEV.get():
   <script src="${ static('desktop/js/hue.errorcatcher.js') }"></script>
   % endif
 
   <script src="${ static('desktop/js/hue.utils.js') }"></script>
-  <script src="${ static('desktop/ext/js/jquery/jquery-2.1.1.min.js') }"></script>
+  <script src="${ static('desktop/ext/js/jquery/jquery-2.2.4.min.js') }"></script>
   <script src="${ static('desktop/js/jquery.migration.js') }"></script>
   <script src="${ static('desktop/js/jquery.hiveautocomplete.js') }"></script>
   <script src="${ static('desktop/js/jquery.hdfsautocomplete.js') }"></script>
@@ -144,12 +155,12 @@ if USE_NEW_EDITOR.get():
   <script src="${ static('desktop/ext/js/jquery/plugins/jquery.dataTables.1.8.2.min.js') }"></script>
   <script src="${ static('desktop/ext/js/jquery/plugins/jquery.form.js') }"></script>
   <script src="${ static('desktop/js/jquery.huedatatable.js') }"></script>
-  <script src="${ static('desktop/js/jquery.nicescroll.js') }"></script>
   <script src="${ static('desktop/js/jquery.datatables.sorting.js') }"></script>
   <script src="${ static('desktop/ext/js/d3.v3.js') }"></script>
   <script src="${ static('desktop/ext/js/d3.v4.js') }"></script>
   <script src="${ static('desktop/ext/js/bootstrap.min.js') }"></script>
   <script src="${ static('desktop/js/bootstrap-tooltip.js') }"></script>
+  <script src="${ static('desktop/js/bootstrap-typeahead-touchscreen.js') }"></script>
   <script src="${ static('desktop/ext/js/bootstrap-better-typeahead.min.js') }"></script>
   <script src="${ static('desktop/js/hue.colors.js') }"></script>
   <script src="${ static('desktop/ext/js/fileuploader.js') }"></script>
@@ -163,28 +174,53 @@ if USE_NEW_EDITOR.get():
   <script src="${ static('desktop/ext/js/knockout.validation.min.js') }"></script>
   <script src="${ static('desktop/js/ko.switch-case.js') }"></script>
   <script src="${ static('desktop/js/ko.hue-bindings.js') }"></script>
-  <script src="${ static('desktop/js/sqlUtils.js') }"></script>
   <script src="${ static('desktop/ext/js/dropzone.min.js') }"></script>
+
+% if user.is_authenticated():
+
+  <script src="${ static('desktop/js/sqlUtils.js') }"></script>
   <script src="${ static('desktop/js/ace/ace.js') }"></script>
   <script src="${ static('desktop/js/ace/mode-impala.js') }"></script>
   <script src="${ static('desktop/js/ace/mode-hive.js') }"></script>
   <script src="${ static('desktop/js/ace/ext-language_tools.js') }"></script>
   <script src="${ static('desktop/js/ace.extended.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/sqlParseSupport.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/sqlStatementsParser.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/sqlAutocompleteParser.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/solrQueryParser.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/solrFormulaParser.js') }"></script>
+  <script src="${ static('desktop/js/autocomplete/globalSearchParser.js') }"></script>
+  <script src="${ static('desktop/js/sqlAutocompleter2.js') }"></script>
+  <script src="${ static('desktop/js/sqlAutocompleter3.js') }"></script>
+  <script src="${ static('desktop/js/hdfsAutocompleter.js') }"></script>
+  <script src="${ static('desktop/js/autocompleter.js') }"></script>
+
   <script>
     ace.config.set("basePath", "/static/desktop/js/ace");
   </script>
 
   <script src="${ static('metastore/js/metastore.model.js') }"></script>
 
+  ${ charting.import_charts() }
   ${ koComponents.all() }
+  ${ hueAceAutocompleter.hueAceAutocompleter() }
+%endif
 
   ${ commonHeaderFooterComponents.header_pollers(user, is_s3_enabled, apps) }
 
+% if user.is_authenticated():
+  <script src="${ static('desktop/ext/js/localforage.min.js') }"></script>
+  <script src="${ static('desktop/js/dataCatalog.js') }"></script>
   <script src="${ static('desktop/js/apiHelper.js') }"></script>
   <script src="${ static('desktop/js/clusterConfig.js') }"></script>
 
   <script type="text/javascript">
     $(document).ready(function () {
+      localforage.config({
+        version: 1.0,
+        storeName: 'hue_store',
+      });
+
       huePubSub.subscribe('get.current.app.name', function () {
         var appName = '';
         if ('${ 'metastore' in apps }' === 'True' && location.href.indexOf('${"metastore" in apps and apps["metastore"].display_name}') !== -1) {
@@ -200,11 +236,18 @@ if USE_NEW_EDITOR.get():
       });
     });
   </script>
+%endif
 
 </head>
 <body>
 
 ${ hueIcons.symbols() }
+
+% if conf.DISABLE_HUE_3.get() and conf.IS_HUE_4.get() and request.environ.get("PATH_INFO").find("/hue/") < 0:
+  <script>
+    window.location.replace("/");
+  </script>
+% endif
 
 % if banner_message or conf.CUSTOM.BANNER_TOP_HTML.get():
   <div class="banner">
@@ -230,7 +273,7 @@ ${ hueIcons.symbols() }
   <ul class="nav nav-pills">
     <li class="divider-vertical"></li>
     % if 'filebrowser' in apps:
-      % if not is_s3_enabled:
+      % if not is_s3_enabled and not is_adls_enabled:
       <li class="hide1380">
         <a title="${_('Manage HDFS')}" data-rel="navigator-tooltip" href="/${apps['filebrowser'].display_name}">
           <i class="fa fa-file"></i>&nbsp;${_('File Browser')}&nbsp;
@@ -245,9 +288,16 @@ ${ hueIcons.symbols() }
             <li><a href="/${apps['filebrowser'].display_name}">
               <i class="fa fa-fw fa-file" style="vertical-align: middle"></i>${_('HDFS Browser')}</a>
             </li>
+            % if is_s3_enabled:
             <li><a href="/${apps['filebrowser'].display_name}/view=S3A://">
               <i class="fa fa-fw fa-cubes" style="vertical-align: middle"></i>${_('S3 Browser')}</a>
             </li>
+            % endif
+            % if is_adls_enabled:
+            <li><a href="/${apps['filebrowser'].display_name}/view=adl:/">
+              <span class="fa fa-fw" style="font-size:20px;vertical-align: middle;"><svg class="hi"><use xlink:href='#hi-adls'></use></svg></span>${_('ADLS Browser')}</a>
+            </li>
+            % endif
           </ul>
         </li>
       % endif
@@ -263,49 +313,58 @@ ${ hueIcons.symbols() }
           </a>
         % endif
       </li>
+      <li class="hideMoreThan1380">
+        % if is_adls_enabled:
+          <a title="${_('ADLS Browser')}" data-rel="navigator-tooltip" href="/${apps['filebrowser'].display_name}/view=adl:/">
+            <span style="font-size:15px;vertical-align: middle;"><svg class="hi"><use xlink:href='#hi-adls'></use></svg></span>
+          </a>
+        % endif
+      </li>
     % endif
     % if 'jobbrowser' in apps:
-      <li class="hide1380"><a title="${_('Manage jobs')}" data-rel="navigator-tooltip" href="/${apps['jobbrowser'].display_name}"><i class="fa fa-list-alt"></i>&nbsp;${_('Job Browser')}&nbsp;<span id="jobBrowserCount" class="badge badge-warning hide" style="padding-top:0;padding-bottom: 0"></span></a></li>
-      <li class="hideMoreThan1380"><a title="${_('Job Browser')}" data-rel="navigator-tooltip" href="/${apps['jobbrowser'].display_name}"><i class="fa fa-list-alt"></i></a></li>
       <% from jobbrowser.conf import ENABLE_V2 %>
-      % if ENABLE_V2.get():
+      % if not ENABLE_V2.get():
+        <li class="hide1380"><a title="${_('Manage jobs')}" data-rel="navigator-tooltip" href="/${apps['jobbrowser'].display_name}"><i class="fa fa-list-alt"></i>&nbsp;${_('Job Browser')}&nbsp;<span id="jobBrowserCount" class="badge badge-warning hide" style="padding-top:0;padding-bottom: 0"></span></a></li>
+        <li class="hideMoreThan1380"><a title="${_('Job Browser')}" data-rel="navigator-tooltip" href="/${apps['jobbrowser'].display_name}"><i class="fa fa-list-alt"></i></a></li>
+      % else:
         <li class="hide1380"><a title="${_('Manage jobs')}" data-rel="navigator-tooltip" href="/jobbrowser/apps">
-          <i class="fa fa-list-alt"></i>&nbsp;${_('Job Browser 2')}&nbsp;<span id="jobBrowserCount" class="badge badge-warning hide" style="padding-top:0;padding-bottom: 0"></span></a>
+          <i class="fa fa-list-alt"></i>&nbsp;${_('Job Browser')}&nbsp;<span id="jobBrowserCount" class="badge badge-warning hide" style="padding-top:0;padding-bottom: 0"></span></a>
         </li>
-        <li class="hideMoreThan1380"><a title="${_('Job Browser 2')}" data-rel="navigator-tooltip" href="/jobbrowser/apps"><i class="fa fa-list-alt"></i></a></li>
+        <li class="hideMoreThan1380"><a title="${_('Job Browser')}" data-rel="navigator-tooltip" href="/jobbrowser/apps"><i class="fa fa-list-alt"></i></a></li>
       % endif
     % endif
     <%
-      view_profile = user.has_hue_permission(action="access_view:useradmin:edit_user", app="useradmin") or user.is_superuser
+      view_profile = user.has_hue_permission(action="access_view:useradmin:edit_user", app="useradmin") or is_admin(user)
     %>
-    % if view_profile:
-      <li class="dropdown">
-        <a title="${ _('Administration') }" href="#" data-rel="navigator-tooltip" data-toggle="dropdown" class="dropdown-toggle">
-          <i class="fa fa-cogs"></i>&nbsp;${user.username}&nbsp;
-          <b class="caret"></b>
+    % if view_profile or conf.IS_HUE_4.get():
+    <li class="dropdown">
+      <a title="${'Administration' if view_profile else ''}" href="#" data-rel="navigator-tooltip" data-toggle="dropdown" class="dropdown-toggle">
+        <i class="fa fa-cogs"></i>&nbsp;${user.username}&nbsp;
+        <b class="caret"></b>
+      </a>
+      <ul class="dropdown-menu pull-right">
+      % if view_profile:
+      <li>
+        <a href="${ url('useradmin.views.edit_user', username=user.username) }"><i class="fa fa-fw fa-key"></i>
+          % if is_ldap_setup:
+            ${_('View Profile')}
+          % else:
+            ${_('Edit Profile')}
+          % endif
         </a>
-        <ul class="dropdown-menu pull-right">
-          <li>
-            <a href="${ url('useradmin.views.edit_user', username=user.usernamefull) }"><i class="fa fa-fw fa-key"></i>
-              % if is_ldap_setup:
-                ${_('View Profile')}
-              % else:
-                ${_('Edit Profile')}
-              % endif
-            </a>
-          </li>
-          % if user.is_superuser:
-            <li><a href="${ url('useradmin.views.list_users') }"><i class="fa fa-fw fa-group"></i> ${_('Manage Users')}</a></li>
-          % endif
-          % if conf.IS_HUE_4.get():
-          <li><a href="javascript:void(0)" onclick="huePubSub.publish('set.hue.version', 4)"><i class="fa fa-fw fa-exchange"></i> ${_('Switch to Hue 4')}</a></li>
-          % endif
-        </ul>
       </li>
+        % if is_admin(user):
+          <li><a href="${ url('useradmin.views.list_users') }"><i class="fa fa-fw fa-group"></i> ${_('Manage Users')}</a></li>
+        % endif
+      % endif
+      % if conf.IS_HUE_4.get():
+      <li><a href="javascript:void(0)" onclick="huePubSub.publish('set.hue.version', 4)"><i class="fa fa-fw fa-exchange"></i> ${_('Switch to Hue 4')}</a></li>
+      % endif
+      </ul>
+    </li>
     % else:
       <li><a title="" data-rel="navigator-tooltip" href="#"><i class="fa fa-fw fa-user"></i>&nbsp;${user.username}</a></li>
     % endif
-    </li>
     % if 'help' in apps:
     <li><a title="${_('Documentation')}" data-rel="navigator-tooltip" href="/help"><i class="fa fa-question-circle"></i></a></li>
     % endif
@@ -379,7 +438,7 @@ ${ hueIcons.symbols() }
            <li><a href="/${apps[query_apps[0]].display_name}"><i class="fa fa-terminal hideMoreThan950"></i><span class="hide950">${apps[query_apps[0]].nice_name}</span></a></li>
            % endif
        % endif
-       % if 'notebook' in apps:
+       % if 'beeswax' in apps:
         <%
           from notebook.conf import SHOW_NOTEBOOKS
         %>
@@ -447,7 +506,7 @@ ${ hueIcons.symbols() }
                <li><a href="${url('oozie:list_oozie_bundles')}"><img src="${ static('oozie/art/icon_oozie_bundle_48.png') }" class="app-icon" alt="${ _('Oozie bundles icon') }" /> ${_('Bundles')}</a></li>
              </ul>
            </li>
-           % if not user.has_hue_permission(action="disable_editor_access", app="oozie") or user.is_superuser:
+           % if not user.has_hue_permission(action="disable_editor_access", app="oozie") or is_admin(user):
            <% from oozie.conf import ENABLE_V2 %>
            % if not ENABLE_V2.get():
            <li class="dropdown-submenu">

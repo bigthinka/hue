@@ -77,7 +77,6 @@ ${ commonheader_m(editor_type, editor_type, user, request, "68px") | n,unicode }
         snippet: $data,
         contextTooltip: '${ _ko("Right-click for details") }',
         expandStar: '${ _ko("Shift + Click to replace with all columns") }',
-        onBlur: saveTemporarySnippet,
         highlightedRange: result.statement_range,
         useNewAutocompleter: $root.useNewAutocompleter,
         aceOptions: {
@@ -164,12 +163,10 @@ ${ commonheader_m(editor_type, editor_type, user, request, "68px") | n,unicode }
 
 
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }"></script>
-<script src="${ static('desktop/js/ko.charts.js') }"></script>
 <script src="${ static('desktop/js/ko.switch-case.js') }"></script>
 <script src="${ static('desktop/js/sqlFunctions.js') }"></script>
 <script src="${ static('desktop/js/autocomplete/sqlParseSupport.js') }"></script>
 <script src="${ static('desktop/js/autocomplete/sqlAutocompleteParser.js') }"></script>
-<script src="${ static('desktop/js/sqlAutocompleter.js') }"></script>
 <script src="${ static('desktop/js/sqlAutocompleter2.js') }"></script>
 <script src="${ static('desktop/js/sqlAutocompleter3.js') }"></script>
 <script src="${ static('desktop/js/hdfsAutocompleter.js') }"></script>
@@ -180,7 +177,9 @@ ${ commonheader_m(editor_type, editor_type, user, request, "68px") | n,unicode }
 ${ assist.assistJSModels() }
 
 <script type="text/javascript">
-  ko.options.deferUpdates = true;
+  if (ko.options) {
+    ko.options.deferUpdates = true;
+  }
 
   ace.config.set("basePath", "/static/desktop/js/ace");
 
@@ -297,18 +296,6 @@ ${ assist.assistJSModels() }
       }
     }
   });
-
-  function saveTemporarySnippet($element, value) {
-    if ($element.data('last-active-editor')) {
-      try {
-        if (viewModel.editorType() != 'notebook') {
-          $.totalStorage('hue.notebook.lastWrittenSnippet.${user}.' + viewModel.editorType(), value);
-        }
-      }
-      catch (e) {
-      } // storage quota exceeded with enormous editor content
-    }
-  }
 
   var viewModel;
 

@@ -25,7 +25,7 @@
   path_enc = path
   dirname_enc = urlencode(view['dirname'])
   base_url = url('filebrowser.views.view', path=path_enc)
-  edit_url = url('filebrowser.views.edit', path=path_enc)
+  edit_url = url('filebrowser_views_edit', path=path_enc)
 %>
 <%namespace name="fb_components" file="fb_components.mako" />
 
@@ -85,7 +85,7 @@ ${ fb_components.menubar() }
           <!-- /ko -->
 
            <!-- ko if: $root.file().stats -->
-           <li class="white">
+           <li class="white margin-top-20">
             <dl class="muted">
               <dt>${_('Last modified')}</dt>
               <dd data-bind="text: localeFormat($root.file().stats.mtime()*1000)"></dd>
@@ -146,7 +146,7 @@ ${ fb_components.menubar() }
             <!-- /ko -->
             <!-- ko hueSpinner: { spin: !$root.file() && isLoading(), center: true, size: 'xlarge' } --><!-- /ko -->
             <!-- ko if: $root.isViewing -->
-            <div id="fileArea" data-bind="css: {'loading': isLoading}, visible: $root.file() && $root.file().stats.size()">
+            <div id="fileArea" data-bind="css: {'loading': isLoading}, visible: $root.file() && $root.file().stats.size()" class="monospace" >
               <!-- ko hueSpinner: { spin: isLoading, center: true, size: 'xlarge' } --><!-- /ko -->
               <pre></pre>
               <table class="binary">
@@ -369,7 +369,7 @@ ${ fb_components.menubar() }
     }
 
     self.downloadFile = function () {
-      location.href = "${url('filebrowser.views.download', path=path_enc)}";
+      location.href = "${url('filebrowser_views_download', path=path_enc)}";
     };
 
     self.pageChanged = function () {

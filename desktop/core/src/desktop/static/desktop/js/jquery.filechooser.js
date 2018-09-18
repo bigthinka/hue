@@ -20,8 +20,6 @@
 (function ($, window, document, undefined) {
 
   var pluginName = "jHueFileChooser",
-  // global variables (jHueFileChooserGlobals, useful for i18n) can be set on
-  // desktop/templates/common_header.mako
     defaults = {
       initialPath: "",
       forceRefresh: false,
@@ -46,6 +44,64 @@
         HOME: "Home"
       },
       filesystems: ['hdfs'],
+      filesysteminfo: {
+        "": {
+          scheme: "",
+          root: "/",
+          home: "/?default_to_home",
+          icon: {
+            brand: "fa-files-o",
+            home: "fa-home",
+          },
+          label : {
+            home: "home",
+            name: "HDFS",
+          }
+        },
+        hdfs: {
+          scheme: "",
+          root: "/",
+          home: "/?default_to_home",
+          icon: {
+            brand: "fa-files-o",
+            home: "fa-home",
+          },
+          label : {
+            home: "home",
+            name: "HDFS",
+          }
+        },
+        s3a: {
+          scheme: "s3a",
+          root: "s3a://",
+          home: "s3a://",
+          icon: {
+            brand: "fa-cubes",
+            home: "fa-cubes",
+          },
+          label : {
+            home: "",
+            name: "S3"
+          }
+        },
+        adl: {
+          scheme: "adl",
+          root: "adl:/",
+          home: "adl:/",
+          icon: {
+            svg:{
+              brand: "#hi-adls",
+              home: "#hi-adls"
+            },
+            brand: "fa-windows",
+            home: "fa-windows"
+          },
+          label : {
+            home: "",
+            name: "ADLS"
+          }
+        }
+      },
       fsSelected: 'hdfs',
       user: "",
       onNavigate: function () {
@@ -64,20 +120,9 @@
   function Plugin(element, options) {
     this.element = element;
     $(element).data('jHueFileChooser', this);
-    if (typeof jHueFileChooserGlobals != 'undefined') {
-      var extendedDefaults = $.extend({}, defaults, jHueFileChooserGlobals);
-      extendedDefaults.labels = $.extend({}, defaults.labels, jHueFileChooserGlobals.labels);
-      this.options = $.extend({}, extendedDefaults, options);
-      if (options != null) {
-        this.options.labels = $.extend({}, extendedDefaults.labels, options.labels);
-      }
-    }
-    else {
-      this.options = $.extend({}, defaults, options);
-      if (options != null) {
-        this.options.labels = $.extend({}, defaults.labels, options.labels);
-      }
-    }
+
+    this.options = $.extend({}, defaults, { user: LOGGED_USERNAME }, options);
+    this.options.labels = $.extend({}, defaults.labels, HUE_I18n.jHueFileChooser, options ? options.labels : {});
     this._defaults = defaults;
     this._name = pluginName;
     this.previousPath = "";
@@ -86,24 +131,12 @@
 
   Plugin.prototype.setOptions = function (options) {
     var self = this;
-    if (typeof jHueFileChooserGlobals != 'undefined') {
-      var extendedDefaults = $.extend({}, defaults, jHueFileChooserGlobals);
-      extendedDefaults.labels = $.extend({}, defaults.labels, jHueFileChooserGlobals.labels);
-      self.options = $.extend({}, extendedDefaults, options);
-      if (options != null) {
-        self.options.labels = $.extend({}, extendedDefaults.labels, options.labels);
-      }
-    }
-    else {
-      self.options = $.extend({}, defaults, options);
-      if (options != null) {
-        self.options.labels = $.extend({}, defaults.labels, options.labels);
-      }
-    }
-
+    self.options = $.extend({}, defaults, { user: LOGGED_USERNAME }, options);
+    self.options.labels = $.extend({}, defaults.labels, HUE_I18n.jHueFileChooser, options ? options.labels : {});
     var initialPath = $.trim(self.options.initialPath);
-    if (initialPath && initialPath.toLowerCase().indexOf('s3a') > -1 && $(self.element).data('fs').indexOf('s3a') > -1) {
-      self.options.fsSelected = 's3a';
+    var scheme = initialPath && initialPath.substring(0,initialPath.indexOf(":"));
+    if (scheme && scheme.length) {
+      self.options.fsSelected = scheme;
     }
 
     $(self.element).find('.filechooser-services li').removeClass('active');
@@ -112,26 +145,39 @@
     if (self.options.forceRefresh) {
       if (initialPath != "") {
         self.navigateTo(self.options.initialPath);
-      }
-      else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
+      } else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
         self.navigateTo($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected));
-      }
-      else {
+      } else {
         self.navigateTo("/?default_to_home");
       }
-    }
-    else {
+    } else {
       if (initialPath != "") {
         self.navigateTo(self.options.initialPath);
-      }
-      else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
+      } else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
         self.navigateTo($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected));
       }
     }
   };
 
+  function getScheme (path) {
+    var index = path.indexOf("://");
+    return index >= 0 ? path.substring(0, index) : "hdfs";
+  }
+
+  function getFs (scheme) {
+    if (scheme === 'adl') {
+      return 'adls';
+    } else if (scheme === 's3a' ){
+      return 's3';
+    } else if (!scheme || scheme === 'hdfs') {
+      return 'hdfs';
+    } else {
+      return scheme;
+    }
+  }
+
   Plugin.prototype.setFileSystems = function (filesystems) {
-    var self = this;
+    var self = this, filters, filesystemsFiltered;
     self.options.filesystems = [];
     Object.keys(filesystems).forEach(function (k) {
       if (filesystems[k]) {
@@ -139,29 +185,37 @@
       }
     });
     self.options.filesystems.sort();
-    $(self.element).data('fs', self.options.filesystems);
-    if (self.options.filesystems.length > 1) {
+    if (self.options.filesystemsFilter) {
+      filters = self.options.filesystemsFilter.reduce(function(filters, fs) {
+      filters[fs] = true;
+      return filters;
+    }, {});
+      filesystemsFiltered = self.options.filesystems.filter(function(fs) {
+        return filters[fs];
+      });
+    } else {
+      filesystemsFiltered = self.options.filesystems;
+    }
+
+    $(self.element).data('fs', filesystemsFiltered);
+    if (filesystemsFiltered.length > 1) {
       var $ul = $('<ul>').addClass('nav nav-list').css('border', 'none');
-      self.options.filesystems.forEach(function (fs) {
-        var $li = $('<li>').attr('data-fs', fs).addClass(self.options.fsSelected === fs ? 'active' : '').html('<a class="pointer" style="padding-left: 6px">' + (fs.toUpperCase() == 'S3A' ? 'S3' : fs.toUpperCase()) + '</a>');
+      filesystemsFiltered.forEach(function (fs) {
+        var filesysteminfo = self.options.filesysteminfo;
+        var $li = $('<li>').attr('data-fs', fs).addClass(self.options.fsSelected === fs ? 'active' : '').html('<a class="pointer" style="padding-left: 6px">' + (filesysteminfo[fs] ? filesysteminfo[fs].label.name : fs.toUpperCase()) + '</a>');
         $li.on('click', function () {
           $(this).siblings().removeClass('active');
           $(this).addClass('active');
           self.options.fsSelected = fs;
           var storedPath = $.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected);
           if (storedPath !== null) {
-            if (fs === 's3a' && storedPath.toLowerCase().indexOf('s3a') === -1) {
-              self.navigateTo('S3A://');
+            if (filesysteminfo[fs] && storedPath.toLowerCase().indexOf(fs) === -1) {
+              self.navigateTo(filesysteminfo[fs].home);
+            } else {
+              self.navigateTo(storedPath);
             }
-            else if (fs !== 's3a' && storedPath.toLowerCase().indexOf('s3a') > -1) {
-              self.navigateTo('');
-            }
-            else {
-              self.navigateTo(storedPath)
-            }
-          }
-          else {
-            self.navigateTo(fs === 's3a' ? 'S3A://' : '');
+          } else {
+            self.navigateTo(filesysteminfo[fs] ? filesysteminfo[fs].home : '/?default_to_home');
           }
         });
         $li.appendTo($ul);
@@ -172,6 +226,7 @@
     }
   };
 
+  //TODO: refactor this method to template
   Plugin.prototype.navigateTo = function (path) {
     var _parent = this;
     $(_parent.element).find('.filechooser-tree').html("<i style=\"font-size: 24px; color: #DDD\" class=\"fa fa-spinner fa-spin\"></i>");
@@ -182,7 +237,7 @@
     $.getJSON("/filebrowser/view=" + path + pageSize, function (data) {
       $(_parent.element).find('.filechooser-tree').empty();
 
-      path = data.current_dir_path; // use real path.
+      path = data.current_dir_path || path; // use real path.
       var _flist = $("<ul>").addClass("unstyled").css({
         'height': '260px',
         'overflow-y': 'auto'
@@ -194,15 +249,12 @@
         'white-space': 'nowrap'
       });
       var _home = $("<li>");
-      var _homelink = $("<a>").addClass("nounderline").html('<i class="fa fa-home"></i> ' + _parent.options.labels.HOME).css("cursor", "pointer").click(function () {
-        _parent.navigateTo("/?default_to_home");
+      //var filesysteminfo = self.options.filesysteminfo;
+      var fs = _parent.options.filesysteminfo[_parent.options.fsSelected || "hdfs"];
+      var el = fs.icon.svg ? '<svg class="hi"><use xlink:href="'+fs.icon.svg.home+'"></use></svg>' : '<i class="fa '+fs.icon.home+'"></i> ' + fs.label.home;
+      var _homelink = $("<a>").addClass("nounderline").html(el).css("cursor", "pointer").click(function () {
+        _parent.navigateTo(fs.home);
       });
-
-      if (_parent.options.fsSelected === 's3a') {
-        _homelink = $("<a>").addClass("nounderline muted").html('<i class="fa fa-cubes"></i> ').css("cursor", "pointer").click(function () {
-          _parent.navigateTo("S3A://");
-        });
-      }
 
       _homelink.appendTo(_home);
       _home.appendTo($homeBreadcrumb);
@@ -214,13 +266,20 @@
         $("<div class='clearfix'>").appendTo($(_parent.element).find('.filechooser-tree'));
         var _errorMsg = $("<div>").addClass("alert").addClass("alert-error").text(data.message ? data.message : data.error);
         _errorMsg.appendTo($(_parent.element).find('.filechooser-tree'));
+        //TODO: allow user to user breadcrums when there is an error
         var _previousLink = $("<a>").addClass("btn").text(_parent.options.labels.BACK).click(function () {
-          _parent.options.onFolderChange(_parent.previousPath);
-          _parent.navigateTo(_parent.previousPath);
+          function getParentPath (path) {
+            if (!path) return path;
+            var indexFirst = path.indexOf("/");
+            var indexLast = path.lastIndexOf("/");
+            return indexLast - indexFirst > 1 && indexLast > 0 ? path.substring(0, indexLast + 1) : path;
+          }
+          var next = path !== _parent.previousPath && getScheme(path) === getScheme(_parent.previousPath) ? _parent.previousPath : getParentPath(path);
+          _parent.options.onFolderChange(next);
+          _parent.navigateTo(next);
         });
         _previousLink.appendTo($(_parent.element).find('.filechooser-tree'));
-      }
-      else {
+      } else {
         if (data.type == "file") {
           _parent.navigateTo(data.view.dirname);
           return;
@@ -232,7 +291,7 @@
         var $search = $('<div>').html('<i class="fa fa-refresh inactive-action pointer" style="position: absolute; top: 3px; margin-left: -16px"></i> <i class="fa fa-search inactive-action pointer" style="position: absolute; top: 3px"></i><input type="text" class="small-search" style="display: none; width: 0; padding: 2px; padding-left: 20px">').css({
           'position': 'absolute',
           'right': '20px',
-          'background-color': '#FFF',
+          'background-color': '#FFF'
         });
 
         function slideOutInput() {
@@ -259,18 +318,19 @@
           if (this.offsetWidth - 18 < e.clientX - this.getBoundingClientRect().left) {
             $searchInput.removeClass("x onX").val("");
           }
-        })
-        .on("blur", function (e) {
-          if ($searchInput.val() === ''){
-            slideOutInput();
-          }
         });
+        if (!isIE11) {
+          $searchInput.on("blur", function (e) {
+            if ($searchInput.val() === ''){
+              slideOutInput();
+            }
+          });
+        }
 
         $search.find('.fa-search').on('click', function(){
           if ($searchInput.is(':visible')){
             slideOutInput();
-          }
-          else {
+          } else {
             $search.find('.fa-refresh').hide();
             $searchInput.show().animate({
               'width': '100px'
@@ -297,6 +357,10 @@
           'overflow-y': 'hidden',
           'white-space': 'nowrap'
         });
+
+        if (ko && ko.bindingHandlers.delayedOverflow) {
+          ko.bindingHandlers.delayedOverflow.init($scrollingBreadcrumbs[0]);
+        }
 
         if (_parent.options.showExtraHome) {
           var _extraHome = $("<li>");
@@ -331,8 +395,7 @@
             if (cnt < _bLength - 1) {
               if (cnt > 0) {
                 $("<span>").addClass("divider").text("/").appendTo(_crumb);
-              }
-              else {
+              } else {
                 $("<span>").html("&nbsp;").appendTo(_crumb);
               }
             }
@@ -367,11 +430,6 @@
 
         $('<div>').addClass('clearfix').appendTo($(_parent.element).find('.filechooser-tree'));
 
-        if (typeof $.nicescroll !== 'undefined') {
-          hueUtils.initNiceScroll($scrollingBreadcrumbs, {railhoffset: {top: 2}});
-          $scrollingBreadcrumbs.parents('.modal').find('.nicescroll-rails-vr').remove();
-        }
-
         var resizeBreadcrumbs = window.setInterval(function(){
           if ($homeBreadcrumb.is(':visible') && $homeBreadcrumb.width() > 0){
             window.clearInterval(resizeBreadcrumbs);
@@ -394,8 +452,7 @@
               _flink.attr("href", "javascript:void(0)");
               if (file.path.toLowerCase().indexOf('s3a://') == 0 && (file.path.substr(6).indexOf('/') > -1 || file.path.substr(6) == '')) {
                 _flink.text(" " + (cnt > 0 ? file.name : ".."))
-              }
-              else {
+              } else {
                 _flink.text(" " + (file.name != "" ? file.name : ".."));
               }
               if (_flink.text() !== ' ..') {
@@ -404,8 +461,7 @@
               _flink.appendTo(_f);
               if (file.path.toLowerCase().indexOf('s3a://') == 0 && file.path.substr(5).indexOf('/') == -1) {
                 $("<i class='fa fa-cloud'></i>").prependTo(_flink);
-              }
-              else {
+              } else {
                 $("<i class='fa fa-folder'></i>").prependTo(_flink);
               }
               _flink.click(function () {
@@ -435,8 +491,7 @@
             if ($(this).text().toLowerCase().indexOf(filter) > -1) {
               $(this).show();
               results++;
-            }
-            else {
+            } else {
               $(this).hide();
             }
           });
@@ -542,9 +597,9 @@
         _parent.options.onError();
       }
       if (e.status === 404 || e.status === 500) {
-        _parent.navigateTo(_parent.options.errorRedirectPath != "" ? _parent.options.errorRedirectPath : (_parent.options.fsSelected === 's3a' ? 'S3A://' : '/?default_to_home'));
-      }
-      else {
+        var fs = _parent.options.filesysteminfo[_parent.options.fsSelected || "hdfs"];
+        _parent.navigateTo(_parent.options.errorRedirectPath !== "" ? _parent.options.errorRedirectPath : fs.home);
+      } else {
         console.error(e);
         $(document).trigger("error", e.statusText);
       }
@@ -565,9 +620,9 @@
         num_of_pending_uploads--;
         if (responseJSON.status == -1) {
           $(document).trigger("error", responseJSON.data);
-        }
-        else if (num_of_pending_uploads == 0) {
+        } else if (!num_of_pending_uploads) {
           _parent.navigateTo(path);
+          window.huePubSub.publish('assist.' + getFs(getScheme(path)) + '.refresh');
         }
       },
       onSubmit: function (id, fileName) {
@@ -594,19 +649,18 @@
     $(self.element).empty().html('<div class="filechooser-container" style="position: relative"><div class="filechooser-services" style="position: absolute"></div><div class="filechooser-tree" style="width: 560px"></div></div>');
     $.post('/filebrowser/api/get_filesystems', function (data) {
       var initialPath = $.trim(self.options.initialPath);
-      if (data && data.status == 0) {
-        if (initialPath && initialPath.toLowerCase().indexOf('s3a') > -1 && data.filesystems['s3a']) {
-          self.options.fsSelected = 's3a';
+      var scheme = initialPath && initialPath.substring(0,initialPath.indexOf(":"));
+      if (data && data.status === 0) {
+        if (scheme && scheme.length && data.filesystems[scheme]) {
+          self.options.fsSelected = scheme;
         }
         self.setFileSystems(data.filesystems);
       }
       if (initialPath != "") {
         self.navigateTo(self.options.initialPath);
-      }
-      else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
+      } else if ($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected) != null) {
         self.navigateTo($.totalStorage(STORAGE_PREFIX + self.options.user + self.options.fsSelected));
-      }
-      else {
+      } else {
         self.navigateTo("/?default_to_home");
       }
     });

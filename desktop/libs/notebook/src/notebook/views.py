@@ -18,24 +18,25 @@
 import json
 import logging
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.utils.translation import ugettext as _
+from django.views.decorators.clickjacking import xframe_options_exempt
 
-from desktop.conf import USE_NEW_EDITOR
+from desktop.conf import ENABLE_DOWNLOAD, USE_NEW_EDITOR
 from desktop.lib.django_util import render, JsonResponse
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.json_utils import JSONEncoderForHTML
 from desktop.models import Document2, Document, FilesystemException
 from desktop.views import serve_403_error
 
-from metadata.conf import has_optimizer, has_navigator
+from metadata.conf import has_optimizer, has_navigator, has_workload_analytics
 
 from notebook.conf import get_ordered_interpreters, SHOW_NOTEBOOKS
 from notebook.connectors.base import Notebook, get_api, _get_snippet_name
 from notebook.connectors.spark_shell import SparkApi
-from notebook.decorators import check_document_access_permission, check_document_modify_permission
+from notebook.decorators import check_editor_access_permission, check_document_access_permission, check_document_modify_permission
 from notebook.management.commands.notebook_setup import Command
 from notebook.models import make_notebook
 
@@ -65,7 +66,7 @@ def notebooks(request):
 
 @check_document_access_permission()
 def notebook(request, is_embeddable=False):
-  if not SHOW_NOTEBOOKS.get():
+  if not SHOW_NOTEBOOKS.get() or not request.user.has_hue_permission(action="access", app='notebook'):
     return serve_403_error(request)
 
   notebook_id = request.GET.get('notebook', request.GET.get('editor'))
@@ -95,18 +96,22 @@ def notebook(request, is_embeddable=False):
           'languages': filtered_interpreters,
           'session_properties': SparkApi.get_properties(),
           'is_optimizer_enabled': has_optimizer(),
+          'is_wa_enabled': has_workload_analytics(),
           'is_navigator_enabled': has_navigator(request.user),
           'editor_type': 'notebook'
       }),
       'is_yarn_mode': is_yarn_mode,
   })
 
+@xframe_options_exempt
+def workers_embedded(request):
+  return render('workers_embedded.mako', request, {})
 
 @check_document_access_permission()
 def notebook_embeddable(request):
   return notebook(request, True)
 
-
+@check_editor_access_permission()
 @check_document_access_permission()
 def editor(request, is_mobile=False, is_embeddable=False):
   editor_id = request.GET.get('editor')
@@ -132,6 +137,7 @@ def editor(request, is_mobile=False, is_embeddable=False):
         'languages': get_ordered_interpreters(request.user),
         'mode': 'editor',
         'is_optimizer_enabled': has_optimizer(),
+        'is_wa_enabled': has_workload_analytics(),
         'is_navigator_enabled': has_navigator(request.user),
         'editor_type': editor_type,
         'mobile': is_mobile
@@ -316,11 +322,14 @@ def copy(request):
 
 @check_document_access_permission()
 def download(request):
+  if not ENABLE_DOWNLOAD.get():
+    return serve_403_error(request)
+
   notebook = json.loads(request.POST.get('notebook', '{}'))
   snippet = json.loads(request.POST.get('snippet', '{}'))
   file_format = request.POST.get('format', 'csv')
 
-  response = get_api(request, snippet).download(notebook, snippet, file_format)
+  response = get_api(request, snippet).download(notebook, snippet, file_format, user_agent=request.META.get('HTTP_USER_AGENT'))
 
   if response:
     request.audit = {

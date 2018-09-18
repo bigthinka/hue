@@ -407,9 +407,9 @@
           dialect: 'impala',
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['ALTER', 'COMPUTE', 'CREATE', 'DELETE', 'DESCRIBE',
+            suggestKeywords: ['ALTER', 'COMMENT ON', 'COMPUTE', 'CREATE', 'DELETE', 'DESCRIBE',
               'DROP', 'EXPLAIN', 'GRANT', 'INSERT', 'INVALIDATE METADATA', 'LOAD', 'REFRESH',
-              'REVOKE', 'SELECT', 'SET', 'SHOW', 'TRUNCATE', 'UPDATE', 'USE', 'WITH']
+              'REVOKE', 'SELECT', 'SET', 'SHOW', 'TRUNCATE', 'UPDATE', 'UPSERT', 'USE', 'WITH']
           }
         });
       });
@@ -423,8 +423,8 @@
           dialect: 'hive',
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['ALTER', 'ANALYZE TABLE', 'CREATE', 'DELETE', 'DESCRIBE',
-              'DROP', 'EXPLAIN', 'EXPORT', 'FROM', 'GRANT', 'IMPORT', 'INSERT', 'LOAD', 'MSCK',
+            suggestKeywords: ['ABORT', 'ALTER', 'ANALYZE TABLE', 'CREATE', 'DELETE', 'DESCRIBE',
+              'DROP', 'EXPLAIN', 'EXPORT', 'FROM', 'GRANT', 'IMPORT', 'INSERT', 'LOAD', 'MERGE', 'MSCK',
               'RELOAD FUNCTION', 'RESET', 'REVOKE', 'SELECT', 'SET', 'SHOW', 'TRUNCATE', 'UPDATE', 'USE', 'WITH']
           }
         });
@@ -435,10 +435,13 @@
       assertAutoComplete({
         beforeCursor: '-- line comment\nSELECT * from testTable1;\n',
         afterCursor: '\n-- other line comment',
+        dialect: 'impala',
         containsKeywords: ['SELECT'],
         expectedResult: {
           locations: [
             { type: 'statement', location: { first_line: 1, last_line: 2, first_column: 1, last_column: 25 } },
+            { type: 'statementType', location: { first_line: 2, last_line: 2, first_column: 1, last_column: 7 }, identifier: 'SELECT' },
+            { type: 'selectList', missing: false, location: { first_line: 2, last_line: 2, first_column: 8, last_column: 9 } },
             { type: 'asterisk', location: { first_line: 2, last_line: 2, first_column: 8, last_column: 9 }, tables: [{ identifierChain: [{ name: 'testTable1' }] }] },
             { type: 'table', location: { first_line:2, last_line:2, first_column:15, last_column:25 }, identifierChain: [{ name: 'testTable1' }] },
             { type: 'whereClause', missing: true, location: { first_line: 2, last_line: 2, first_column: 25, last_column: 25 } },
@@ -453,10 +456,12 @@
       assertAutoComplete({
         beforeCursor: '/* line 1\nline 2\n*/\nSELECT * from testTable1;\n',
         afterCursor: '',
+        dialect: 'hive',
         containsKeywords: ['SELECT'],
         expectedResult: {
           locations: [
             { type: 'statement', location: { first_line: 1, last_line: 4, first_column: 1, last_column: 25 } },
+            { type: 'selectList', missing: false, location: { first_line: 4, last_line: 4, first_column: 8, last_column: 9 } },
             { type: 'asterisk', location: { first_line: 4, last_line: 4, first_column: 8, last_column: 9 }, tables: [{ identifierChain: [{ name: 'testTable1' }] }] },
             { type: 'table', location: { first_line:4, last_line:4, first_column:15, last_column:25 }, identifierChain: [{ name: 'testTable1' }] },
             { type: 'whereClause', missing: true, location: { first_line: 4, last_line: 4, first_column: 25, last_column: 25 } },
@@ -676,6 +681,19 @@
         ];
 
         var identifierChain = [{ name: 'tm' }];
+
+        var actual = sqlAutocompleteParser.expandImpalaIdentifierChain(tablePrimaries, identifierChain);
+
+        expect(actual).toEqual([{ name: 't' }, { name: 'testMap' }]);
+      });
+
+      it('should expand a simple map reference without alias', function () {
+        var tablePrimaries = [
+          { alias: 't', identifierChain: [{ name: 'testTable' }] },
+          { identifierChain: [{ name: 't' }, { name: 'testMap' }] }
+        ];
+
+        var identifierChain = [{ name: 'testMap' }];
 
         var actual = sqlAutocompleteParser.expandImpalaIdentifierChain(tablePrimaries, identifierChain);
 

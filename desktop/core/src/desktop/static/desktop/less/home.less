@@ -43,9 +43,8 @@
 
 .doc-browser-header {
   border-bottom: 1px solid @cui-default-border-color;
-  letter-spacing: 0.035em;
-  font-size: 15px;
   color: @cui-gray-700;
+  font-weight: bold;
 }
 
 .doc-browser-empty {
@@ -103,13 +102,7 @@
   display: inline-block;
   position: absolute;
   right: 10px;
-  top: 14px;
-  height: 50px;
-  line-height: 50px;
-}
-
-.doc-browser-folder-actions > div {
-  float: left;
+  z-index: 10;
 }
 
 .doc-browser-list {
@@ -149,11 +142,6 @@
 .doc-browser-list .hi {
   color: @hue-primary-color-dark;
   font-size: 24px;
-}
-
-.doc-browser-action, .doc-browser-container .favorite-app {
-  font-size: 25px;
-  margin-left: 5px;
 }
 
 .doc-browser-action .dropdown-menu {
@@ -285,6 +273,8 @@
 
 .doc-browser-drop-target {
   border: 1px solid transparent;
+  font-size: 18px;
+  padding-top: 13px;
 }
 
 .doc-browser-drop-hover {
@@ -296,8 +286,10 @@
   display: inline !important;
 }
 
-.divider {
-  color: @cui-gray-300;
+.breadcrumbs-divider {
+  color: @cui-gray-500;
+  font-size: 18px;
+  padding-top: 14px;
 }
 
 .large-as-modal {
@@ -315,8 +307,8 @@
 }
 
 .doc-browser-search-container {
-  margin-top: 5px;
-  margin-right: 6px;
+  margin-top: 9px;
+  margin-right: 12px;
   -webkit-animation-name: doc-browser-search-visible;
   animation-name: doc-browser-search-visible;
   -webkit-animation-duration: 0.4s;
@@ -331,6 +323,6 @@
   padding: 0;
 }
 
-.document-types .app-icon {
+.document-types .hi {
   margin-right: 4px;
 }

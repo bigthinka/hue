@@ -17,7 +17,7 @@
 <%!
 from django.utils.translation import ugettext as _
 
-from desktop.views import commonheader, commonfooter, _ko
+from desktop.views import commonheader, commonfooter, _ko, commonshare
 from desktop import conf
 %>
 
@@ -26,11 +26,12 @@ from desktop import conf
 
 %if not is_embeddable:
 ${ commonheader(_('Dashboard'), "dashboard", user, request, "80px") | n,unicode }
+${ commonshare() | n,unicode }
 ${ notebookKoComponents.downloadSnippetResults() }
 %endif
 
-<div id="searchComponents" class="dashboard-container search-components">
-${ common_search.page_structure(False, is_embeddable) }
+<div id="searchComponents" class="dashboard-container dashboard-container-flex search-components">
+${ common_search.page_structure(False, is_embeddable, is_report) }
 </div>
 
 %if not is_embeddable:

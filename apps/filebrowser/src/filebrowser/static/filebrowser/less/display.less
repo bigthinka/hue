@@ -16,6 +16,7 @@
  limitations under the License.
 */
 @import (reference) "cui/colors.less";
+@import (reference) "cui/extra-variables.less";
 
 #fileviewerComponents {
   .card-body {
@@ -38,8 +39,12 @@
     }
   }
 
+  .file-editor {
+    font-size: 12px;
+  }
+
   .binary {
-    font-family: "Courier New", Courier, monospace;
+    font-family: @font-family-monospace;
   }
 
   pre {
@@ -47,13 +52,13 @@
   }
 
   pre a {
-    color: #444;
+    color: @cui-gray-800;
     cursor: default;
     white-space: inherit;
   }
 
   pre a:hover {
-    color: #444;
+    color: @cui-gray-800;
     text-decoration: none;
   }
 
@@ -71,6 +76,10 @@
   dd {
     margin-left: 0;
     margin-bottom: 6px;
+  }
+  
+  .monospace {
+    font-family: @font-family-monospace
   }
 }
 

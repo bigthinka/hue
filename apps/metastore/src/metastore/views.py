@@ -20,7 +20,7 @@ import logging
 import urllib
 
 from django.db.models import Q
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.shortcuts import redirect
 from django.utils.functional import wraps
 from django.utils.translation import ugettext as _
@@ -35,14 +35,16 @@ from beeswax.design import hql_query
 from beeswax.models import SavedQuery
 from beeswax.server import dbms
 from beeswax.server.dbms import get_query_server_config
-from filebrowser.views import location_to_url
+from desktop.lib.view_util import location_to_url
 from metadata.conf import has_optimizer, has_navigator, get_optimizer_url, get_navigator_url
 from notebook.connectors.base import Notebook, QueryError
 from notebook.models import make_notebook
 
+from metastore.conf import FORCE_HS2_METADATA
 from metastore.forms import LoadDataForm, DbForm
 from metastore.settings import DJANGO_APPS
 
+from desktop.auth.backend import is_admin
 
 LOG = logging.getLogger(__name__)
 
@@ -156,10 +158,10 @@ def alter_database(request, database):
   return JsonResponse(response)
 
 
-def get_database_metadata(request, database):
+def get_database_metadata(request, database, cluster=None):
   response = {'status': -1, 'data': ''}
   source_type = request.POST.get('source_type', 'hive')
-  db = _get_db(user=request.user, source_type=source_type)
+  db = _get_db(user=request.user, source_type=source_type, cluster=cluster)
 
   try:
     db_metadata = db.get_database(database)
@@ -198,7 +200,7 @@ def show_tables(request, database=None):
   if database is None:
     database = 'default' # Assume always 'default'
 
-  if request.REQUEST.get("format", "html") == "json":
+  if request.GET.get("format", "html") == "json":
     try:
       databases = db.get_databases()
 
@@ -236,7 +238,7 @@ def show_tables(request, database=None):
     'is_navigator_enabled': has_navigator(request.user),
     'optimizer_url': get_optimizer_url(),
     'navigator_url': get_navigator_url(),
-    'is_embeddable': request.REQUEST.get('is_embeddable', False),
+    'is_embeddable': request.GET.get('is_embeddable', False),
     'source_type': _get_servername(db),
     })
 
@@ -265,7 +267,9 @@ def get_table_metadata(request, database, table):
 
 def describe_table(request, database, table):
   app_name = get_app_name(request)
-  db = _get_db(user=request.user)
+  cluster = request.GET.get('cluster')
+
+  db = _get_db(user=request.user, cluster=cluster)
 
   try:
     table = db.get_table(database, table)
@@ -273,7 +277,7 @@ def describe_table(request, database, table):
     LOG.exception("Describe table error")
     raise PopupException(_("DB Error"), detail=e.message if hasattr(e, 'message') and e.message else e)
 
-  if request.REQUEST.get("format", "html") == "json":
+  if request.GET.get("format", "html") == "json":
     return JsonResponse({
         'status': 0,
         'name': table.name,
@@ -314,7 +318,7 @@ def describe_table(request, database, table):
       'is_navigator_enabled': has_navigator(request.user),
       'optimizer_url': get_optimizer_url(),
       'navigator_url': get_navigator_url(),
-      'is_embeddable': request.REQUEST.get('is_embeddable', False),
+      'is_embeddable': request.GET.get('is_embeddable', False),
       'source_type': _get_servername(db),
     })
 
@@ -443,7 +447,6 @@ def read_table(request, database, table):
   except Exception, e:
     raise PopupException(_('Cannot read table'), detail=e)
 
-
 @check_has_write_access_permission
 def load_table(request, database, table):
   response = {'status': -1, 'data': 'None'}
@@ -514,13 +517,13 @@ def describe_partitions(request, database, table):
   if not table_obj.partition_keys:
     raise PopupException(_("Table '%(table)s' is not partitioned.") % {'table': table})
 
-  reverse_sort = request.REQUEST.get("sort", "desc").lower() == "desc"
+  reverse_sort = request.GET.get("sort", "desc").lower() == "desc"
 
   if request.method == "POST":
     partition_filters = {}
     for part in table_obj.partition_keys:
-      if request.REQUEST.get(part.name):
-        partition_filters[part.name] = request.REQUEST.get(part.name)
+      if request.GET.get(part.name):
+        partition_filters[part.name] = request.GET.get(part.name)
     partition_spec = ','.join(["%s='%s'" % (k, v) for k, v in partition_filters.items()])
   else:
     partition_spec = ''
@@ -561,7 +564,7 @@ def describe_partitions(request, database, table):
         'is_navigator_enabled': has_navigator(request.user),
         'optimizer_url': get_optimizer_url(),
         'navigator_url': get_navigator_url(),
-        'is_embeddable': request.REQUEST.get('is_embeddable', False),
+        'is_embeddable': request.GET.get('is_embeddable', False),
         'source_type': _get_servername(db),
     })
 
@@ -594,7 +597,7 @@ def browse_partition(request, database, table, partition_spec):
     decoded_spec = urllib.unquote(partition_spec)
     partition_table = db.describe_partition(database, table, decoded_spec)
     uri_path = location_to_url(partition_table.path_location)
-    if request.REQUEST.get("format", "html") == "json":
+    if request.GET.get("format", "html") == "json":
       return JsonResponse({'uri_path': uri_path})
     else:
       return redirect(uri_path)
@@ -624,7 +627,7 @@ def drop_partition(request, database, table):
     partition_specs = request.POST.getlist('partition_selection')
     partition_specs = [spec for spec in partition_specs]
     try:
-      if request.REQUEST.get("format", "html") == "json":
+      if request.GET.get("format", "html") == "json":
         last_executed = json.loads(request.POST.get('start_time'), '-1')
         sql = db.drop_partitions(database, table, partition_specs, design=None, generate_ddl_only=True)
         job = make_notebook(
@@ -654,15 +657,21 @@ def drop_partition(request, database, table):
 
 
 def has_write_access(user):
-  return user.is_superuser or user.has_hue_permission(action="write", app=DJANGO_APPS[0])
+  return is_admin(user) or user.has_hue_permission(action="write", app=DJANGO_APPS[0])
 
 
 
-def _get_db(user, source_type=None):
+def _get_db(user, source_type=None, cluster=None):
   if source_type is None:
-    source_type = get_cluster_config(user)['default_sql_interpreter']
+    cluster_config = get_cluster_config(user)
+    if FORCE_HS2_METADATA.get() and cluster_config['app_config'].get('editor') and 'hive' in cluster_config['app_config'].get('editor')['interpreter_names']:
+      source_type = 'hive'
+    else:
+      source_type = cluster_config['default_sql_interpreter']
 
-  query_server = get_query_server_config(name=source_type if source_type != 'hive' else 'beeswax')
+  name = source_type if source_type != 'hive' else 'beeswax'
+
+  query_server = get_query_server_config(name=name, cluster=cluster)
   return dbms.get(user, query_server)
 
 

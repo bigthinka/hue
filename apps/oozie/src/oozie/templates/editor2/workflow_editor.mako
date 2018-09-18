@@ -19,7 +19,7 @@ from django.utils.translation import ugettext as _
 from desktop import conf
 from desktop.views import commonheader, commonfooter, commonshare, _ko
 
-from oozie.conf import ENABLE_DOCUMENT_ACTION, ENABLE_IMPALA_ACTION
+from oozie.conf import ENABLE_DOCUMENT_ACTION, ENABLE_IMPALA_ACTION, ENABLE_ALTUS_ACTION
 %>
 
 <%namespace name="dashboard" file="/common_dashboard.mako" />
@@ -44,53 +44,58 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, request, "40px") | n,unicod
       <i class="fa fa-fw fa-pencil"></i>
     </a>
 
-    &nbsp;&nbsp;&nbsp;
-
     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
       <i class="fa fa-fw fa-play"></i>
     </a>
-
-    <a title="${ _('Schedule') }" rel="tooltip" data-placement="bottom" data-bind="click: schedule, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
-      <i class="fa fa-fw fa-calendar"></i>
-    </a>
-
-    &nbsp;&nbsp;&nbsp;
-
-    <a title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsModal" data-bind="css: {'btn': true}, visible: canEdit">
-      <i class="fa fa-fw fa-cog"></i>
-    </a>
-
-    <a title="${ _('Workspace') }" ${ not is_embeddable and 'target="_blank"' or ''} rel="tooltip" data-placement="right"
-        data-original-title="${ _('Go upload additional files and libraries to the deployment directory') }"
-        data-bind="css: {'btn': true}, hueLink: '/filebrowser/view=' + $root.workflow.properties.deployment_dir()"
-      >
-      <i class="fa fa-fw fa-folder-open"></i>
-    </a>
-
-    &nbsp;&nbsp;&nbsp;
 
     <a title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: validateAndSave, css: {'btn': true, 'disabled': $root.isSaving()}, visible: canEdit">
       <i class="fa fa-fw fa-save"></i>
     </a>
 
-    <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: openShareModal,
-        attr: {'data-original-title': '${ _ko("Share") } ' + name},
-        css: {'isShared': isShared(), 'btn': true},
-        visible: workflow.id() != null && canEdit()">
-      <i class="fa fa-users"></i>
-    </a>
+    <div class="dropdown pull-right margin-left-10">
+      <a class="btn" data-toggle="dropdown" href="javascript: void(0)">
+        <i class="fa fa-fw fa-ellipsis-v"></i>
+      </a>
+      <ul class="dropdown-menu">
+        <li>
+          <a href="javascript: void(0)" data-bind="hueLink: '${ url('oozie:new_workflow') }'">
+            <i class="fa fa-fw fa-file-o"></i> ${ _('New') }
+          </a>
+        </li>
+        %if is_embeddable:
+          <li>
+            <a href="javascript: void(0)" data-bind="publish: { 'assist.show.documents': 'oozie-workflow2' }">
+              <svg class="hi hi-fw hi-bigger"><use xlink:href="#hi-documents"></use></svg> ${ _('Workflows') }
+            </a>
+          </li>
+        %endif
+        <li class="divider"></li>
+        <li data-bind="visible: workflow.id() != null, css: {'disabled': workflow.isDirty()}">
+          <a class="pointer" data-bind="click: schedule">
+            <i class="fa fa-fw fa-calendar"></i> ${ _('Schedule') }
+          </a>
+        </li>
+        <li data-bind="visible: canEdit">
+          <a class="pointer" data-toggle="modal" data-target="#settingsModal">
+            <i class="fa fa-fw fa-cog"></i> ${ _('Settings') }
+          </a>
+        </li>
+        <li>
+          <a ${ not is_embeddable and 'target="_blank"' or ''}
+              title="${ _('Go upload additional files and libraries to the deployment directory') }"
+              data-bind="hueLink: '/filebrowser/view=' + $root.workflow.properties.deployment_dir()"
+            >
+            <i class="fa fa-fw fa-folder-open"></i> ${ _('Workspace') }
+          </a>
+        </li>
+        <li data-bind="visible: workflow.id() != null && canEdit()">
+          <a class="pointer share-link" rel="tooltip" data-placement="bottom" data-bind="click: openShareModal, css: {'isShared': isShared()}">
+            <i class="fa fa-fw fa-users"></i> ${ _("Share") }
+          </a>
+        </li>
+      </ul>
+    </div>
 
-    &nbsp;&nbsp;&nbsp;
-
-
-    <a class="btn" href="javascript: void(0)" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}, hueLink: '${ url('oozie:new_workflow') }'">
-      <i class="fa fa-fw fa-file-o"></i>
-    </a>
-    %if is_embeddable:
-    <a class="btn" href="javascript: void(0)" title="${ _('Workflows') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}, hueLink: '/home/?type=oozie-workflow2'">
-      <i class="fa fa-fw fa-list"></i>
-    </a>
-    %endif
   </div>
 </%def>
 
@@ -136,10 +141,21 @@ ${ layout.menubar(section='workflows', is_editor=True, pullright=buttons, is_emb
     </ul>
     % endif
   </%def>
+
   <%def name="widgets()">
     % if ENABLE_DOCUMENT_ACTION.get():
+
     <!-- ko if: $root.currentDraggableSection() === 'documents' -->
     <div class="draggable-documents">
+
+    % if ENABLE_ALTUS_ACTION.get():
+    <div data-bind="css: { 'draggable-widget': true },
+                    draggable: {data: draggableAltusAction(), isEnabled: true,
+                    options: {'refreshPositions': true, 'stop': function(){ $root.isDragging(false); }, 'start': function(event, ui){ $root.isDragging(true); $root.currentlyDraggedWidget(draggableAltusAction());}}}"
+         title="${_('Altus Command')}" rel="tooltip" data-placement="top">
+         <a class="draggable-icon"><i class="fa fa-cloud"></i></a>
+    </div>
+    % endif
 
     <!-- ko if: $root.availableActions().length == 0 || $root.availableActions().indexOf('hive') != -1 -->
     <div data-bind="css: { 'draggable-widget': true },
@@ -408,22 +424,27 @@ ${ layout.menubar(section='workflows', is_editor=True, pullright=buttons, is_emb
 
 
   <div class="container-fluid">
-  <div class="row-fluid">
-    %if is_embeddable:
-    <div class="span12 margin-top-20">
-    %else:
-    <div class="span12" data-bind="style:{'marginTop' : $root.isEditing() ? '120px': '50px'}">
-    %endif
-    <div class="object-name" style="text-align: center">
-      <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
-    </div>
-    <div class="object-description" style="text-align: center; margin-top: 10px">
-      <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_ko('Add a description...')}'}"></span>
-    </div>
+    <span class="pull-right">
+    <!-- ko if: availableComputes().length > 1 -->
+      <div data-bind="component: { name: 'hue-drop-down', params: { value: compute, entries: availableComputes, labelAttribute: 'name', searchable: true, linkTitle: '${ _ko('Active compute') }' } }"></div>
+    <!-- /ko -->
+    </span>
+
+    <div class="row-fluid">
+      %if is_embeddable:
+      <div class="span12 margin-top-20">
+      %else:
+      <div class="span12" data-bind="style:{'marginTop' : $root.isEditing() ? '120px': '50px'}">
+      %endif
+      <div class="object-name" style="text-align: center">
+        <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+      </div>
+      <div class="object-description" style="text-align: center; margin-top: 10px">
+        <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_ko('Add a description...')}'}"></span>
+      </div>
     </div>
   </div>
 </div>
-
 
 
 
@@ -446,7 +467,7 @@ ${ workflow.render() }
         <td data-bind="text: label" style="width: 1%; padding-right: 10px" class="no-wrap"></td>
         <td>
           <!-- ko if: type() == '' -->
-          <input type="text" class="filechooser-input" style="width:80%" data-bind="value: value, valueUpdate:'afterkeydown', filechooser: value, filechooserOptions: globalFilechooserOptions, attr: { placeholder: help_text }">
+          <input type="text" class="filechooser-input" style="width: 75%" data-bind="value: value, valueUpdate:'afterkeydown', filechooser: value, filechooserOptions: globalFilechooserOptions, attr: { placeholder: help_text }">
           <!-- /ko -->
           <!-- ko if: type() == 'text' -->
           <input type="text" data-bind="value: value, valueUpdate:'afterkeydown', attr: { placeholder: help_text }" class="input-xlarge"/>
@@ -596,7 +617,7 @@ ${ dashboard.import_bindings() }
 ${ utils.submit_popup_event() }
 
 <style type="text/css">
-% if conf.CUSTOM.BANNER_TOP_HTML.get():
+% if conf.CUSTOM.BANNER_TOP_HTML.get() or not is_embeddable:
   .card-toolbar {
     top: 100px!important;
   }
@@ -673,19 +694,22 @@ ${ utils.submit_popup_event() }
     _el.css("zIndex", "1032");
     var lastSeenPosition = _el.position();
     var _width = _el.width();
-
+    %if is_embeddable:
+    lastSeenPosition.left = lastSeenPosition.left + 290;
+    _el.css("position", "fixed");
+    $("#addActionDemiModal").css("position", "fixed");
+    %else:
     _el.css("position", "absolute");
+    %endif
+
     _el.css({
       "top": lastSeenPosition.top + "px",
       "left": lastSeenPosition.left + "px",
       "width": 450
     });
+
     $("#addActionDemiModal").width(_el.width()).css("top", _el.position().top + 25).css("left", _el.position().left).modal("show");
-    %if is_embeddable:
-    $(".page-content").animate({
-    scrollTop: $("#addActionDemiModal").offset().top - 200
-    }, 200);
-    %else:
+    %if not is_embeddable:
     $("html, body").animate({
       scrollTop: $("#addActionDemiModal").offset().top - 200
     }, 200);
@@ -806,7 +830,11 @@ ${ utils.submit_popup_event() }
   function validateFields() {
     var _hasErrors = false;
     $("[validate]").each(function () {
-      if ($(this).attr("validate") == "nonempty" && $.trim($(this).val()) == "") {
+      if ($(this).attr("validate") == "nospace" && ($(this).val().indexOf(' ') >= 0 || $.trim($(this).val()) == "")) {
+        $(this).addClass("with-errors");
+        _hasErrors = true;
+      }
+      else if ($(this).attr("validate") == "nonempty" && $.trim($(this).val()) == "") {
         $(this).addClass("with-errors");
         _hasErrors = true;
       }
@@ -897,7 +925,7 @@ ${ utils.submit_popup_event() }
         interpreters.push(interpreter.type);
       });
       if (clusterConfig['cluster_type'] != 'dataeng') {
-        interpreters = interpreters.concat(['subworkflow', 'fs', 'email', 'streaming', 'generic', 'stop']);
+        interpreters = interpreters.concat(['subworkflow', 'fs', 'email', 'ssh', 'streaming', 'generic', 'stop']);
       }
       viewModel.availableActions(interpreters);
     }, 'oozie');

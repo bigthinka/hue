@@ -24,8 +24,8 @@
 %>
 
 <%namespace name="assist" file="/assist.mako" />
+<%namespace name="charting" file="/charting.mako" />
 <%namespace name="comps" file="beeswax_components.mako" />
-<%namespace name="dashboard" file="common_dashboard.mako" />
 <%namespace name="layout" file="layout.mako" />
 
 ${ commonheader(_('Query'), app_name, user, request) | n,unicode }
@@ -242,9 +242,9 @@ ${ layout.menubar(section='query') }
     <div class="alert">
       ${ _('This is the old SQL Editor, it is recommended to instead use: ') }
       % if app_name == 'impala':
-        <a href="${ url('notebook:editor') }?type=impala" target="_blank">${_('Impala')}</a>
+        <a href="/hue/editor?type=impala" target="_blank">${_('Impala')}</a>
       % else:
-        <a href="${ url('notebook:editor') }?type=hive" target="_blank">${_('Hive')}</a>
+        <a href="/hue/editor?type=hive" target="_blank">${_('Hive')}</a>
       % endif
     </div>
     % endif
@@ -796,7 +796,6 @@ ${ commonshare() | n,unicode }
 <script src="${ static('desktop/js/hue.json.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/hue.routie.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/sqlAutocompleter.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/sqlAutocompleter2.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/hdfsAutocompleter.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/sqlFunctions.js') }" type="text/javascript" charset="utf-8"></script>
@@ -1140,7 +1139,7 @@ ${ assist.assistPanel() }
 <link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
 <script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 
-${ dashboard.import_charts() }
+${ charting.import_charts() }
 
 
 <script type="text/javascript">
@@ -2842,7 +2841,7 @@ viewModel = new BeeswaxViewModel("${app_name}", apiHelper);
 ko.applyBindings(viewModel, $("#beeswax-execute")[0]);
 
 var handleAssistSelection = function (databaseDef) {
-  if (databaseDef.source === snippetType && snippet.database() !== databaseDef.name) {
+  if (databaseDef.sourceType === snippetType && snippet.database() !== databaseDef.name) {
     snippet.database(databaseDef.name);
   }
 };

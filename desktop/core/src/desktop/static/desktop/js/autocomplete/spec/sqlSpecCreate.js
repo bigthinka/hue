@@ -303,6 +303,7 @@
             beforeCursor: 'CREATE FUNCTION boo(INT, BOOLEAN) RETURNS INT LOCATION \'/boo\' SYMBOL=\'baaa\'; ',
             afterCursor: '',
             dialect: 'impala',
+            noErrors: true,
             containsKeywords: ['SELECT'],
             expectedResult: {
               lowerCase: false
@@ -311,11 +312,26 @@
         });
 
         it('should handle "CREATE AGGREGATE FUNCTION baa.boo(INT, DOUBLE) RETURNS INT LOCATION \'/boo\' INIT_FN=\'cos\' UPDATE_FN=\'sin\' ' +
-            'MERGE_FN=\'cos\' PREPARE_FN=\'cos\' CLOSE_FN=\'cos\' SERIALIZE_FN=\'cos\' FINALIZE_FN=\'cos\'; |"', function () {
+          'MERGE_FN=\'cos\' PREPARE_FN=\'cos\' CLOSE_FN=\'cos\' SERIALIZE_FN=\'cos\' FINALIZE_FN=\'cos\'; |"', function () {
           assertAutoComplete({
             beforeCursor: 'CREATE AGGREGATE FUNCTION boo() RETURNS INT LOCATION \'/boo\' INIT_FN=\'cos\' UPDATE_FN=\'sin\' MERGE_FN=\'cos\' PREPARE_FN=\'cos\' CLOSE_FN=\'cos\' SERIALIZE_FN=\'cos\' FINALIZE_FN=\'cos\'; ',
             afterCursor: '',
             dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should handle "CREATE AGGREGATE FUNCTION baa.boo(INT, DOUBLE) RETURNS INT LOCATION \'/boo\' INIT_FN=\'cos\' UPDATE_FN=\'sin\' ' +
+          'MERGE_FN=\'cos\' PREPARE_FN=\'cos\' CLOSE_FN=\'cos\' SERIALIZE_FN=\'cos\' FINALIZE_FN=\'cos\' INTERMEDIATE bigint; |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE AGGREGATE FUNCTION boo() RETURNS INT LOCATION \'/boo\' INIT_FN=\'cos\' UPDATE_FN=\'sin\' MERGE_FN=\'cos\' PREPARE_FN=\'cos\' CLOSE_FN=\'cos\' SERIALIZE_FN=\'cos\' FINALIZE_FN=\'cos\' INTERMEDIATE bigint; ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
             containsKeywords: ['SELECT'],
             expectedResult: {
               lowerCase: false
@@ -492,7 +508,7 @@
             dialect: 'impala',
             expectedResult: {
               lowerCase: false,
-              suggestKeywords: ['FINALIZE_FN']
+              suggestKeywords: ['FINALIZE_FN', 'INTERMEDIATE']
             }
           });
         });
@@ -1081,6 +1097,37 @@
       });
 
       describe('Impala specific', function () {
+        it('should handle "CREATE TABLE foo (baa MAP <STRING, STRUCT<id: int>>, arr ARRAY<STRUCT<foo:STRUCT<bar: INT>>>, strc STRUCT<boo:STRING>);|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa MAP <STRING, STRUCT<id: int>>, arr ARRAY<STRUCT<foo:STRUCT<bar: INT>>>, strc STRUCT<boo:STRING>);',
+            noErrors: true,
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should handle "CREATE ... TABLE ... LIKE PARQUET ... PARTITIONED BY ... ROW FORMAT ... CACHED ...;|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE IF NOT EXISTS dbOne.tableName LIKE PARQUET \'/boo/baa\' ' +
+            'COMMENT \'Table comment...\' PARTITIONED BY (boo DOUBLE COMMENT \'booo boo\', baa INT) ' +
+            'SORT BY (baa, boo, ble) ROW FORMAT DELIMITED FIELDS TERMINATED BY \'a\' ESCAPED BY \'c\' ' +
+            'LINES TERMINATED BY \'q\' STORED AS PARQUET WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
+            'LOCATION \'/baa/baa\' TBLPROPERTIES (\'key\' = \'value\', \'key2\' = \'value 2\') ' +
+            'CACHED IN \'boo\';',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
         it('should suggest keywords for "CREATE EXTERNAL |"', function () {
           assertAutoComplete({
             beforeCursor: 'CREATE EXTERNAL ',
@@ -1143,6 +1190,67 @@
           });
         });
 
+        it('should suggest keywords for "CREATE TABLE foo (baa |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa ',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['ARRAY<>', 'STRUCT<>', 'MAP<>'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE TABLE foo (baa ARRAY <|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa ARRAY <',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['STRING', 'STRUCT<>'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE TABLE foo (baa MAP <|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa MAP <',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['STRING'],
+            doesNotContainKeywords: ['MAP<>', 'STRUCT<>', 'ARRAY<>'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE TABLE foo (baa MAP <STRING, |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa ARRAY <',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['STRING', 'MAP<>', 'STRUCT<>', 'ARRAY<>'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE TABLE foo (baa STRUCT <id:|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (baa STRUCT <id:',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['INT', 'STRUCT<>'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
         it('should suggest keywords for "CREATE TABLE foo (id int) LOCATION \'|"', function () {
           assertAutoComplete({
             beforeCursor: 'CREATE TABLE boo LOCATION \'',
@@ -1160,7 +1268,7 @@
             beforeCursor: 'CREATE TABLE foo LIKE PARQUET \'/blabla/\' ',
             afterCursor: '',
             dialect: 'impala',
-            containsKeywords: ['COMMENT', 'CACHED IN'],
+            containsKeywords: ['COMMENT', 'CACHED IN', 'UNCACHED'],
             expectedResult: {
               lowerCase: false
             }
@@ -1174,7 +1282,7 @@
             dialect: 'impala',
             expectedResult: {
               lowerCase: false,
-              suggestKeywords: ['TBLPROPERTIES', 'CACHED IN', 'AS']
+              suggestKeywords: ['TBLPROPERTIES', 'CACHED IN', 'UNCACHED', 'AS']
             }
           });
         });
@@ -1227,6 +1335,18 @@
           });
         });
 
+        it('should suggest keywords for "CREATE TABLE foo (id int) PARTITIONED BY (boo INT, baa BIGINT, boo INT) SORT "', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo (id int) PARTITIONED BY (boo INT, baa BIGINT, boo INT) SORT ',
+            afterCursor: '',
+            dialect: 'impala',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['BY']
+            }
+          });
+        });
+
         it('should suggest keywords for "CREATE TABLE foo (id int) STORED |"', function () {
           assertAutoComplete({
             beforeCursor: 'CREATE TABLE foo (id int) STORED ',
@@ -1246,7 +1366,7 @@
             dialect: 'impala',
             expectedResult: {
               lowerCase: false,
-              suggestKeywords: ['AVRO', 'KUDU', 'PARQUET', 'RCFILE', 'SEQUENCEFILE', 'TEXTFILE']
+              suggestKeywords: ['AVRO', 'KUDU', 'ORC', 'PARQUET', 'RCFILE', 'SEQUENCEFILE', 'TEXTFILE']
             }
           });
         });
@@ -1356,7 +1476,6 @@
             afterCursor: '',
             dialect: 'impala',
             containsKeywords: ['PARQUET'],
-            doesNotContainKeywords: ['ORC'],
             expectedResult: {
               lowerCase: false
             }
@@ -1415,8 +1534,8 @@
           assertAutoComplete({
             beforeCursor: 'CREATE EXTERNAL TABLE IF NOT EXISTS dbOne.tableName (id INT, col2 STRING COMMENT \'booo\', col3 BIGINT) ' +
             'COMMENT \'Table comment...\' PARTITIONED BY (boo DOUBLE COMMENT \'booo boo\', baa INT) ' +
-            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
             'ROW FORMAT DELIMITED FIELDS TERMINATED BY \'a\' ESCAPED BY \'c\' LINES TERMINATED BY \'q\' STORED AS PARQUET ' +
+            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
             'LOCATION \'/baa/baa\' TBLPROPERTIES (\'key\' = \'value\', \'key2\' = \'value 2\') ' +
             'CACHED ',
             afterCursor: '',
@@ -1432,9 +1551,8 @@
           assertAutoComplete({
             beforeCursor: 'CREATE EXTERNAL TABLE IF NOT EXISTS dbOne.tableName LIKE PARQUET \'/boo/baa\' ' +
             'COMMENT \'Table comment...\' PARTITIONED BY (boo DOUBLE COMMENT \'booo boo\', baa INT) ' +
-            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
-            'ROW FORMAT DELIMITED FIELDS TERMINATED BY \'a\' ESCAPED BY \'c\' LINES TERMINATED BY \'q\' STORED AS PARQUET ' +
-            'LOCATION \'/baa/baa\' TBLPROPERTIES (\'key\' = \'value\', \'key2\' = \'value 2\') ' +
+            'SORT BY (baa, boo, ble) ROW FORMAT DELIMITED FIELDS TERMINATED BY \'a\' ESCAPED BY \'c\' LINES TERMINATED BY \'q\' STORED AS PARQUET ' +
+            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) LOCATION \'/baa/baa\' TBLPROPERTIES (\'key\' = \'value\', \'key2\' = \'value 2\') ' +
             'CACHED ',
             afterCursor: '',
             dialect: 'impala',
@@ -1477,8 +1595,8 @@
           assertAutoComplete({
             beforeCursor: 'CREATE TABLE dbOne.tableName ' +
             'COMMENT \'Table comment...\' ' +
-            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
             'ROW FORMAT DELIMITED FIELDS TERMINATED BY \'a\' ESCAPED BY \'c\' LINES TERMINATED BY \'q\' STORED AS PARQUET ' +
+            'WITH SERDEPROPERTIES ( \'key\' = \'value\', \'key2\' = \'value 2\' ) ' +
             'LOCATION \'/baa/baa\' TBLPROPERTIES (\'key\' = \'value\', \'key2\' = \'value 2\') ' +
             'CACHED IN \'boo\' AS ',
             afterCursor: '',
@@ -1719,7 +1837,7 @@
             afterCursor: '',
             dialect: 'impala',
             noErrors: true,
-            containsKeywords: ['PARTITION BY', 'PARTITIONED BY', 'STORED AS'],
+            containsKeywords: ['PARTITION BY', 'PARTITIONED BY', 'STORED AS', 'SORT BY'],
             expectedResult: {
               lowerCase: false
             }
@@ -1851,6 +1969,40 @@
       });
 
       describe('Hive specific', function () {
+        it('should handle "CREATE TEMPORARY EXTERNAL TABLE IF NOT EXISTS db.tbl (id INT, col VARCHAR, ' +
+          'bla DOUBLE PRECISION, PRIMARY KEY (id, col) DISABLE NOVALIDATE, CONSTRAINT cnstrnt FOREIGN KEY (id, bla) ' +
+          'REFERENCES sometbl (id, ble) DISABLE NOVALIDATE) COMMENT \'table comment\';|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TEMPORARY EXTERNAL TABLE IF NOT EXISTS db.tbl (id INT, col VARCHAR, ' +
+            'bla DOUBLE PRECISION, PRIMARY KEY (id, col) DISABLE NOVALIDATE, CONSTRAINT cnstrnt FOREIGN KEY (id, bla) ' +
+            'REFERENCES sometbl (id, ble) DISABLE NOVALIDATE) COMMENT \'table comment\';',
+            noErrors: true,
+            afterCursor: '',
+            dialect: 'hive',
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should handle "CREATE TEMPORARY EXTERNAL TABLE IF NOT EXISTS db.tbl (id INT, col VARCHAR, ' +
+          'bla DOUBLE PRECISION, CONSTRAINT cnstrnt FOREIGN KEY (id, bla) ' +
+          'REFERENCES sometbl (id, ble) DISABLE NOVALIDATE) COMMENT \'table comment\';|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TEMPORARY EXTERNAL TABLE IF NOT EXISTS db.tbl (id INT, col VARCHAR, ' +
+            'bla DOUBLE PRECISION, CONSTRAINT cnstrnt FOREIGN KEY (id, bla) ' +
+            'REFERENCES sometbl (id, ble) DISABLE NOVALIDATE) COMMENT \'table comment\';',
+            noErrors: true,
+            afterCursor: '',
+            dialect: 'hive',
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
         it('should suggest keywords for "CREATE EXTERNAL |"', function () {
           assertAutoComplete({
             beforeCursor: 'CREATE EXTERNAL ',
@@ -1919,6 +2071,151 @@
             expectedResult: {
               lowerCase: false,
               suggestKeywords: ['COMMENT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['PRIMARY KEY', 'CONSTRAINT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['KEY']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['DISABLE NOVALIDATE']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['NOVALIDATE']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['CONSTRAINT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['FOREIGN KEY']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['KEY']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['REFERENCES']
+            }
+          });
+        });
+
+        it('should suggest tables for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestTables: {},
+              suggestDatabases: { appendDot: true }
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['DISABLE NOVALIDATE']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) DISABLE |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, PRIMARY KEY (id) DISABLE NOVALIDATE, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) DISABLE ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['NOVALIDATE']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE EXTERNAL TABLE foo (id int, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) DISABLE |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE EXTERNAL TABLE foo (id int, CONSTRAINT boo FOREIGN KEY (bla) REFERENCES sometbl(boo) DISABLE ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['NOVALIDATE']
             }
           });
         });
@@ -2314,16 +2611,28 @@
             beforeCursor: 'CREATE TABLE foo (id ',
             afterCursor: '',
             dialect: 'hive',
-            containsKeywords: ['BIGINT', 'MAP<>'],
+            containsKeywords: ['BIGINT', 'MAP<>', 'DOUBLE PRECISION'],
             expectedResult: {
               lowerCase: false
             }
           });
         });
 
-        it('should suggest keywords for "CREATE TABLE foo(id |"', function () {
+        it('should suggest keywords for "CREATE TABLE foo (id DOUBLE |"', function () {
           assertAutoComplete({
-            beforeCursor: 'CREATE TABLE foo(id ',
+            beforeCursor: 'CREATE TABLE foo (id DOUBLE ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['PRECISION', 'COMMENT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE TABLE foo(baa DOUBLE PRECISION, id |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'CREATE TABLE foo(baa DOUBLE PRECISION, id ',
             afterCursor: '',
             dialect: 'hive',
             containsKeywords: ['BIGINT', 'MAP<>'],
@@ -2625,13 +2934,13 @@
           beforeCursor: 'CREATE VIEW foo AS SELECT a, ',
           afterCursor: ' FROM tableOne',
           hasLocations:true,
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'tableOne' }] }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
-            suggestColumns:  { source: 'select', tables: [{ identifierChain: [{ name: 'tableOne' }] }] },
-            suggestKeywords: ['*']
+            suggestColumns:  { source: 'select', tables: [{ identifierChain: [{ name: 'tableOne' }] }] }
           }
         });
       });
@@ -2710,13 +3019,13 @@
             afterCursor: ' FROM tableOne',
             dialect: 'hive',
             hasLocations:true,
+            containsKeywords: ['*', 'CASE'],
             expectedResult: {
               lowerCase: false,
               suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'tableOne' }] }] },
               suggestAnalyticFunctions: true,
               suggestFunctions: {},
-              suggestColumns: { source: 'select', tables: [{ identifierChain: [{ name: 'tableOne' }] }] },
-              suggestKeywords: ['*']
+              suggestColumns: { source: 'select', tables: [{ identifierChain: [{ name: 'tableOne' }] }] }
             }
           });
         });
@@ -2753,6 +3062,42 @@
             beforeCursor: 'CREATE VIEW IF NOT EXISTS boo ',
             afterCursor: '',
             dialect: 'impala',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['COMMENT', 'AS']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE VIEW boo (id |"', function () {
+          assertAutoComplete({
+            dialect: 'impala',
+            beforeCursor: 'CREATE VIEW boo (id ',
+            afterCursor: '',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['COMMENT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE VIEW boo (id COMMENT \'boo\') |"', function () {
+          assertAutoComplete({
+            dialect: 'impala',
+            beforeCursor: 'CREATE VIEW boo (id COMMENT \'boo\') ',
+            afterCursor: '',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['COMMENT', 'AS']
+            }
+          });
+        });
+
+        it('should suggest keywords for "CREATE VIEW boo (id COMMENT \'boo\') COMMENT \'foo\' |"', function () {
+          assertAutoComplete({
+            dialect: 'impala',
+            beforeCursor: 'CREATE VIEW boo (id COMMENT \'boo\') COMMENT \'foo\' ',
+            afterCursor: '',
             expectedResult: {
               lowerCase: false,
               suggestKeywords: ['AS']

@@ -18,23 +18,49 @@
 @import (reference) "cui/colors.less";
 @import (reference) "hue-mixins.less";
 
-@import "components/hue-clearable.less";
-@import "components/hue-filechooser.less";
-@import "components/hue-notify.less";
-@import "components/hue-ribbon.less";
-@import "components/hue-selector.less";
-@import "components/hue-tables.less";
-@import "components/hue-scroll-anchor.less";
-@import "components/hue-selectize.less";
-@import "components/hue-demi-modal.less";
-@import "components/hue-spinner.less";
-@import "components/hue-scrollbar.less";
-@import "components/hue-query-builder.less";
-@import "components/hue-qq-upload.less";
 @import "components/hue-breadcrumbs.less";
+@import "components/hue-catalog-entries-table.less";
+@import "components/hue-demi-modal.less";
+@import "components/hue-filechooser.less";
+@import "components/hue-gridster.less";
 @import "components/hue-inputautocomplete.less";
+@import "components/hue-nav-properties.less";
+@import "components/hue-notify.less";
+@import "components/hue-popover.less";
+@import "components/hue-qq-upload.less";
+@import "components/hue-query-builder.less";
+@import "components/hue-ribbon.less";
+@import "components/hue-scroll-anchor.less";
+@import "components/hue-scrollbar.less";
+@import "components/hue-selectize.less";
+@import "components/hue-selector.less";
 @import "components/hue-shepherd.less";
+@import "components/hue-simple-ace.less";
+@import "components/hue-spinner.less";
+@import "components/hue-tables.less";
+@import "components/hue-wizard.less";
 @import "hue-helpers.less";
+
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  opacity: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4.5px;
+  border: 1px solid @cui-white;
+  border-right-width: 2px;
+  background-color: @cui-gray-400;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: @cui-gray-600;
+}
 
 body {
   background-color: @cui-white;
@@ -115,7 +141,7 @@ input[type='password']::-ms-reveal {
 
 // Hue Checkbox
 
-.hueCheckbox {
+.hue-checkbox {
   width: 15px;
   height: 15px;
   border: 1px solid @cui-gray-400;
@@ -123,30 +149,31 @@ input[type='password']::-ms-reveal {
   padding: 0 !important;
   display: block !important;
   cursor: default;
-}
 
-.hueCheckbox.disabled {
-  border: 1px solid @cui-gray-300;
-  background-color: @cui-gray-050;
-  cursor: not-allowed;
-}
+  &.disabled {
+    border: 1px solid @cui-gray-300;
+    background-color: @cui-gray-050;
+    cursor: not-allowed;
+  }
 
-.hueCheckbox:hover {
-  border-color: @cui-gray-600;
-}
+  &:hover {
+    border-color: @cui-gray-600;
+  }
 
-.hueCheckbox.disabled:hover {
-  border-color: @cui-gray-300;
+  &.disabled:hover {
+    border-color: @cui-gray-300;
+  }
+
+  &.hide {
+    display: none!important;
+  }
+
 }
 
 .hueCheckboxText {
   left: 3px;
   position: relative;
   top: -3px;
-}
-
-.hueCheckbox.hide {
-  display: none!important;
 }
 
 .hue-uncheck::before {
@@ -169,6 +196,12 @@ input[type='password']::-ms-reveal {
   height: 1em !important; //d3 conflict
   fill: currentColor;
   margin-bottom: 0.2em;
+  &.hi-fw {
+    width: 1.28571429em !important;
+  }
+  &.hi-bigger {
+    height: 1.1em !important;
+  }
 }
 
 .big-spinner {
@@ -182,6 +215,10 @@ input[type='password']::-ms-reveal {
   -o-filter: blur(5px);
   -ms-filter: blur(5px);
   filter: blur(5px);
+}
+
+.hue-warning {
+  color: @hue-warning-color !important;
 }
 
 .hue-ace-syntax-error {
@@ -221,7 +258,9 @@ input[type='password']::-ms-reveal {
 .ace-hue {
   .ace_marker-layer {
     .ace_error-line {
-      background-color: @cui-pink-010 !important;
+      background-color: @cui-pink-050 !important;
+      opacity: 0.5;
+      z-index: 6;
     }
   }
 }
@@ -329,6 +368,9 @@ input[type='password']::-ms-reveal {
   &.failed {
     border-color: @cui-red!important;
   }
+  &.info {
+    border-color: @hue-primary-color-dark!important;
+  }
 }
 
 .status-background {
@@ -341,6 +383,9 @@ input[type='password']::-ms-reveal {
   &.failed {
     background-color: @cui-red!important;
   }
+  &.info {
+    background-color: @hue-primary-color-dark!important;
+  }
 }
 
 .status-content {
@@ -352,6 +397,9 @@ input[type='password']::-ms-reveal {
   }
   &.failed {
     color: @cui-red!important;
+  }
+  &.info {
+    color: @hue-primary-color-dark!important;
   }
 }
 
@@ -406,15 +454,13 @@ ul.errorlist {
   input[type="text"] {
     border-radius: 20px;
     margin: 0;
-    min-height: 26px;
-    padding-left: 12px;
     width: 130px;
   }
 }
 
 .hue-drop-down-container {
   position: fixed;
-  z-index: 900;
+  z-index: 1061;
 
   &.open {
     position: absolute;
@@ -422,6 +468,19 @@ ul.errorlist {
 
   &.hue-drop-down-fixed {
     position: fixed !important;
+  }
+
+  .dropdown-menu {
+    min-width: 190px;
+    max-width: 250px;
+    min-height: 34px;
+    max-height: 200px;
+    border-radius: 3px;
+    padding: 0;
+
+    .hue-inner-drop-down {
+      overflow-x: hidden;
+    }
   }
 }
 
@@ -440,6 +499,13 @@ ul.errorlist {
   border-radius: 2px !important;
   box-shadow: none !important;
   margin-left: -1px;
+}
+
+.hue-drop-down-selected {
+  display: inline-block;
+  max-width: 192px; // Same as text search input when drop down is open
+  vertical-align: bottom;
+  .nowrap-ellipsis();
 }
 
 .jHueHdfsTree .content {
@@ -495,16 +561,8 @@ ul.errorlist {
   background-color: @cui-gray-100;
 }
 
-.nicescroll-rails {
-  display: none;
-}
-
 .datepicker {
   z-index: 1051;
-}
-
-.input-almost-xxlarge {
-  width: 450px;
 }
 
 .break-word {
@@ -521,4 +579,123 @@ ul.errorlist {
 
 .move {
   cursor: move;
+}
+
+.empty-wrapper {
+  margin-top: 50px;
+  color: @cui-gray-500;
+  line-height: 60px;
+  i {
+    font-size: 100px;
+  }
+}
+
+.monospace {
+  font-family: @font-family-monospace;
+}
+
+.form-actions {
+  position: fixed;
+  bottom: 0;
+  margin: 0;
+  margin-left: -24px;
+  z-index: 1000;
+  padding-left: 20px !important;
+  border-top: 1px solid @cui-gray-100;
+}
+
+.btn > svg.hi {
+  font-size: 16px;
+}
+
+.truncate-text {
+  .nowrap-ellipsis();
+}
+
+.inline-autocomplete-container {
+  position: relative;
+  border-radius: 2px;
+  border: 1px solid @cui-gray-300;
+  background-color: @cui-white;
+
+  > div {
+    position:absolute;
+    left: 0;
+    right: 0;
+    height: 30px;
+
+    .inline-autocomplete-magnify-icon {
+      position: absolute;
+      left: 10px;
+      top: 7px;
+      font-size: 16px;
+      color: @cui-gray-700;
+    }
+
+    input {
+      display: block;
+      position: absolute;
+      width: 100%;
+      border: none;
+      box-shadow: none;
+      padding: 5px;
+      margin: 0;
+      font-size: 15px;
+      line-height: 15px;
+      background-color: transparent;
+
+      &.inline-autocomplete-magnify-input {
+        padding-left: 35px;
+      }
+
+      &.inline-autocomplete-input {
+        z-index: 2;
+      }
+
+      &.inline-autocomplete-autocomplete {
+        color: @cui-gray-500;
+        outline: none;
+        z-index: 1;
+      }
+    }
+  }
+}
+
+.hue-autocomplete-item:hover > a,
+.hue-autocomplete-item:focus > a {
+  background-color: @cui-blue-700 !important;
+}
+
+.hue-autocomplete {
+  border-radius: @hue-panel-border-radius;
+  max-height: 162px;
+  overflow: auto;
+}
+
+.hue-autocomplete-item {
+  a {
+    display: block;
+    clear: both;
+    font-weight: normal;
+    font-size: 14px;
+    line-height: 20px;
+    color: @cui-gray-800;
+    white-space: nowrap;
+    padding: 6px 20px !important;
+    span{
+      font-size: 15px;
+    }
+  }
+  div.no-match {
+    width: 200px;
+    height: 25px;
+    font-size : 15px
+  }
+}
+
+.hue-modal-search {
+  float: right;
+  margin-right: 30px;
+  margin-top: 15px;
+  margin-bottom: 0;
 }

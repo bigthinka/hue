@@ -87,7 +87,7 @@
       assertAutoComplete({
         beforeCursor: 'SELECT foo, bar ',
         afterCursor: '',
-        containsKeywords: ['AS', '+', 'FROM'],
+        containsKeywords: ['AS', '+', 'FROM', 'DIV'],
         expectedResult: {
           lowerCase: false,
           suggestTables:{
@@ -264,10 +264,86 @@
     });
 
     describe('Complete Statements', function () {
-      it ('should handle "SELECT bla NOT RLIKE \'ble\', ble NOT REGEXP \'b\' FROM tbl; |"', function () {
+      it('should handle "SELECT 4 / 2; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT 4 / 2; ',
+          afterCursor: '',
+          noErrors: true,
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT 4 DIV 2; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT 4 DIV 2; ',
+          afterCursor: '',
+          noErrors: true,
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT * FROM foo WHERE bar ILIKE \'bla\'; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT * FROM foo WHERE bar ILIKE \'bla\'; ',
+          afterCursor: '',
+          noErrors: true,
+          dialect: 'impala',
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT replace(foo, \'d\', \'c\') as rep, truncate(foo, 1) as tru FROM tbl; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT replace(foo, \'d\', \'c\') as rep, truncate(foo, 1) as tru FROM tbl; ',
+          afterCursor: '',
+          noErrors: true,
+          dialect: 'impala',
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT * FROM foo WHERE bar IREGEXP \'bla\'; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT * FROM foo WHERE bar IREGEXP \'bla\'; ',
+          afterCursor: '',
+          noErrors: true,
+          dialect: 'impala',
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT bla NOT RLIKE \'ble\', ble NOT REGEXP \'b\' FROM tbl; |"', function () {
         assertAutoComplete({
           beforeCursor: 'SELECT bla NOT RLIKE \'ble\', ble NOT REGEXP \'b\' FROM tbl; ',
           afterCursor: '',
+          noErrors: true,
+          containsKeywords: ['SELECT'],
+          expectedResult: {
+            lowerCase: false
+          }
+        });
+      });
+
+      it('should handle "SELECT * FROM tbl limit ${limit=20}; |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT * FROM tbl limit ${limit=20}; ',
+          afterCursor: '',
+          noErrors: true,
           containsKeywords: ['SELECT'],
           expectedResult: {
             lowerCase: false
@@ -279,13 +355,13 @@
         assertAutoComplete({
           beforeCursor: 'SELECT IF(baa, boo, bee) AS b, ',
           afterCursor: ' FROM testTable',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
             suggestFunctions: {},
             suggestAnalyticFunctions: true,
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestKeywords: ['*']
+            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
       });
@@ -294,13 +370,13 @@
         assertAutoComplete({
           beforeCursor: 'SELECT IF(baa > 2, boo, bee) AS b, ',
           afterCursor: ' FROM testTable',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
             suggestFunctions: {},
             suggestAnalyticFunctions: true,
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestKeywords: ['*']
+            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
       });
@@ -337,12 +413,13 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 65 } },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 42 } },
               { type: 'function', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 12 }, function: 'count' },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 18, last_column: 21 }, identifierChain: [{ name: 'autocomp_test' }] },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 22, last_column: 27 }, identifierChain: [{ name: 'count' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }] },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 22, last_column: 27 }, identifierChain: [{ name: 'count' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }], qualified: true },
               { type: 'function', location: { first_line: 1, last_line: 1, first_column: 29, last_column: 32 }, function: 'avg' },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 34, last_column: 36 }, identifierChain: [{ name: 'id' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }] },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 39, last_column: 42 }, identifierChain: [{ name: 'avg' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }] },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 34, last_column: 36 }, identifierChain: [{ name: 'id' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 39, last_column: 42 }, identifierChain: [{ name: 'avg' }], tables: [{ identifierChain: [{ name: 'autocomp_test' }], alias: 'tst' }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 48, last_column: 61 }, identifierChain: [{ name: 'autocomp_test' }] },
               { type: 'alias', source: 'table', alias: 'tst', location: { first_line: 1, last_line: 1, first_column: 62, last_column: 65 }, identifierChain: [{ name: 'autocomp_test' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 65, last_column: 65 } },
@@ -495,7 +572,7 @@
         assertAutoComplete({
           beforeCursor: 'SELECT ALL ',
           afterCursor: '',
-          containsKeywords: ['*'],
+          containsKeywords: ['*', 'CASE'],
           doesNotContainKeywords: ['ALL', 'DISTINCT'],
           expectedResult: {
             lowerCase: false,
@@ -520,7 +597,7 @@
           beforeCursor: 'SELECT STRAIGHT_JOIN ',
           afterCursor: '',
           dialect: 'impala',
-          containsKeywords: ['*'],
+          containsKeywords: ['*', 'CASE'],
           doesNotContainKeywords: ['ALL', 'DISTINCT'],
           expectedResult: {
             lowerCase: false,
@@ -574,9 +651,10 @@
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'tbl' }] }] },
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 34 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 18, last_column: 19 }, identifierChain:[{ name: 'a'}], tables: [{ identifierChain: [{ name: 'tbl' }] }] },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 22 }, identifierChain:[{ name: 'b'}], tables: [{ identifierChain: [{ name: 'tbl' }] }] },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 24, last_column: 25 }, identifierChain:[{ name: 'c'}], tables: [{ identifierChain: [{ name: 'tbl' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 15, last_column: 25 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 18, last_column: 19 }, identifierChain:[{ name: 'a'}], tables: [{ identifierChain: [{ name: 'tbl' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 22 }, identifierChain:[{ name: 'b'}], tables: [{ identifierChain: [{ name: 'tbl' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 24, last_column: 25 }, identifierChain:[{ name: 'c'}], tables: [{ identifierChain: [{ name: 'tbl' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 31, last_column: 34 }, identifierChain: [{ name: 'tbl' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 34, last_column: 34 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 34, last_column: 34 } }
@@ -834,6 +912,7 @@
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'database one' }, { name: 'test table' }] }] },
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 41 } },
+              { type: 'selectList', missing: true, location: { first_line: 1, last_line: 1, first_column: 7, last_column: 7 } },
               { type: 'database', location: { first_line: 1, last_line: 1, first_column: 14, last_column: 28}, identifierChain: [{ name: 'database one' }]},
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 29, last_column: 41}, identifierChain: [{ name: 'database one' }, { name: 'test table' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 41, last_column: 41 } },
@@ -849,10 +928,10 @@
           afterCursor: ' FROM testTableA tta, (SELECT SUM(A*B) total FROM tta.arr) ttaSum, testTableB ttb',
           ignoreErrors: true,
           dialect: 'hive',
+          containsKeywords: ['*', 'ALL', 'DISTINCT'],
           expectedResult: {
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTableA' }], alias: 'tta' }, { identifierChain: [{ name: 'testTableB' }], alias: 'ttb' }] },
             suggestAnalyticFunctions: true,
-            suggestKeywords: ['*', 'ALL', 'DISTINCT'],
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTableA' }], alias: 'tta' }, { identifierChain: [{ subQuery: 'ttaSum'}] }, { identifierChain: [{ name: 'testTableB' }], alias: 'ttb' }] },
             subQueries: [{
@@ -869,9 +948,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT a, ',
           afterCursor: ' FROM tableA;',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['*'],
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'tableA' }] }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
@@ -884,9 +963,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT a,',
           afterCursor: ' FROM testTable',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['*'],
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
@@ -899,9 +978,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT *, ',
           afterCursor: ' FROM tableA;',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['*'],
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'tableA' }] }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
@@ -981,24 +1060,25 @@
         assertAutoComplete({
           beforeCursor: 'SELECT a, b, ',
           afterCursor: ',c, d FROM testTable WHERE a = \'US\' AND b >= 998 ORDER BY c DESC LIMIT 15',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['*'],
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 87 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 9} , identifierChain: [{ name: 'a' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 11, last_column: 12 }, identifierChain: [{ name: 'b' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 15, last_column: 16 }, identifierChain: [{ name: 'c' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 18, last_column: 19 }, identifierChain: [{ name: 'd' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 22 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 9} , identifierChain: [{ name: 'a' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 11, last_column: 12 }, identifierChain: [{ name: 'b' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 15, last_column: 16 }, identifierChain: [{ name: 'c' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 18, last_column: 19 }, identifierChain: [{ name: 'd' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 25, last_column: 34 }, identifierChain: [{ name: 'testTable' }] },
               { type: 'whereClause', missing: false, location: { first_line: 1, last_line: 1, first_column: 35, last_column: 62 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 41, last_column: 42 }, identifierChain: [{ name: 'a' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 54, last_column: 55 }, identifierChain: [{ name: 'b' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 72, last_column: 73 }, identifierChain: [{ name: 'c' }], tables: [{ identifierChain: [{ name: 'testTable' }] }]},
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 41, last_column: 42 }, identifierChain: [{ name: 'a' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 54, last_column: 55 }, identifierChain: [{ name: 'b' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 72, last_column: 73 }, identifierChain: [{ name: 'c' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
               { type: 'limitClause', missing: false, location: { first_line: 1, last_line: 1, first_column: 79, last_column: 87 } }
             ]
           }
@@ -1048,7 +1128,7 @@
         });
       });
 
-      it('should suggest tables for "SELECT * FROM testTable WHERE ${some_variable} |"', function() {
+      it('should suggest keywords for "SELECT * FROM testTable WHERE ${some_variable} |"', function() {
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE ${some_variable} ',
           afterCursor: '',
@@ -1063,11 +1143,11 @@
         });
       });
 
-      it('should suggest tables for "SELECT * FROM testTable WHERE ${some_variable} + 1 = |"', function() {
+      it('should suggest columns for "SELECT * FROM testTable WHERE ${some_variable} + 1 = |"', function() {
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE ${some_variable} + 1 = ',
           afterCursor: '',
-          containsKeywords: ['CASE'],
+          containsKeywords: ['CASE', 'NULL'],
           expectedResult: {
             lowerCase: false,
             suggestFunctions: { types: ['NUMBER']},
@@ -1082,6 +1162,7 @@
         assertAutoComplete({
           beforeCursor: 'SELECT row_number() OVER (PARTITION BY a) FROM testTable;',
           afterCursor: '',
+          noErrors: true,
           containsKeywords: ['SELECT'],
           expectedResult: {
             lowerCase: false
@@ -1093,6 +1174,7 @@
         assertAutoComplete({
           beforeCursor: 'SELECT COUNT(DISTINCT a) OVER (PARTITION by c) FROM testTable;',
           afterCursor: '',
+          noErrors: true,
           containsKeywords: ['SELECT'],
           expectedResult: {
             lowerCase: false
@@ -1224,6 +1306,7 @@
           containsKeywords: ['CASE'],
           expectedResult: {
             lowerCase: false,
+            suggestAggregateFunctions: { tables: [] },
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
@@ -1237,6 +1320,7 @@
           containsKeywords: ['CASE'],
           expectedResult: {
             lowerCase: false,
+            suggestAggregateFunctions: { tables: [] },
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] } // TODO: source: 'order by'
           }
@@ -1261,6 +1345,7 @@
           containsKeywords: ['CASE'],
           expectedResult: {
             lowerCase: false,
+            suggestAggregateFunctions: { tables: [] },
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
@@ -1274,6 +1359,7 @@
           containsKeywords: ['CASE'],
           expectedResult: {
             lowerCase: false,
+            suggestAggregateFunctions: { tables: [] },
             suggestFunctions: {},
             suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
@@ -1295,6 +1381,7 @@
         assertAutoComplete({
           beforeCursor: 'SELECT row_number() OVER (PARTITION BY a ORDER BY b ROWS ',
           afterCursor: '',
+          dialect: 'impala',
           expectedResult: {
             lowerCase: false,
             suggestKeywords: ['BETWEEN']
@@ -1485,6 +1572,30 @@
             }
           });
         });
+
+        it('should suggest keywords for "SELECT row_number() OVER (PARTITION BY a ORDER BY b ROWS |"', function() {
+          assertAutoComplete({
+            beforeCursor: 'SELECT row_number() OVER (PARTITION BY a ORDER BY b ROWS ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['BETWEEN', 'UNBOUNDED']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT row_number() OVER (PARTITION BY a ORDER BY b ROWS UNBOUNDED |"', function() {
+          assertAutoComplete({
+            beforeCursor: 'SELECT row_number() OVER (PARTITION BY a ORDER BY b ROWS UNBOUNDED ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['PRECEDING']
+            }
+          });
+        });
       });
     });
 
@@ -1579,7 +1690,8 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 23 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 15 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 20, last_column: 23 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 23, last_column: 23 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 23, last_column: 23 } }
@@ -1599,7 +1711,8 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 24 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 16 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 24 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 24, last_column: 24 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 24, last_column: 24 } }
@@ -1619,7 +1732,8 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 29 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 19 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 26, last_column: 29 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 29, last_column: 29 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 29, last_column: 29 } }
@@ -1652,7 +1766,8 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 24 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 16 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 24 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 24, last_column: 24 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 24, last_column: 24 } }
@@ -1672,7 +1787,8 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 29 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 19 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'bl' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 26, last_column: 29 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 29, last_column: 29 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 29, last_column: 29 } }
@@ -1852,9 +1968,10 @@
             lowerCase: false,
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 34 } },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 25 } },
               { type: 'database', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10 }, identifierChain: [{ name: 'db' }] },
               { type: 'function', location: { first_line: 1, last_line: 1, first_column: 11, last_column: 19 }, identifierChain: [{ name: 'db' }, { name: 'customUdf' }], function: 'customudf' },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 24 }, identifierChain: [{ name: 'col' }], tables: [{ identifierChain: [{ name: 'bar' }] }] },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 21, last_column: 24 }, identifierChain: [{ name: 'col' }], tables: [{ identifierChain: [{ name: 'bar' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 31, last_column: 34 }, identifierChain: [{ name: 'bar' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 34, last_column: 34 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 34, last_column: 34 } }
@@ -2674,7 +2791,7 @@
             suggestFilters: { prefix: 'WHERE', tables: [{ identifierChain: [{ name: 'foo' }] }] },
             suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
             suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
-            suggestKeywords: ['AS', 'WHERE', 'GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', 'LATERAL VIEW', 'TABLESAMPLE', 'CROSS JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN'],
+            suggestKeywords: ['AS', 'WHERE', 'GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', 'LATERAL VIEW', 'TABLESAMPLE', 'CROSS JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'INNER JOIN', 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN'],
             lowerCase: false
           }
         });
@@ -2690,7 +2807,7 @@
             suggestFilters: { prefix: 'WHERE', tables: [{ identifierChain: [{ name: 'db' }, { name: 'foo' }], alias: 'f' }] },
             suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'db' }, { name: 'foo' }], alias: 'f' }] },
             suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'db' }, { name: 'foo' }], alias: 'f' }] },
-            suggestKeywords: ['WHERE', 'GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', 'LATERAL VIEW', 'CROSS JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN'],
+            suggestKeywords: ['WHERE', 'GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', 'LATERAL VIEW', 'CROSS JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'INNER JOIN', 'JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN'],
             lowerCase: false
           }
         });
@@ -2916,18 +3033,19 @@
             beforeCursor: 'SELECT ',
             afterCursor: ' FROM testTable LATERAL VIEW explode(testArray) explodedTable AS testItem',
             dialect: 'hive',
+            containsKeywords: ['*', 'ALL', 'DISTINCT'],
             expectedResult: {
               locations: [
                 { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 81 } },
+                { type: 'selectList', missing: true, location: { first_line: 1, last_line: 1, first_column: 7, last_column: 7 } },
                 { type: 'table', location: { first_line: 1, last_line: 1, first_column: 14, last_column: 23 }, identifierChain: [{ name: 'testTable' }] },
                 { type: 'function', location: { first_line: 1, last_line: 1, first_column: 37, last_column: 43 }, function: 'explode' },
-                { type: 'column', location: { first_line: 1, last_line: 1, first_column: 45, last_column: 54 }, identifierChain: [{ name: 'testArray' }], tables: [{ identifierChain: [{ name: 'testTable' }] }] },
+                { type: 'column', location: { first_line: 1, last_line: 1, first_column: 45, last_column: 54 }, identifierChain: [{ name: 'testArray' }], tables: [{ identifierChain: [{ name: 'testTable' }] }], qualified: false },
                 { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 81, last_column: 81 } },
                 { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 81, last_column: 81 } }
               ],
               suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestAnalyticFunctions: true,
-              suggestKeywords: ['*', 'ALL', 'DISTINCT'],
               suggestFunctions: {},
               suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestIdentifiers: [{ name: 'explodedTable.', type: 'alias' }, { name: 'testItem', type: 'alias' }],
@@ -2977,13 +3095,13 @@
             beforeCursor: 'SELECT ',
             afterCursor: ' FROM testTable LATERAL VIEW explode(',
             dialect: 'hive',
+            containsKeywords: ['*','ALL','DISTINCT'],
             expectedResult: {
               lowerCase: false,
               suggestFunctions: {},
               suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestAnalyticFunctions: true,
-              suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-              suggestKeywords: ['*','ALL','DISTINCT']
+              suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
             }
           });
         });
@@ -3033,9 +3151,9 @@
             beforeCursor: 'SELECT ',
             afterCursor: ' FROM testTable LATERAL VIEW explode(testMap) explodedTable AS testKey, testValue',
             dialect: 'hive',
+            containsKeywords: ['*', 'ALL', 'DISTINCT'],
             expectedResult: {
               lowerCase: false,
-              suggestKeywords: ['*', 'ALL', 'DISTINCT'],
               suggestColumns: { source: 'select', tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestAnalyticFunctions: true,
@@ -3081,16 +3199,17 @@
             expectedResult: {
               locations: [
                 { type: 'statement', location: { first_line: 1, last_line: 7, first_column: 1, last_column: 67 } },
-                { type: 'complex', location: { first_line: 2, last_line: 2, first_column: 2, last_column: 11 }, identifierChain: [{ name: 'testArrayA'}, {name: 'item'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }]},
-                { type: 'complex', location: { first_line: 3, last_line: 3, first_column: 2, last_column: 11 }, identifierChain: [{ name: 'testArrayB' },{ name: 'item'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }]},
+                { type: 'selectList', missing: false, location: { first_line: 2, last_line: 3, first_column: 2, last_column: 13 } },
+                { type: 'complex', location: { first_line: 2, last_line: 2, first_column: 2, last_column: 11 }, identifierChain: [{ name: 'testArrayA'}, {name: 'item'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }], qualified: false},
+                { type: 'complex', location: { first_line: 3, last_line: 3, first_column: 2, last_column: 11 }, identifierChain: [{ name: 'testArrayB' },{ name: 'item'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }], qualified: false},
                 { type: 'table', location: { first_line: 5, last_line: 5, first_column: 3, last_column: 13 }, identifierChain: [{ name: 'testTable2' }]},
                 { type: 'alias', source: 'table', alias: 'tt2', location: { first_line: 5, last_line: 5, first_column: 14, last_column: 17 }, identifierChain: [{ name: 'testTable2' }] },
                 { type: 'function', location: { first_line: 6, last_line: 6, first_column: 16, last_column: 22 }, function: 'explode'},
                 { type: 'table', location: { first_line: 6, last_line: 6, first_column: 24, last_column: 27 }, identifierChain: [{ name: 'testTable2' }]},
-                { type: 'column', location: { first_line: 6, last_line: 6, first_column: 28, last_column: 38 }, identifierChain: [{ name: 'testArrayA'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }] },
+                { type: 'column', location: { first_line: 6, last_line: 6, first_column: 28, last_column: 38 }, identifierChain: [{ name: 'testArrayA'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }], qualified: true },
                 { type: 'function', location: { first_line: 7, last_line: 7, first_column: 16, last_column: 22 }, function: 'explode'},
                 { type: 'table', location: { first_line: 7, last_line: 7, first_column: 24, last_column: 27 }, identifierChain: [{ name: 'testTable2' }]},
-                { type: 'column', location: { first_line: 7, last_line: 7, first_column: 28, last_column: 38 }, identifierChain: [{ name: 'testArrayB'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }] },
+                { type: 'column', location: { first_line: 7, last_line: 7, first_column: 28, last_column: 38 }, identifierChain: [{ name: 'testArrayB'}], tables: [{ identifierChain: [{ name: 'testTable2' }], alias: 'tt2' }], qualified: true },
                 { type: 'whereClause', missing: true, location: { first_line: 7, last_line: 7, first_column: 67, last_column: 67 } },
                 { type: 'limitClause', missing: true, location: { first_line: 7, last_line: 7, first_column: 67, last_column: 67 } }
               ],
@@ -3204,9 +3323,9 @@
             beforeCursor: 'SELECT ',
             afterCursor: ' FROM testTable LATERAL VIEW explode(testMap) explodedMap AS testMapKey, testMapValue',
             dialect: 'hive',
+            containsKeywords: ['*', 'ALL', 'DISTINCT'],
             expectedResult: {
               lowerCase: false,
-              suggestKeywords: ['*', 'ALL', 'DISTINCT'],
               suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
               suggestAnalyticFunctions: true,
               suggestFunctions: {},
@@ -3230,7 +3349,7 @@
             suggestFilters: { prefix: 'WHERE', tables: [{ identifierChain: [{ name: 'testTableA' }], alias: 'tta' }, { identifierChain: [{ name: 'testTableB' }] }] },
             suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'testTableA' }], alias: 'tta' }, { identifierChain: [{ name: 'testTableB' }] }] },
             suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'testTableA' }], alias: 'tta' }, { identifierChain: [{ name: 'testTableB' }] }] },
-            suggestKeywords: ['AS', 'WHERE', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'OFFSET', 'UNION', 'ANTI JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'INNER JOIN', 'JOIN', 'LEFT ANTI JOIN', 'LEFT INNER JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'OUTER JOIN', 'RIGHT ANTI JOIN', 'RIGHT INNER JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN', 'RIGHT SEMI JOIN', 'SEMI JOIN']
+            suggestKeywords: ['AS', 'WHERE', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'OFFSET', 'UNION', 'TABLESAMPLE', 'ANTI JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'INNER JOIN', 'JOIN', 'LEFT ANTI JOIN', 'LEFT INNER JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'LEFT SEMI JOIN', 'OUTER JOIN', 'RIGHT ANTI JOIN', 'RIGHT INNER JOIN', 'RIGHT JOIN', 'RIGHT OUTER JOIN', 'RIGHT SEMI JOIN', 'SEMI JOIN']
           }
         });
       });
@@ -3298,17 +3417,19 @@
           afterCursor: ' FROM testTable t, t.testMap tm;',
           dialect: 'impala',
           expectedResult: {
-            locations: [
-              { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 42 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 10}, identifierChain: [{ name: 'testMap' }], tables: [{ identifierChain: [{ name: 'testTable' }], alias: 't' }]},
-              { type: 'table', location: { first_line: 1, last_line: 1, first_column: 17, last_column :26}, identifierChain: [{ name: 'testTable' }]},
-              { type: 'alias', source: 'table', alias: 't', location: { first_line: 1, last_line: 1, first_column: 27, last_column: 28 }, identifierChain: [{ name: 'testTable' }] },
-              { type: 'table', location: { first_line: 1, last_line: 1, first_column: 30, last_column: 31}, identifierChain: [{ name: 'testTable' }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 32, last_column :39}, identifierChain: [{ name: 'testMap'}], tables: [{ identifierChain: [{ name: 'testTable' }], alias: 't'  }]},
-              { type: 'alias', source: 'table', alias: 'tm', location: { first_line: 1, last_line: 1, first_column: 40, last_column: 42 }, identifierChain: [{ name: 't' }, { name: 'testMap' }] },
-              { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 42, last_column: 42 } },
-              { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 42, last_column: 42 } }
-            ],
+            suggestKeywords: ['*'],
+            lowerCase: false,
+            suggestColumns: { source: 'select', identifierChain: [{ name: 'testMap' }], tables: [{ identifierChain: [{ name: 'testTable' }] }] }
+          }
+        });
+      });
+
+      it('should suggest columns for "SELECT testMap.| FROM testTable t, t.testMap;"', function() {
+        assertAutoComplete({
+          beforeCursor: 'SELECT testMap.',
+          afterCursor: ' FROM testTable t, t.testMap;',
+          dialect: 'impala',
+          expectedResult: {
             suggestKeywords: ['*'],
             lowerCase: false,
             suggestColumns: { source: 'select', identifierChain: [{ name: 'testMap' }], tables: [{ identifierChain: [{ name: 'testTable' }] }] }
@@ -3359,9 +3480,9 @@
           beforeCursor: 'SELECT ',
           afterCursor: ' FROM testTable t, t.testMap tm;',
           dialect: 'impala',
+          containsKeywords: ['*', 'ALL', 'DISTINCT', 'STRAIGHT_JOIN'],
           expectedResult: {
             lowerCase: false,
-            suggestKeywords: ['*', 'ALL', 'DISTINCT', 'STRAIGHT_JOIN'],
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }], alias: 't' }] },
             suggestAnalyticFunctions: true,
             suggestFunctions: {},
@@ -4461,7 +4582,7 @@
             lowerCase: false,
             suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
             suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
-            suggestKeywords: ['GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'UNION', '<', '<=', '<>', '=', '>', '>=', 'AND', 'BETWEEN', 'IN', 'IS NOT NULL', 'IS NULL', 'NOT BETWEEN', 'NOT IN', 'OR']
+            suggestKeywords: ['GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'UNION', '<', '<=', '<=>', '<>', '=', '>', '>=', 'AND', 'BETWEEN', 'IN', 'IS FALSE', 'IS NOT FALSE', 'IS NOT NULL', 'IS NOT TRUE', 'IS NULL', 'IS TRUE', 'NOT BETWEEN', 'NOT IN', 'OR']
           }
         });
       });
@@ -4475,7 +4596,7 @@
             lowerCase: false,
             suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
             suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
-            suggestKeywords: ['GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'UNION', '<', '<=', '<>', '=', '>', '>=', 'AND', 'BETWEEN', 'IN', 'IS NOT NULL', 'IS NULL', 'NOT BETWEEN', 'NOT IN', 'OR']
+            suggestKeywords: ['GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'UNION', '<', '<=', '<=>', '<>', '=', '>', '>=', 'AND', 'BETWEEN', 'IN', 'IS FALSE', 'IS NOT FALSE', 'IS NOT NULL', 'IS NOT TRUE', 'IS NULL', 'IS TRUE', 'NOT BETWEEN', 'NOT IN', 'OR']
           }
         });
       });
@@ -4484,9 +4605,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM foo WHERE id IS ',
           afterCursor: '',
+          containsKeywords: ['NOT NULL', 'NULL', 'NOT TRUE', 'TRUE', 'NOT FALSE', 'FALSE'],
           expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['NOT NULL', 'NULL']
+            lowerCase: false
           }
         });
       });
@@ -4495,9 +4616,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM foo WHERE id IS NOT ',
           afterCursor: '',
+          containsKeywords: ['NULL', 'FALSE', 'TRUE'],
           expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['NULL']
+            lowerCase: false
           }
         });
       });
@@ -4506,6 +4627,28 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM foo WHERE id IS ',
           afterCursor: ' NULL',
+          expectedResult: {
+            lowerCase: false,
+            suggestKeywords: ['NOT']
+          }
+        });
+      });
+
+      it('should suggest keywords for "SELECT * FROM foo WHERE id IS | FALSE"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT * FROM foo WHERE id IS ',
+          afterCursor: ' FALSE',
+          expectedResult: {
+            lowerCase: false,
+            suggestKeywords: ['NOT']
+          }
+        });
+      });
+
+      it('should suggest keywords for "SELECT * FROM foo WHERE id IS | TRUE"', function () {
+        assertAutoComplete({
+          beforeCursor: 'SELECT * FROM foo WHERE id IS ',
+          afterCursor: ' TRUE',
           expectedResult: {
             lowerCase: false,
             suggestKeywords: ['NOT']
@@ -4651,6 +4794,103 @@
         });
       });
 
+      describe('Impala specific', function () {
+        it('should handle functions for "SELECT 1 IS DISTINCT FROM 2; |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS DISTINCT FROM 2; ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should handle functions for "SELECT 1 IS NOT DISTINCT FROM 2; |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS NOT DISTINCT FROM 2; ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT 1 |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['IS DISTINCT FROM'],
+            expectedResult: {
+              lowerCase: false,
+              suggestTables: { prependFrom: true },
+              suggestDatabases: { prependFrom: true, appendDot: true }
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT 1 IS |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['DISTINCT FROM', 'NOT DISTINCT FROM', 'NOT UNKNOWN', 'UNKNOWN'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT 1 IS NOT |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS NOT ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['DISTINCT FROM', 'UNKNOWN'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT 1 IS DISTINCT |"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS DISTINCT ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['FROM']
+            }
+          });
+        });
+
+        it('should suggest columns for "SELECT 1 IS DISTINCT FROM | FROM tbl"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT 1 IS DISTINCT FROM ',
+            afterCursor: ' FROM tbl',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['CASE', 'NULL'],
+            expectedResult: {
+              lowerCase: false,
+              suggestColumns: { types: ['NUMBER'], source: 'select', tables: [{ identifierChain: [{ name: 'tbl' }] }] },
+              suggestFunctions: { types: ['NUMBER'] }
+            }
+          });
+        });
+      });
+
       describe('Hive specific', function () {
         it('should suggest functions for "SELECT 100Y = |"', function () {
           assertAutoComplete({
@@ -4687,7 +4927,7 @@
               lowerCase: false,
               suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
               suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'foo' }] }] },
-              suggestKeywords: ['GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', '<', '<=', '<=>', '<>', '=', '>', '>=', 'AND', 'BETWEEN',  'IN', 'IS NOT NULL', 'IS NULL',  'NOT BETWEEN', 'NOT IN', 'OR']
+              suggestKeywords: ['GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'CLUSTER BY', 'DISTRIBUTE BY', 'SORT BY', 'LIMIT', 'UNION', '<', '<=', '<=>', '<>', '=', '>', '>=', 'AND', 'BETWEEN', 'IN', 'IS FALSE', 'IS NOT FALSE', 'IS NOT NULL', 'IS NOT TRUE', 'IS NULL', 'IS TRUE', 'NOT BETWEEN', 'NOT IN', 'OR']
             }
           });
         });
@@ -4727,11 +4967,11 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE baa = 1 AND ',
           afterCursor: '',
+          containsKeywords: ['CASE', 'EXISTS', 'NOT', 'NULL'],
           expectedResult: {
             lowerCase: false,
             suggestColumns: { source: 'where',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestFunctions: {},
-            suggestKeywords: ['CASE', 'EXISTS', 'NOT'],
             suggestFilters: { tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
@@ -4741,11 +4981,11 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE ',
           afterCursor: ' AND baa = 1',
+          containsKeywords: ['CASE', 'EXISTS', 'NOT', 'NULL'],
           expectedResult: {
             lowerCase: false,
             suggestColumns: { source: 'where',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestFunctions: {},
-            suggestKeywords: ['CASE', 'EXISTS', 'NOT'],
             suggestFilters: { tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
@@ -4755,11 +4995,11 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE baa = 1 OR ',
           afterCursor: '',
+          containsKeywords: ['CASE', 'EXISTS', 'NOT', 'NULL'],
           expectedResult: {
             lowerCase: false,
             suggestColumns: { source: 'where',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestFunctions: {},
-            suggestKeywords: ['CASE', 'EXISTS', 'NOT'],
             suggestFilters: { tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
@@ -4769,11 +5009,11 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE ',
           afterCursor: ' OR baa = 1',
+          containsKeywords: ['CASE', 'EXISTS', 'NOT', 'NULL'],
           expectedResult: {
             lowerCase: false,
             suggestColumns: { source: 'where',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestFunctions: {},
-            suggestKeywords: ['CASE', 'EXISTS', 'NOT'],
             suggestFilters: { tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
@@ -4836,28 +5076,28 @@
         assertAutoComplete({
           beforeCursor: 'SELECT a, b, \nc,\nd, ',
           afterCursor: '\ng,\nf\nFROM testTable WHERE a > 1 AND b = \'b\' ORDER BY c;',
+          containsKeywords: ['*', 'CASE'],
           expectedResult: {
             lowerCase: false,
             suggestFunctions: {},
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestAnalyticFunctions: true,
-            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestKeywords: ['*']
+            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
       });
 
-      it('should suggest columns for "SELECT a, b, | c FROM testTable"', function() {
+      it('should suggest columns for "SELECT a,b, | c FROM testTable"', function() {
         assertAutoComplete({
           beforeCursor: 'SELECT a,b, ',
           afterCursor: ' c FROM testTable',
+          containsKeywords: ['*'],
           expectedResult: {
             lowerCase: false,
             suggestFunctions: {},
             suggestAggregateFunctions: { tables: [{ identifierChain: [{ name: 'testTable' }] }] },
             suggestAnalyticFunctions: true,
-            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] },
-            suggestKeywords: ['*']
+            suggestColumns: { source: 'select',  tables: [{ identifierChain: [{ name: 'testTable' }] }] }
           }
         });
       });
@@ -4922,9 +5162,9 @@
         assertAutoComplete({
           beforeCursor: 'SELECT * FROM testTable WHERE a NOT ',
           afterCursor: '',
+          containsKeywords: ['BETWEEN', 'EXISTS', 'IN', 'LIKE'],
           expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['BETWEEN', 'EXISTS', 'IN', 'LIKE']
+            lowerCase: false
           }
         });
       });
@@ -5210,6 +5450,22 @@
       });
 
       describe('Impala specific', function () {
+        it('should suggest keywords for "SELECT * FROM testTable WHERE a |"', function() {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM testTable WHERE a ',
+            afterCursor: '',
+            dialect: 'impala',
+            containsKeywords: ['HAVING'],
+            containsColRefKeywords: ['ILIKE', 'LIKE', 'REGEXP', 'IREGEXP'],
+            expectedResult: {
+              lowerCase: false,
+              suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'testTable' }] }] },
+              suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'testTable' }] }] },
+              colRef: { identifierChain: [{ name: 'testTable' }, { name: 'a' }] }
+            }
+          })
+        });
+
         it('should suggest keywords for "SELECT * FROM database_two.testTable ORDER BY foo |"', function() {
           assertAutoComplete({
             beforeCursor: 'SELECT * FROM database_two.testTable ORDER BY foo ',
@@ -5544,6 +5800,19 @@
             }
           });
         });
+
+        it('should suggest keywords for "SELECT a, b, SUM(c) FROM tab1 GROUP BY a, b GROUPING SETS (a,b) |"', function() {
+          assertAutoComplete({
+            beforeCursor: 'SELECT a, b, SUM(c) FROM tab1 GROUP BY a, b GROUPING SETS (a,b) ',
+            afterCursor: '',
+            dialect: 'hive',
+            containsKeywords: ['LIMIT'],
+            expectedResult: {
+              lowerCase: false,
+              suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'tab1' }] }] }
+            }
+          });
+        });
       })
     });
 
@@ -5599,6 +5868,19 @@
       });
 
       describe('Hive specific', function () {
+        it('should handle "SELECT * FROM testTable LIMIT 5,6; |"', function() {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM testTable LIMIT 5,6; ',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
+        });
+
         it('should not suggest anything for "SELECT COUNT(*) AS boo FROM testTable GROUP BY baa LIMIT |"', function() {
           assertAutoComplete({
             beforeCursor: 'SELECT COUNT(*) AS boo FROM testTable GROUP BY baa LIMIT ',
@@ -5671,111 +5953,258 @@
     });
 
     describe('TABLESAMPLE', function () {
-      it('should handle "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 32 ON baa) baa JOIN bla;|', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 32 ON baa) baa JOIN bla;',
-          afterCursor: '',
-          dialect: 'hive',
-          noErrors: true,
-          containsKeywords: ['SELECT'],
-          expectedResult: {
-            lowerCase: false
-          }
+      describe('Impala specific', function () {
+        it('should handle "select distinct x from sample_demo tablesample system(50);|"', function (){
+          assertAutoComplete({
+            beforeCursor: 'select distinct x from sample_demo tablesample system(50);',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: true
+            }
+          });
+        });
+
+        it('should handle "select distinct sd.x from sample_demo as sd tablesample system(50) repeatable (12345);|"', function (){
+          assertAutoComplete({
+            beforeCursor: 'select distinct sd.x from sample_demo as sd tablesample system(50) repeatable (12345);',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: true
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['TABLESAMPLE', 'AS'],
+            doesNotContainKeywords: ['REPEATABLE()'],
+            expectedResult: {
+              lowerCase: false,
+              suggestJoins: {prependJoin: true, tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestFilters: {prefix: 'WHERE', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestGroupBys: {prefix: 'GROUP BY', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestOrderBys: {prefix: 'ORDER BY', tables: [{identifierChain: [{name: 'boo'}]}]}
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo as b |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo as b ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['TABLESAMPLE'],
+            doesNotContainKeywords: ['AS'],
+            expectedResult: {
+              lowerCase: false,
+              suggestJoins: {prependJoin: true, tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestFilters: {prefix: 'WHERE', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestGroupBys: {prefix: 'GROUP BY', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestOrderBys: {prefix: 'ORDER BY', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]}
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo as b TABLESAMPLE SYSTEM(50) |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo as b TABLESAMPLE SYSTEM(50) ',
+            afterCursor: '',
+            dialect: 'impala',
+            noErrors: true,
+            containsKeywords: ['REPEATABLE()'],
+            doesNotContainKeywords: ['TABLESAMPLE'],
+            expectedResult: {
+              lowerCase: false,
+              suggestJoins: {prependJoin: true, tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestFilters: {prefix: 'WHERE', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestGroupBys: {prefix: 'GROUP BY', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]},
+              suggestOrderBys: {prefix: 'ORDER BY', tables: [{identifierChain: [{name: 'boo'}], alias: 'b'}]}
+            }
+          });
         });
       });
 
-      it('should suggest keywords for "SELECT * FROM boo |', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo ',
-          afterCursor: '',
-          dialect: 'hive',
-          noErrors: true,
-          containsKeywords: ['TABLESAMPLE', 'AS'],
-          expectedResult: {
-            lowerCase: false,
-            suggestJoins: { prependJoin: true, tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestFilters: { prefix: 'WHERE', tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'boo' }] }] }
-          }
+      describe('Hive specific', function () {
+        it('should handle "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 32 ON baa) baa JOIN bla;|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 32 ON baa) baa JOIN bla;',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
         });
-      });
 
-      it('should suggest keywords for "SELECT * FROM boo |, baa', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo ',
-          afterCursor: ', baa',
-          dialect: 'hive',
-          containsKeywords: ['TABLESAMPLE', 'AS'],
-          expectedResult: {
-            lowerCase: false,
-            suggestJoins: { prependJoin: true, tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestFilters: { prefix: 'WHERE', tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestGroupBys: { prefix: 'GROUP BY', tables: [{ identifierChain: [{ name: 'boo' }] }] },
-            suggestOrderBys: { prefix: 'ORDER BY', tables: [{ identifierChain: [{ name: 'boo' }] }] }
-          }
+        it('should handle "SELECT * FROM boo TABLESAMPLE (0.1 PERCENT) baa;|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (0.1 PERCENT) baa;',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
         });
-      });
 
-      it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (|', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (',
-          afterCursor: '',
-          dialect: 'hive',
-          expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['BUCKET']
-          }
+        it('should handle "SELECT * FROM boo TABLESAMPLE (5 ROWS) baa;|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (5 ROWS) baa;',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
         });
-      });
 
-      it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 |', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 ',
-          afterCursor: '',
-          dialect: 'hive',
-          expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['OUT OF']
-          }
+        it('should handle "SELECT * FROM boo TABLESAMPLE (205B) baa;|"', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (205B) baa;',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['SELECT'],
+            expectedResult: {
+              lowerCase: false
+            }
+          });
         });
-      });
 
-      it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT |', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT ',
-          afterCursor: '',
-          dialect: 'hive',
-          expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['OF']
-          }
+        it('should suggest keywords for "SELECT * FROM boo |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo ',
+            afterCursor: '',
+            dialect: 'hive',
+            noErrors: true,
+            containsKeywords: ['TABLESAMPLE', 'AS'],
+            expectedResult: {
+              lowerCase: false,
+              suggestJoins: {prependJoin: true, tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestFilters: {prefix: 'WHERE', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestGroupBys: {prefix: 'GROUP BY', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestOrderBys: {prefix: 'ORDER BY', tables: [{identifierChain: [{name: 'boo'}]}]}
+            }
+          });
         });
-      });
 
-      it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 |', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ',
-          afterCursor: '',
-          dialect: 'hive',
-          expectedResult: {
-            lowerCase: false,
-            suggestKeywords: ['ON']
-          }
+        it('should suggest keywords for "SELECT * FROM boo |, baa', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo ',
+            afterCursor: ', baa',
+            dialect: 'hive',
+            containsKeywords: ['TABLESAMPLE', 'AS'],
+            expectedResult: {
+              lowerCase: false,
+              suggestJoins: {prependJoin: true, tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestFilters: {prefix: 'WHERE', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestGroupBys: {prefix: 'GROUP BY', tables: [{identifierChain: [{name: 'boo'}]}]},
+              suggestOrderBys: {prefix: 'ORDER BY', tables: [{identifierChain: [{name: 'boo'}]}]}
+            }
+          });
         });
-      });
 
-      it('should suggest columns for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ON |', function () {
-        assertAutoComplete({
-          beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ON ',
-          afterCursor: '',
-          dialect: 'hive',
-          containsKeywords: ['CASE'],
-          expectedResult: {
-            lowerCase: false,
-            suggestFunctions: {},
-            suggestColumns: { tables: [{ identifierChain: [{ name: 'boo' }] }] }
-          }
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (|', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['BUCKET']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (0.1 |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (0.1 ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['PERCENT']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (1 |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (1 ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['PERCENT', 'ROWS']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['OUT OF']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['OF']
+            }
+          });
+        });
+
+        it('should suggest keywords for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ',
+            afterCursor: '',
+            dialect: 'hive',
+            expectedResult: {
+              lowerCase: false,
+              suggestKeywords: ['ON']
+            }
+          });
+        });
+
+        it('should suggest columns for "SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ON |', function () {
+          assertAutoComplete({
+            beforeCursor: 'SELECT * FROM boo TABLESAMPLE (BUCKET 1 OUT OF 16 ON ',
+            afterCursor: '',
+            dialect: 'hive',
+            containsKeywords: ['CASE'],
+            expectedResult: {
+              lowerCase: false,
+              suggestFunctions: {},
+              suggestColumns: {tables: [{identifierChain: [{name: 'boo'}]}]}
+            }
+          });
         });
       });
     });
@@ -6006,6 +6435,35 @@
           }
         });
       });
+
+      it('should suggest keywords for "with s as (select * from foo join bar) select * from |"', function () {
+        assertAutoComplete({
+          beforeCursor: 'with s as (select * from foo join bar) select * from ',
+          afterCursor: '',
+          expectedResult: {
+            lowerCase: true,
+            suggestTables: {},
+            suggestDatabases: { appendDot: true },
+            commonTableExpressions: [{ columns: [{ tables: [{ identifierChain: [{ name: 'foo' }] }, { identifierChain: [{ name: 'bar' }] }] }], alias: 's' }],
+            suggestCommonTableExpressions: [{ name: 's' }]
+          }
+        });
+      });
+
+      it('should suggest keywords for "with s as (select * from foo join bar) select * from |;', function () {
+        assertAutoComplete({
+          beforeCursor: 'with s as (select * from foo join bar) select * from ',
+          afterCursor: ';',
+          expectedResult: {
+            lowerCase: true,
+            suggestTables: {},
+            suggestDatabases: { appendDot: true },
+            commonTableExpressions: [{ columns: [{ tables: [{ identifierChain: [{ name: 'foo' }] }, { identifierChain: [{ name: 'bar' }] }] }], alias: 's' }],
+            suggestCommonTableExpressions: [{ name: 's' }]
+          }
+        });
+      });
+
     });
 
     describe('Joins', function() {
@@ -6208,14 +6666,15 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 109 } },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 20 } },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 8, last_column: 18 }, identifierChain: [{ name: 'testTable1' }]},
               { type: 'asterisk', location: { first_line: 1, last_line: 1, first_column: 19, last_column: 20 }, tables: [{ identifierChain: [{ name: 'testTable1' }] }] },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 26, last_column: 36}, identifierChain: [{ name: 'testTable1' }]},
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 42, last_column: 52}, identifierChain: [{ name: 'testTable2' }]},
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 62, last_column: 72 }, identifierChain: [{ name: 'testTable1' }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 73, last_column: 84}, identifierChain: [{ name: 'testColumn1'}], tables: [{ identifierChain: [{ name: 'testTable1' }] }] },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 73, last_column: 84}, identifierChain: [{ name: 'testColumn1'}], tables: [{ identifierChain: [{ name: 'testTable1' }] }], qualified: true },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 87, last_column: 97 }, identifierChain: [{ name: 'testTable2' }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 98, last_column: 109}, identifierChain: [{ name: 'testColumn3'}], tables: [{ identifierChain: [{ name: 'testTable2' }] }] },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 98, last_column: 109}, identifierChain: [{ name: 'testColumn3'}], tables: [{ identifierChain: [{ name: 'testTable2' }] }], qualified: true },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 109, last_column: 109 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 109, last_column: 109 } }
             ],
@@ -6508,7 +6967,7 @@
             expectedResult: {
               lowerCase: false,
               suggestJoins: { prependJoin: true, tables: [{ identifierChain: [{ name: 'table1' }], alias: 't1' }] },
-              suggestKeywords: ['LATERAL VIEW', 'CROSS', 'FULL', 'FULL OUTER', 'LEFT', 'LEFT OUTER', 'LEFT SEMI', 'RIGHT', 'RIGHT OUTER']
+              suggestKeywords: ['LATERAL VIEW', 'CROSS', 'FULL', 'FULL OUTER', 'INNER', 'LEFT', 'LEFT OUTER', 'LEFT SEMI', 'RIGHT', 'RIGHT OUTER']
             }
           });
         });
@@ -6696,7 +7155,7 @@
             expectedResult: {
               lowerCase: false,
               suggestJoins: { prependJoin: true, tables: [{ identifierChain: [{ name: 'table1' }], alias: 't1' }] },
-              suggestKeywords: ['ANTI', 'CROSS', 'FULL', 'FULL OUTER', 'INNER', 'LEFT', 'LEFT ANTI', 'LEFT INNER', 'LEFT OUTER', 'LEFT SEMI', 'OUTER', 'RIGHT', 'RIGHT ANTI', 'RIGHT INNER', 'RIGHT OUTER', 'RIGHT SEMI', 'SEMI']
+              suggestKeywords: ['TABLESAMPLE', 'ANTI', 'CROSS', 'FULL', 'FULL OUTER', 'INNER', 'LEFT', 'LEFT ANTI', 'LEFT INNER', 'LEFT OUTER', 'LEFT SEMI', 'OUTER', 'RIGHT', 'RIGHT ANTI', 'RIGHT INNER', 'RIGHT OUTER', 'RIGHT SEMI', 'SEMI']
             }
           });
         });
@@ -6964,28 +7423,31 @@
         });
       });
 
+      // TODO: In this case the WHERE clause exists but isn't completely defined both for the query and the subquery
       it('should suggest columns for "SELECT "contains an even number" FROM t1, t2 AS ta2 WHERE EXISTS (SELECT t3.foo FROM t3 WHERE | % 2 = 0"', function() {
         assertAutoComplete({
           beforeCursor: 'SELECT "contains an even number" FROM t1, t2 AS ta2 WHERE EXISTS (SELECT t3.foo FROM t3 WHERE ',
           afterCursor: ' % 2 = 0',
           containsKeywords: ['CASE'],
           expectedResult: {
-            lowerCase: false,
+            suggestColumns: { types: ['NUMBER'], source: 'where', tables: [{ identifierChain: [{ name: 't1' }] }, { identifierChain: [{ name: 't2' }], alias: 'ta2' }, { identifierChain: [{ name: 't3' }]}] },
             suggestFunctions: { types: ['NUMBER'] },
-            suggestColumns: { source: 'where', types: ['NUMBER'], tables: [{ identifierChain: [{ name: 't1' }] }, { identifierChain: [{ name: 't2' }], alias: 'ta2' }, { identifierChain: [{ name: 't3' }]}] },
             suggestIdentifiers: [{ name: 't1.', type: 'table' }, { name: 'ta2.', type: 'alias' }, { name: 't3.', type:'table' }],
+            lowerCase: false,
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 103 } },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 8, last_column: 33 } },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 39, last_column: 41}, identifierChain: [{ name: 't1' }] },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 43, last_column: 45}, identifierChain: [{ name: 't2' }] },
-              { type: 'alias', source: 'table', alias: 'ta2', location: { first_line: 1, last_line: 1, first_column: 46, last_column: 52 }, identifierChain: [{ name: 't2' }] },
+              { type: 'alias', source: 'table', alias: 'ta2', location: { first_line: 1, last_line: 1, first_column: 49, last_column: 52 }, identifierChain: [{ name: 't2' }] },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 52, last_column: 52 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 52, last_column: 52 } },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 74, last_column: 80 }, subquery: true },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 74, last_column: 76}, identifierChain: [{ name: 't3' }]},
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 77, last_column: 80}, identifierChain: [{ name: 'foo'}], tables: [{ identifierChain: [{ name: 't3' }] }]},
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 77, last_column: 80}, identifierChain: [{ name: 'foo'}], tables: [{ identifierChain: [{ name: 't3' }] }], qualified: true },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 86, last_column: 88}, identifierChain: [{ name: 't3' }] },
-              { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 88, last_column: 88 } },
-              { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 88, last_column: 88 } }
+              { type: 'whereClause', subquery: true, missing: true, location: { first_line: 1, last_line: 1, first_column: 88, last_column: 88 } },
+              { type: 'limitClause', subquery: true, missing: true, location: { first_line: 1, last_line: 1, first_column: 88, last_column: 88 } }
             ]
           }
         });
@@ -6999,13 +7461,15 @@
           expectedResult: {
             locations: [
               { type: 'statement', location: { first_line: 1, last_line: 1, first_column: 1, last_column: 67 } },
+              { type: 'selectList', missing: true, location: { first_line: 1, last_line: 1, first_column: 7, last_column: 7 } },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 14, last_column: 23}, identifierChain: [{ name: 'testTable' }] },
               { type: 'alias', source: 'table', alias: 'tt', location: { first_line: 1, last_line: 1, first_column: 24, last_column: 26 }, identifierChain: [{ name: 'testTable' }] },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 36, last_column: 39}, identifierChain: [{ name: 'bla'}], tables: [{ identifierChain: [{ name: 'abc' }] }] },
+              { type: 'selectList', missing: false, location: { first_line: 1, last_line: 1, first_column: 36, last_column: 39 }, subquery: true },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 36, last_column: 39}, identifierChain: [{ name: 'bla'}], tables: [{ identifierChain: [{ name: 'abc' }] }], qualified: false },
               { type: 'table', location: { first_line: 1, last_line: 1, first_column: 45, last_column: 48}, identifierChain: [{ name: 'abc' }] },
-              { type: 'whereClause', missing: false, location: { first_line: 1, last_line: 1, first_column: 49, last_column: 62 } },
-              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 55, last_column: 58}, identifierChain: [{ name: 'foo'}], tables: [{ identifierChain: [{ name: 'abc' }] }] },
-              { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 62, last_column: 62 } },
+              { type: 'whereClause', subquery: true, missing: false, location: { first_line: 1, last_line: 1, first_column: 49, last_column: 62 } },
+              { type: 'column', location: { first_line: 1, last_line: 1, first_column: 55, last_column: 58}, identifierChain: [{ name: 'foo'}], tables: [{ identifierChain: [{ name: 'abc' }] }], qualified: false },
+              { type: 'limitClause', subquery: true, missing: true, location: { first_line: 1, last_line: 1, first_column: 62, last_column: 62 } },
               { type: 'alias', source: 'subquery', alias: 'bar', location: { first_line: 1, last_line: 1, first_column: 64, last_column: 67 } },
               { type: 'whereClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 67, last_column: 67 } },
               { type: 'limitClause', missing: true, location: { first_line: 1, last_line: 1, first_column: 67, last_column: 67 } }

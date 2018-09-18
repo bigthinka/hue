@@ -15,7 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.core.urlresolvers import reverse
+import json
+
+from django.urls import reverse
 from django.utils.translation import ugettext as _
 
 from desktop.conf import DEFAULT_USER
@@ -29,9 +31,10 @@ def compress_files_in_hdfs(request, file_names, upload_path, archive_name):
 
   files = [{"value": upload_path + '/' + file_name} for file_name in file_names]
   files.append({'value': '/user/' + DEFAULT_USER.get() + '/common/compress_files_in_hdfs.sh'})
+  start_time = json.loads(request.POST.get('start_time', '-1'))
 
   shell_notebook = Notebook(
-    description=_('HDFS Compression to %(upload_path)s/hue_compressed.zip') % {'upload_path': upload_path},
+    name=_('HDFS Compression to %(upload_path)s/hue_compressed.zip') % {'upload_path': upload_path},
     isManaged=True,
     onSuccessUrl=reverse('filebrowser.views.view', kwargs={'path': upload_path})
   )
@@ -41,7 +44,8 @@ def compress_files_in_hdfs(request, file_names, upload_path, archive_name):
       arguments=[{'value': '-u=' + upload_path}, {'value': '-f=' + ','.join(file_names)}, {'value': '-n=' + archive_name}],
       archives=[],
       files=files,
-      env_var=[{'value': 'HADOOP_USER_NAME=${wf:user()}'}]
+      env_var=[{'value': 'HADOOP_USER_NAME=${wf:user()}'}],
+      last_executed=start_time
   )
 
   return shell_notebook.execute(request, batch=True)

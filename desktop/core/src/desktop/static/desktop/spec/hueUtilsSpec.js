@@ -53,11 +53,24 @@
       hueUtils.changeURL('/jasmine');
     });
 
+    it("should change URL and a parameter in embedded mode", function () {
+      window.IS_EMBEDDED = true;
+      hueUtils.changeURL('/banana?peeled=no');
+      hueUtils.changeURLParameter('peeled', 'yes');
+      expect(/#\!\/banana\?peeled=yes/.test(window.location.href)).toBeTruthy();
+      window.IS_EMBEDDED = false;
+      window.location.hash = '';
+    });
+
     it("should remove a parameter in the URL", function () {
       hueUtils.changeURL('/banana?peeled=no');
       hueUtils.removeURLParameter('peeled');
       expect(window.location.search).toEqual('');
       hueUtils.changeURL('/jasmine');
+    });
+
+    it("should remove JS code from a string", function() {
+      expect(hueUtils.deXSS('hello <script>alert(123)</script>world')).toEqual('hello world');
     });
 
   });

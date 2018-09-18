@@ -25,14 +25,18 @@ ValueExpression
      // verifyType($2, 'BOOLEAN');
      $$ = { types: [ 'BOOLEAN' ] };
    }
- | '~' ValueExpression                                                              -> $2
+ | '~' ValueExpression                                                 -> $2
  | '-' ValueExpression %prec NEGATION
    {
      // verifyType($2, 'NUMBER');
      $$ = $2;
      $2.types = ['NUMBER'];
    }
- | ValueExpression 'IS' OptionalNot 'NULL'              -> { types: [ 'BOOLEAN' ] }
+ | ValueExpression 'IS' OptionalNot 'NULL'                             -> { types: [ 'BOOLEAN' ] }
+ | ValueExpression 'IS' OptionalNot 'TRUE'                             -> { types: [ 'BOOLEAN' ] }
+ | ValueExpression 'IS' OptionalNot 'FALSE'                            -> { types: [ 'BOOLEAN' ] }
+ | ValueExpression 'IS' OptionalNot '<impala>UNKNOWN'                  -> { types: [ 'BOOLEAN' ] }
+ | ValueExpression 'IS' OptionalNot 'DISTINCT' 'FROM' ValueExpression  -> { types: [ 'BOOLEAN' ] }
  ;
 
 ValueExpression_EDIT
@@ -71,20 +75,54 @@ ValueExpression_EDIT
      parser.suggestColumns({ types: [ 'NUMBER' ] });
      $$ = { types: [ 'NUMBER' ] };
    }
- | ValueExpression 'IS' 'NOT' 'CURSOR'
-    {
-      parser.suggestKeywords(['NULL']);
-      $$ = { types: [ 'BOOLEAN' ] };
-    }
  | ValueExpression 'IS' 'CURSOR'
    {
-     parser.suggestKeywords(['NOT NULL', 'NULL']);
+     var keywords = ['FALSE', 'NOT NULL', 'NOT TRUE', 'NOT FALSE', 'NULL', 'TRUE'];
+     if (parser.isImpala()) {
+       keywords = keywords.concat(['DISTINCT FROM', 'NOT DISTINCT FROM', 'NOT UNKNOWN', 'UNKNOWN']);
+     }
+     parser.suggestKeywords(keywords);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' 'NOT' 'CURSOR'
+   {
+     var keywords = ['FALSE', 'NULL', 'TRUE'];
+     if (parser.isImpala()) {
+       keywords = keywords.concat(['DISTINCT FROM', 'UNKNOWN']);
+     }
+     parser.suggestKeywords(keywords);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' OptionalNot 'DISTINCT' 'CURSOR'
+   {
+     if (parser.isImpala()) {
+       parser.suggestKeywords(['FROM']);
+     }
      $$ = { types: [ 'BOOLEAN' ] };
    }
  | ValueExpression 'IS' 'CURSOR' 'NULL'
    {
      parser.suggestKeywords(['NOT']);
      $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' 'CURSOR' 'FALSE'
+   {
+     parser.suggestKeywords(['NOT']);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' 'CURSOR' 'TRUE'
+   {
+     parser.suggestKeywords(['NOT']);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' OptionalNot 'DISTINCT' 'FROM' PartialBacktickedOrAnyCursor
+   {
+     parser.valueExpressionSuggest($1, $3 ? 'IS NOT DISTINCT FROM' : 'IS DISTINCT FROM');
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'IS' OptionalNot 'DISTINCT' 'FROM' ValueExpression_EDIT
+   {
+     $$ = { types: [ 'BOOLEAN' ], suggestFilters: $6.suggestFilters }
    }
  ;
 
@@ -115,10 +153,26 @@ ValueExpression_EDIT
 // ------------------  COMPARISON ------------------
 
 ValueExpression
- : ValueExpression '=' ValueExpression                    -> { types: [ 'BOOLEAN' ] }
- | ValueExpression '<' ValueExpression  -> { types: [ 'BOOLEAN' ] }
- | ValueExpression '>' ValueExpression  -> { types: [ 'BOOLEAN' ] }
- | ValueExpression 'COMPARISON_OPERATOR' ValueExpression  -> { types: [ 'BOOLEAN' ] }
+ : ValueExpression '=' ValueExpression
+   {
+     parser.addColRefToVariableIfExists($1, $3);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression '<' ValueExpression
+   {
+     parser.addColRefToVariableIfExists($1, $3);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression '>' ValueExpression
+   {
+     parser.addColRefToVariableIfExists($1, $3);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
+ | ValueExpression 'COMPARISON_OPERATOR' ValueExpression
+   {
+     parser.addColRefToVariableIfExists($1, $3);
+     $$ = { types: [ 'BOOLEAN' ] };
+   }
  ;
 
 ValueExpression_EDIT
@@ -537,16 +591,32 @@ ValueExpression
  ;
 
 LikeRightPart
- : 'LIKE' ValueExpression    -> { suggestKeywords: ['NOT'] }
- | 'RLIKE' ValueExpression   -> { suggestKeywords: ['NOT'] }
- | 'REGEXP' ValueExpression  -> { suggestKeywords: ['NOT'] }
+ : 'LIKE' ValueExpression             -> { suggestKeywords: ['NOT'] }
+ | '<impala>ILIKE' ValueExpression    -> { suggestKeywords: ['NOT'] }
+ | '<impala>IREGEXP' ValueExpression  -> { suggestKeywords: ['NOT'] }
+ | 'RLIKE' ValueExpression            -> { suggestKeywords: ['NOT'] }
+ | 'REGEXP' ValueExpression           -> { suggestKeywords: ['NOT'] }
  ;
 
 LikeRightPart_EDIT
  : 'LIKE' ValueExpression_EDIT
+ | '<impala>ILIKE' ValueExpression_EDIT
+ | '<impala>IREGEXP' ValueExpression_EDIT
  | 'RLIKE' ValueExpression_EDIT
  | 'REGEXP' ValueExpression_EDIT
  | 'LIKE' PartialBacktickedOrCursor
+   {
+     parser.suggestFunctions({ types: [ 'STRING' ] });
+     parser.suggestColumns({ types: [ 'STRING' ] });
+     $$ = { types: ['BOOLEAN'] }
+   }
+ | '<impala>ILIKE' PartialBacktickedOrCursor
+   {
+     parser.suggestFunctions({ types: [ 'STRING' ] });
+     parser.suggestColumns({ types: [ 'STRING' ] });
+     $$ = { types: ['BOOLEAN'] }
+   }
+ | '<impala>IREGEXP' PartialBacktickedOrCursor
    {
      parser.suggestFunctions({ types: [ 'STRING' ] });
      parser.suggestColumns({ types: [ 'STRING' ] });

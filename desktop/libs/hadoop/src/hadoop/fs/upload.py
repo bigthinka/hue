@@ -32,6 +32,8 @@ import time
 from django.core.files.uploadhandler import FileUploadHandler, StopFutureHandlers, StopUpload, UploadFileException, SkipFile
 from django.utils.translation import ugettext as _
 
+from desktop.lib import fsmanager
+
 import hadoop.cluster
 from hadoop.conf import UPLOAD_CHUNK_SIZE
 from hadoop.fs.exceptions import WebHdfsException
@@ -139,8 +141,9 @@ class HDFSfileUploadHandler(FileUploadHandler):
     self._activated = False
     self._destination = request.GET.get('dest', None) # GET param avoids infinite looping
     self.request = request
-    # Need to directly modify FileUploadHandler.chunk_size
-    FileUploadHandler.chunk_size = UPLOAD_CHUNK_SIZE.get()
+    fs = fsmanager.get_filesystem('default')
+    fs.setuser(request.user.username)
+    FileUploadHandler.chunk_size = fs.get_upload_chuck_size(self._destination) if self._destination else UPLOAD_CHUNK_SIZE.get()
 
     LOG.debug("Chunk size = %d" % FileUploadHandler.chunk_size)
 
@@ -149,6 +152,9 @@ class HDFSfileUploadHandler(FileUploadHandler):
     if field_name.upper().startswith('HDFS'):
       LOG.info('Using HDFSfileUploadHandler to handle file upload.')
       try:
+        fs_ref = self.request.GET.get('fs', 'default')
+        self.request.fs = fsmanager.get_filesystem(fs_ref)
+        self.request.fs.setuser(self.request.user.username)
         self._file = HDFStemporaryUploadedFile(self.request, file_name, self._destination)
         LOG.debug('Upload attempt to %s' % (self._file.get_temp_path(),))
         self._activated = True

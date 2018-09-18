@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-05-16 08:40-0700\n"
+"POT-Creation-Date: 2018-03-07 10:05-0800\n"
 "PO-Revision-Date: 2013-10-28 10:31-0700\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: en <LL@li.org>\n"
@@ -35,39 +35,39 @@ msgid ""
 "$TIME and $USER, e.g. /user/$USER/hue/workspaces/workflow-$TIME"
 msgstr ""
 
-#: src/oozie/conf.py:68
+#: src/oozie/conf.py:73
 msgid ""
 "Maximum number of Oozie workflows or coodinators or bundles to retrieve "
 "in one API call."
 msgstr ""
 
-#: src/oozie/conf.py:75
+#: src/oozie/conf.py:80
 msgid "Use version 2 of Editor."
 msgstr ""
 
-#: src/oozie/conf.py:82
+#: src/oozie/conf.py:87
 msgid ""
 "Use Cron format for defining the frequency of a Coordinator instead of "
 "the old frequency number/unit."
 msgstr ""
 
-#: src/oozie/conf.py:89
+#: src/oozie/conf.py:94
 msgid ""
 "Flag to enable Oozie backend filtering instead of doing it at the page "
 "level in Javascript. Requires Oozie 4.3+."
 msgstr ""
 
-#: src/oozie/conf.py:94
+#: src/oozie/conf.py:99
 msgid ""
 "Flag to enable the saved Editor queries to be dragged and dropped into a "
 "workflow."
 msgstr ""
 
-#: src/oozie/conf.py:101
+#: src/oozie/conf.py:106
 msgid "Flag to enable the Impala action."
 msgstr ""
 
-#: src/oozie/conf.py:113
+#: src/oozie/conf.py:118
 msgid "The app won't work without a running Oozie server"
 msgstr ""
 
@@ -162,7 +162,7 @@ msgstr ""
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:111
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:72
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:121
-#: src/oozie/templates/dashboard/list_oozie_info.mako:162
+#: src/oozie/templates/dashboard/list_oozie_info.mako:171
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:131
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:184
 #: src/oozie/templates/dashboard/list_oozie_workflow_action.mako:49
@@ -274,17 +274,17 @@ msgstr ""
 #: src/oozie/models.py:330 src/oozie/models.py:857 src/oozie/models.py:925
 #: src/oozie/models.py:965 src/oozie/models.py:1004 src/oozie/models.py:1043
 #: src/oozie/models.py:1103 src/oozie/models.py:1141 src/oozie/models2.py:184
-#: src/oozie/models2.py:1062 src/oozie/models2.py:1161
-#: src/oozie/models2.py:1343 src/oozie/models2.py:1504
-#: src/oozie/models2.py:1571 src/oozie/models2.py:1662
-#: src/oozie/models2.py:1929 src/oozie/models2.py:2077
-#: src/oozie/models2.py:2219 src/oozie/models2.py:2349
-#: src/oozie/models2.py:2434 src/oozie/models2.py:2501
-#: src/oozie/models2.py:2575 src/oozie/models2.py:2706
-#: src/oozie/models2.py:2780
+#: src/oozie/models2.py:1093 src/oozie/models2.py:1192
+#: src/oozie/models2.py:1374 src/oozie/models2.py:1535
+#: src/oozie/models2.py:1602 src/oozie/models2.py:1693
+#: src/oozie/models2.py:1960 src/oozie/models2.py:2108
+#: src/oozie/models2.py:2250 src/oozie/models2.py:2380
+#: src/oozie/models2.py:2465 src/oozie/models2.py:2539
+#: src/oozie/models2.py:2613 src/oozie/models2.py:2744
+#: src/oozie/models2.py:2818
 #: src/oozie/templates/editor2/common_workflow.mako:426
 #: src/oozie/templates/editor2/common_workflow.mako:1480
-#: src/oozie/templates/editor2/workflow_editor.mako:489
+#: src/oozie/templates/editor2/workflow_editor.mako:555
 msgid "Job XML"
 msgstr ""
 
@@ -300,16 +300,16 @@ msgstr ""
 #: src/oozie/models.py:334 src/oozie/models.py:850 src/oozie/models.py:883
 #: src/oozie/models.py:920 src/oozie/models.py:960 src/oozie/models.py:999
 #: src/oozie/models.py:1038 src/oozie/models.py:1098 src/oozie/models.py:1136
-#: src/oozie/models.py:1210 src/oozie/models2.py:1048 src/oozie/models2.py:1147
-#: src/oozie/models2.py:1222 src/oozie/models2.py:1329
-#: src/oozie/models2.py:1429 src/oozie/models2.py:1490
-#: src/oozie/models2.py:1557 src/oozie/models2.py:1648
-#: src/oozie/models2.py:1917 src/oozie/models2.py:1973
-#: src/oozie/models2.py:2065 src/oozie/models2.py:2205
-#: src/oozie/models2.py:2335 src/oozie/models2.py:2422
-#: src/oozie/models2.py:2487 src/oozie/models2.py:2561
-#: src/oozie/models2.py:2627 src/oozie/models2.py:2692
-#: src/oozie/models2.py:2766
+#: src/oozie/models.py:1210 src/oozie/models2.py:1079 src/oozie/models2.py:1178
+#: src/oozie/models2.py:1253 src/oozie/models2.py:1360
+#: src/oozie/models2.py:1460 src/oozie/models2.py:1521
+#: src/oozie/models2.py:1588 src/oozie/models2.py:1679
+#: src/oozie/models2.py:1948 src/oozie/models2.py:2004
+#: src/oozie/models2.py:2096 src/oozie/models2.py:2236
+#: src/oozie/models2.py:2366 src/oozie/models2.py:2453
+#: src/oozie/models2.py:2525 src/oozie/models2.py:2599
+#: src/oozie/models2.py:2665 src/oozie/models2.py:2730
+#: src/oozie/models2.py:2804
 msgid "Hadoop job properties"
 msgstr ""
 
@@ -362,14 +362,14 @@ msgstr ""
 
 #: src/oozie/models.py:846 src/oozie/models.py:879 src/oozie/models.py:905
 #: src/oozie/models.py:956 src/oozie/models.py:994 src/oozie/models.py:1033
-#: src/oozie/models.py:1094 src/oozie/models2.py:1034 src/oozie/models2.py:1133
-#: src/oozie/models2.py:1208 src/oozie/models2.py:1315
-#: src/oozie/models2.py:1476 src/oozie/models2.py:1543
-#: src/oozie/models2.py:1634 src/oozie/models2.py:1905
-#: src/oozie/models2.py:2030 src/oozie/models2.py:2191
-#: src/oozie/models2.py:2321 src/oozie/models2.py:2401
-#: src/oozie/models2.py:2473 src/oozie/models2.py:2547
-#: src/oozie/models2.py:2678 src/oozie/models2.py:2752
+#: src/oozie/models.py:1094 src/oozie/models2.py:1065 src/oozie/models2.py:1164
+#: src/oozie/models2.py:1239 src/oozie/models2.py:1346
+#: src/oozie/models2.py:1507 src/oozie/models2.py:1574
+#: src/oozie/models2.py:1665 src/oozie/models2.py:1936
+#: src/oozie/models2.py:2061 src/oozie/models2.py:2222
+#: src/oozie/models2.py:2352 src/oozie/models2.py:2432
+#: src/oozie/models2.py:2511 src/oozie/models2.py:2585
+#: src/oozie/models2.py:2716 src/oozie/models2.py:2790
 #: src/oozie/templates/editor2/common_workflow.mako:538
 msgid "Files"
 msgstr ""
@@ -384,13 +384,13 @@ msgstr ""
 
 #: src/oozie/models.py:848 src/oozie/models.py:881 src/oozie/models.py:907
 #: src/oozie/models.py:958 src/oozie/models.py:996 src/oozie/models.py:1035
-#: src/oozie/models.py:1096 src/oozie/models2.py:1041 src/oozie/models2.py:1140
-#: src/oozie/models2.py:1215 src/oozie/models2.py:1322
-#: src/oozie/models2.py:1483 src/oozie/models2.py:1550
-#: src/oozie/models2.py:1641 src/oozie/models2.py:1911
-#: src/oozie/models2.py:2198 src/oozie/models2.py:2328
-#: src/oozie/models2.py:2480 src/oozie/models2.py:2554
-#: src/oozie/models2.py:2685 src/oozie/models2.py:2759
+#: src/oozie/models.py:1096 src/oozie/models2.py:1072 src/oozie/models2.py:1171
+#: src/oozie/models2.py:1246 src/oozie/models2.py:1353
+#: src/oozie/models2.py:1514 src/oozie/models2.py:1581
+#: src/oozie/models2.py:1672 src/oozie/models2.py:1942
+#: src/oozie/models2.py:2229 src/oozie/models2.py:2359
+#: src/oozie/models2.py:2518 src/oozie/models2.py:2592
+#: src/oozie/models2.py:2723 src/oozie/models2.py:2797
 #: src/oozie/templates/editor/action_utils.mako:365
 #: src/oozie/templates/editor2/common_workflow.mako:449
 #: src/oozie/templates/editor2/common_workflow.mako:1486
@@ -411,8 +411,8 @@ msgstr ""
 msgid "For the job configuration (e.g. mapred.job.queue.name=production)"
 msgstr ""
 
-#: src/oozie/models.py:852 src/oozie/models.py:909 src/oozie/models2.py:1093
-#: src/oozie/models2.py:1535
+#: src/oozie/models.py:852 src/oozie/models.py:909 src/oozie/models2.py:1124
+#: src/oozie/models2.py:1566
 msgid "Jar name"
 msgstr ""
 
@@ -423,15 +423,15 @@ msgstr ""
 
 #: src/oozie/models.py:854 src/oozie/models.py:922 src/oozie/models.py:962
 #: src/oozie/models.py:1001 src/oozie/models.py:1040 src/oozie/models.py:1100
-#: src/oozie/models.py:1138 src/oozie/models2.py:1055 src/oozie/models2.py:1154
-#: src/oozie/models2.py:1229 src/oozie/models2.py:1336
-#: src/oozie/models2.py:1497 src/oozie/models2.py:1564
-#: src/oozie/models2.py:1655 src/oozie/models2.py:1923
-#: src/oozie/models2.py:1967 src/oozie/models2.py:2071
-#: src/oozie/models2.py:2212 src/oozie/models2.py:2342
-#: src/oozie/models2.py:2428 src/oozie/models2.py:2494
-#: src/oozie/models2.py:2568 src/oozie/models2.py:2621
-#: src/oozie/models2.py:2699 src/oozie/models2.py:2773
+#: src/oozie/models.py:1138 src/oozie/models2.py:1086 src/oozie/models2.py:1185
+#: src/oozie/models2.py:1260 src/oozie/models2.py:1367
+#: src/oozie/models2.py:1528 src/oozie/models2.py:1595
+#: src/oozie/models2.py:1686 src/oozie/models2.py:1954
+#: src/oozie/models2.py:1998 src/oozie/models2.py:2102
+#: src/oozie/models2.py:2243 src/oozie/models2.py:2373
+#: src/oozie/models2.py:2459 src/oozie/models2.py:2532
+#: src/oozie/models2.py:2606 src/oozie/models2.py:2659
+#: src/oozie/models2.py:2737 src/oozie/models2.py:2811
 msgid "Prepares"
 msgstr ""
 
@@ -441,23 +441,23 @@ msgid ""
 "application. This should be used exclusively for directory cleanup."
 msgstr ""
 
-#: src/oozie/models.py:885 src/oozie/models2.py:1890
+#: src/oozie/models.py:885 src/oozie/models2.py:1921
 msgid "Mapper"
 msgstr ""
 
-#: src/oozie/models.py:886 src/oozie/models2.py:1892
+#: src/oozie/models.py:886 src/oozie/models2.py:1923
 msgid "The executable/script to be used as mapper."
 msgstr ""
 
-#: src/oozie/models.py:887 src/oozie/models2.py:1897
+#: src/oozie/models.py:887 src/oozie/models2.py:1928
 msgid "Reducer"
 msgstr ""
 
-#: src/oozie/models.py:888 src/oozie/models2.py:1899
+#: src/oozie/models.py:888 src/oozie/models2.py:1930
 msgid "The executable/script to be used as reducer."
 msgstr ""
 
-#: src/oozie/models.py:911 src/oozie/models2.py:1100 src/oozie/models2.py:2037
+#: src/oozie/models.py:911 src/oozie/models2.py:1131 src/oozie/models2.py:2068
 msgid "Main class"
 msgstr ""
 
@@ -466,11 +466,11 @@ msgid "Full name of the Java class. E.g. org.apache.hadoop.examples.Grep"
 msgstr ""
 
 #: src/oozie/models.py:913 src/oozie/models.py:1074 src/oozie/models.py:1092
-#: src/oozie/models.py:1133 src/oozie/models2.py:1026 src/oozie/models2.py:1107
-#: src/oozie/models2.py:1292 src/oozie/models2.py:1467
-#: src/oozie/models2.py:1609 src/oozie/models2.py:1707
-#: src/oozie/models2.py:1959 src/oozie/models2.py:2058
-#: src/oozie/models2.py:2295 src/oozie/models2.py:2408
+#: src/oozie/models.py:1133 src/oozie/models2.py:1057 src/oozie/models2.py:1138
+#: src/oozie/models2.py:1323 src/oozie/models2.py:1498
+#: src/oozie/models2.py:1640 src/oozie/models2.py:1738
+#: src/oozie/models2.py:1990 src/oozie/models2.py:2089
+#: src/oozie/models2.py:2326 src/oozie/models2.py:2439
 #: src/oozie/templates/editor2/common_workflow.mako:500
 #: src/oozie/templates/editor2/common_workflow.mako:518
 #: src/oozie/templates/editor2/common_workflow.mako:799
@@ -478,15 +478,15 @@ msgstr ""
 msgid "Arguments"
 msgstr ""
 
-#: src/oozie/models.py:914 src/oozie/models2.py:1109 src/oozie/models2.py:2297
+#: src/oozie/models.py:914 src/oozie/models2.py:1140 src/oozie/models2.py:2328
 msgid ""
 "Arguments of the main method. The value of each arg element is considered"
 " a single argument and they are passed to the main method in the same "
 "order."
 msgstr ""
 
-#: src/oozie/models.py:916 src/oozie/models2.py:1115 src/oozie/models2.py:1979
-#: src/oozie/models2.py:2303 src/oozie/models2.py:2633
+#: src/oozie/models.py:916 src/oozie/models2.py:1146 src/oozie/models2.py:2010
+#: src/oozie/models2.py:2334 src/oozie/models2.py:2671
 msgid "Java options"
 msgstr ""
 
@@ -499,14 +499,14 @@ msgid ""
 msgstr ""
 
 #: src/oozie/models.py:929 src/oozie/models.py:1076 src/oozie/models.py:1107
-#: src/oozie/models2.py:1122 src/oozie/models2.py:1623
-#: src/oozie/models2.py:1714 src/oozie/models2.py:2310
+#: src/oozie/models2.py:1153 src/oozie/models2.py:1654
+#: src/oozie/models2.py:1745 src/oozie/models2.py:2341
 msgid "Capture output"
 msgstr ""
 
-#: src/oozie/models.py:930 src/oozie/models.py:1108 src/oozie/models2.py:1124
-#: src/oozie/models2.py:1625 src/oozie/models2.py:1716
-#: src/oozie/models2.py:2312
+#: src/oozie/models.py:930 src/oozie/models.py:1108 src/oozie/models2.py:1155
+#: src/oozie/models2.py:1656 src/oozie/models2.py:1747
+#: src/oozie/models2.py:2343
 #, python-format
 msgid ""
 "Capture output of the stdout of the %(program)s command execution. The "
@@ -525,14 +525,14 @@ msgid "Script name or path to the Pig script. E.g. my_script.pig."
 msgstr ""
 
 #: src/oozie/models.py:954 src/oozie/models.py:992 src/oozie/models.py:1030
-#: src/oozie/models.py:1753 src/oozie/models2.py:1019 src/oozie/models2.py:1200
-#: src/oozie/models2.py:1285 src/oozie/models2.py:2168
-#: src/oozie/models2.py:2414 src/oozie/models2.py:2539
-#: src/oozie/models2.py:2613 src/oozie/models2.py:2670
-#: src/oozie/models2.py:2744
+#: src/oozie/models.py:1753 src/oozie/models2.py:1050 src/oozie/models2.py:1231
+#: src/oozie/models2.py:1316 src/oozie/models2.py:2199
+#: src/oozie/models2.py:2445 src/oozie/models2.py:2503
+#: src/oozie/models2.py:2577 src/oozie/models2.py:2651
+#: src/oozie/models2.py:2708 src/oozie/models2.py:2782
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:173
 #: src/oozie/templates/editor2/common_workflow.mako:556
-#: src/oozie/templates/editor2/common_workflow.mako:2169
+#: src/oozie/templates/editor2/common_workflow.mako:2175
 msgid "Parameters"
 msgstr ""
 
@@ -545,10 +545,10 @@ msgstr ""
 msgid "Script name or path to the %(type)s script. E.g. my_script.sql."
 msgstr ""
 
-#: src/oozie/models.py:993 src/oozie/models2.py:1202 src/oozie/models2.py:1287
-#: src/oozie/models2.py:2416 src/oozie/models2.py:2541
-#: src/oozie/models2.py:2615 src/oozie/models2.py:2672
-#: src/oozie/models2.py:2746
+#: src/oozie/models.py:993 src/oozie/models2.py:1233 src/oozie/models2.py:1318
+#: src/oozie/models2.py:2447 src/oozie/models2.py:2505
+#: src/oozie/models2.py:2579 src/oozie/models2.py:2653
+#: src/oozie/models2.py:2710 src/oozie/models2.py:2784
 #, python-format
 msgid "The %(type)s parameters of the script. E.g. N=5, INPUT=${inputDir}"
 msgstr ""
@@ -569,14 +569,14 @@ msgstr ""
 msgid "Command"
 msgstr ""
 
-#: src/oozie/models.py:1028 src/oozie/models2.py:1462
+#: src/oozie/models.py:1028 src/oozie/models2.py:1493
 #, python-format
 msgid ""
 "The full %(type)s command. Either put it here or split it by spaces and "
 "insert the parts as multiple parameters below."
 msgstr ""
 
-#: src/oozie/models.py:1031 src/oozie/models2.py:1469
+#: src/oozie/models.py:1031 src/oozie/models2.py:1500
 #, python-format
 msgid ""
 "If no command is specified, split the command by spaces and insert the "
@@ -603,7 +603,7 @@ msgstr ""
 msgid "Host"
 msgstr ""
 
-#: src/oozie/models.py:1071 src/oozie/models2.py:1695
+#: src/oozie/models.py:1071 src/oozie/models2.py:1726
 msgid "Where the shell will be executed."
 msgstr ""
 
@@ -631,7 +631,7 @@ msgid ""
 "action:output(String node, String key) function"
 msgstr ""
 
-#: src/oozie/models.py:1091 src/oozie/models2.py:1702
+#: src/oozie/models.py:1091 src/oozie/models2.py:1733
 msgid "The path of the Shell command to execute."
 msgstr ""
 
@@ -652,7 +652,7 @@ msgstr ""
 msgid "For the job configuration (e.g. mapred.job.queue.name=production"
 msgstr ""
 
-#: src/oozie/models.py:1161 src/oozie/models2.py:1749
+#: src/oozie/models.py:1161 src/oozie/models2.py:1780
 msgid "Delete path"
 msgstr ""
 
@@ -662,7 +662,7 @@ msgid ""
 "all its content and then deletes the directory."
 msgstr ""
 
-#: src/oozie/models.py:1164 src/oozie/models2.py:1756
+#: src/oozie/models.py:1164 src/oozie/models2.py:1787
 msgid "Create directory"
 msgstr ""
 
@@ -680,7 +680,7 @@ msgstr ""
 msgid "Move a file or directory to another path."
 msgstr ""
 
-#: src/oozie/models.py:1169 src/oozie/models2.py:1770
+#: src/oozie/models.py:1169 src/oozie/models2.py:1801
 msgid "Change permissions"
 msgstr ""
 
@@ -691,7 +691,7 @@ msgid ""
 "octal representation (755)."
 msgstr ""
 
-#: src/oozie/models.py:1172 src/oozie/models2.py:1777
+#: src/oozie/models.py:1172 src/oozie/models2.py:1808
 msgid "Create or touch a file"
 msgstr ""
 
@@ -713,7 +713,7 @@ msgstr ""
 msgid "CC addresses (optional)"
 msgstr ""
 
-#: src/oozie/models.py:1198 src/oozie/models2.py:1837
+#: src/oozie/models.py:1198 src/oozie/models2.py:1868
 msgid "Subject"
 msgstr ""
 
@@ -721,11 +721,11 @@ msgstr ""
 msgid "Plain-text."
 msgstr ""
 
-#: src/oozie/models.py:1199 src/oozie/models2.py:1844
+#: src/oozie/models.py:1199 src/oozie/models2.py:1875
 msgid "Body"
 msgstr ""
 
-#: src/oozie/models.py:1206 src/oozie/models2.py:1415
+#: src/oozie/models.py:1206 src/oozie/models2.py:1446
 msgid "Sub-workflow"
 msgstr ""
 
@@ -735,17 +735,17 @@ msgid ""
 "workflows."
 msgstr ""
 
-#: src/oozie/models.py:1208 src/oozie/models2.py:1422
+#: src/oozie/models.py:1208 src/oozie/models2.py:1453
 msgid "Propagate configuration"
 msgstr ""
 
-#: src/oozie/models.py:1209 src/oozie/models2.py:1424
+#: src/oozie/models.py:1209 src/oozie/models2.py:1455
 msgid ""
 "If the workflow job configuration should be propagated to the child "
 "workflow."
 msgstr ""
 
-#: src/oozie/models.py:1211 src/oozie/models2.py:1431
+#: src/oozie/models.py:1211 src/oozie/models2.py:1462
 msgid ""
 "Can be used to specify the job properties that are required to run the "
 "child workflow job."
@@ -1131,7 +1131,7 @@ msgstr ""
 #: src/oozie/templates/dashboard/rerun_bundle_popup.mako:60
 #: src/oozie/templates/dashboard/rerun_coord_popup.mako:51
 #: src/oozie/templates/dashboard/rerun_workflow_popup.mako:58
-#: src/oozie/templates/editor2/workflow_editor.mako:451
+#: src/oozie/templates/editor2/workflow_editor.mako:517
 msgid "Variables"
 msgstr ""
 
@@ -1140,12 +1140,12 @@ msgid "Add one or more Oozie workflow job parameters."
 msgstr ""
 
 #: src/oozie/models2.py:147
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:471
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:470
 #: src/oozie/templates/dashboard/list_oozie_workflow_graph.mako:71
 #: src/oozie/templates/editor/edit_workflow.mako:48
-#: src/oozie/templates/editor2/workflow_editor.mako:67
-#: src/oozie/templates/editor2/workflow_editor.mako:465
-#: src/oozie/templates/editor2/workflow_editor.mako:631
+#: src/oozie/templates/editor2/workflow_editor.mako:88
+#: src/oozie/templates/editor2/workflow_editor.mako:531
+#: src/oozie/templates/editor2/workflow_editor.mako:644
 msgid "Workspace"
 msgstr ""
 
@@ -1154,7 +1154,7 @@ msgid "Specify the deployment directory."
 msgstr ""
 
 #: src/oozie/models2.py:155
-#: src/oozie/templates/editor2/workflow_editor.mako:469
+#: src/oozie/templates/editor2/workflow_editor.mako:535
 msgid "Hadoop Properties"
 msgstr ""
 
@@ -1163,7 +1163,7 @@ msgid "Hadoop configuration properties."
 msgstr ""
 
 #: src/oozie/models2.py:163
-#: src/oozie/templates/editor2/workflow_editor.mako:483
+#: src/oozie/templates/editor2/workflow_editor.mako:549
 msgid "Show graph arrows"
 msgstr ""
 
@@ -1172,7 +1172,7 @@ msgid "Toggles display of graph arrows."
 msgstr ""
 
 #: src/oozie/models2.py:171
-#: src/oozie/templates/editor2/workflow_editor.mako:486
+#: src/oozie/templates/editor2/workflow_editor.mako:552
 msgid "Version"
 msgstr ""
 
@@ -1192,7 +1192,7 @@ msgstr ""
 #: src/oozie/templates/editor/edit_coordinator.mako:290
 #: src/oozie/templates/editor/edit_workflow.mako:123
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:464
-#: src/oozie/templates/editor2/workflow_editor.mako:493
+#: src/oozie/templates/editor2/workflow_editor.mako:559
 msgid "SLA Configuration"
 msgstr ""
 
@@ -1200,187 +1200,187 @@ msgstr ""
 msgid "Oozie SLA properties"
 msgstr ""
 
-#: src/oozie/models2.py:298 src/oozie/models2.py:890 src/oozie/models2.py:2109
+#: src/oozie/models2.py:307 src/oozie/models2.py:921 src/oozie/models2.py:2140
 msgid "Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]"
 msgstr ""
 
-#: src/oozie/models2.py:889
+#: src/oozie/models2.py:920
 msgid "${wf:name()} execution failure"
 msgstr ""
 
-#: src/oozie/models2.py:895
+#: src/oozie/models2.py:926
 msgid "${wf:name()} execution successful"
 msgstr ""
 
-#: src/oozie/models2.py:1012 src/oozie/models2.py:1193
-#: src/oozie/models2.py:1278
+#: src/oozie/models2.py:1043 src/oozie/models2.py:1224
+#: src/oozie/models2.py:1309
 msgid "Script"
 msgstr ""
 
-#: src/oozie/models2.py:1014 src/oozie/models2.py:1195
-#: src/oozie/models2.py:1280
+#: src/oozie/models2.py:1045 src/oozie/models2.py:1226
+#: src/oozie/models2.py:1311
 msgid "Path to the script on HDFS."
 msgstr ""
 
-#: src/oozie/models2.py:1021
+#: src/oozie/models2.py:1052
 msgid "The Pig parameters of the script without -param. e.g. INPUT=${inputDir}"
 msgstr ""
 
-#: src/oozie/models2.py:1028
+#: src/oozie/models2.py:1059
 msgid "The Pig parameters of the script as is. e.g. -param, INPUT=${inputDir}"
 msgstr ""
 
-#: src/oozie/models2.py:1036 src/oozie/models2.py:1135
-#: src/oozie/models2.py:1210 src/oozie/models2.py:1317
-#: src/oozie/models2.py:1478 src/oozie/models2.py:1545
-#: src/oozie/models2.py:1636 src/oozie/models2.py:1907
-#: src/oozie/models2.py:2193 src/oozie/models2.py:2323
-#: src/oozie/models2.py:2475 src/oozie/models2.py:2549
-#: src/oozie/models2.py:2680 src/oozie/models2.py:2754
+#: src/oozie/models2.py:1067 src/oozie/models2.py:1166
+#: src/oozie/models2.py:1241 src/oozie/models2.py:1348
+#: src/oozie/models2.py:1509 src/oozie/models2.py:1576
+#: src/oozie/models2.py:1667 src/oozie/models2.py:1938
+#: src/oozie/models2.py:2224 src/oozie/models2.py:2354
+#: src/oozie/models2.py:2513 src/oozie/models2.py:2587
+#: src/oozie/models2.py:2718 src/oozie/models2.py:2792
 msgid "Files put in the running directory."
 msgstr ""
 
-#: src/oozie/models2.py:1043 src/oozie/models2.py:1142
-#: src/oozie/models2.py:1217 src/oozie/models2.py:1324
-#: src/oozie/models2.py:1485 src/oozie/models2.py:1552
-#: src/oozie/models2.py:1643 src/oozie/models2.py:1913
-#: src/oozie/models2.py:2200 src/oozie/models2.py:2330
-#: src/oozie/models2.py:2482 src/oozie/models2.py:2556
-#: src/oozie/models2.py:2687 src/oozie/models2.py:2761
+#: src/oozie/models2.py:1074 src/oozie/models2.py:1173
+#: src/oozie/models2.py:1248 src/oozie/models2.py:1355
+#: src/oozie/models2.py:1516 src/oozie/models2.py:1583
+#: src/oozie/models2.py:1674 src/oozie/models2.py:1944
+#: src/oozie/models2.py:2231 src/oozie/models2.py:2361
+#: src/oozie/models2.py:2520 src/oozie/models2.py:2594
+#: src/oozie/models2.py:2725 src/oozie/models2.py:2799
 msgid "zip, tar and tgz/tar.gz uncompressed into the running directory."
 msgstr ""
 
-#: src/oozie/models2.py:1050 src/oozie/models2.py:1149
-#: src/oozie/models2.py:1224 src/oozie/models2.py:1331
-#: src/oozie/models2.py:1492 src/oozie/models2.py:1559
-#: src/oozie/models2.py:1650 src/oozie/models2.py:1919
-#: src/oozie/models2.py:1975 src/oozie/models2.py:2067
-#: src/oozie/models2.py:2207 src/oozie/models2.py:2337
-#: src/oozie/models2.py:2424 src/oozie/models2.py:2489
-#: src/oozie/models2.py:2563 src/oozie/models2.py:2629
-#: src/oozie/models2.py:2694 src/oozie/models2.py:2768
+#: src/oozie/models2.py:1081 src/oozie/models2.py:1180
+#: src/oozie/models2.py:1255 src/oozie/models2.py:1362
+#: src/oozie/models2.py:1523 src/oozie/models2.py:1590
+#: src/oozie/models2.py:1681 src/oozie/models2.py:1950
+#: src/oozie/models2.py:2006 src/oozie/models2.py:2098
+#: src/oozie/models2.py:2238 src/oozie/models2.py:2368
+#: src/oozie/models2.py:2455 src/oozie/models2.py:2527
+#: src/oozie/models2.py:2601 src/oozie/models2.py:2667
+#: src/oozie/models2.py:2732 src/oozie/models2.py:2806
 msgid "value, e.g. production"
 msgstr ""
 
-#: src/oozie/models2.py:1057 src/oozie/models2.py:1156
-#: src/oozie/models2.py:1231 src/oozie/models2.py:1338
-#: src/oozie/models2.py:1499 src/oozie/models2.py:1566
-#: src/oozie/models2.py:1657 src/oozie/models2.py:1925
-#: src/oozie/models2.py:1969 src/oozie/models2.py:2073
-#: src/oozie/models2.py:2214 src/oozie/models2.py:2344
-#: src/oozie/models2.py:2430 src/oozie/models2.py:2496
-#: src/oozie/models2.py:2570 src/oozie/models2.py:2623
-#: src/oozie/models2.py:2701 src/oozie/models2.py:2775
+#: src/oozie/models2.py:1088 src/oozie/models2.py:1187
+#: src/oozie/models2.py:1262 src/oozie/models2.py:1369
+#: src/oozie/models2.py:1530 src/oozie/models2.py:1597
+#: src/oozie/models2.py:1688 src/oozie/models2.py:1956
+#: src/oozie/models2.py:2000 src/oozie/models2.py:2104
+#: src/oozie/models2.py:2245 src/oozie/models2.py:2375
+#: src/oozie/models2.py:2461 src/oozie/models2.py:2534
+#: src/oozie/models2.py:2608 src/oozie/models2.py:2661
+#: src/oozie/models2.py:2739 src/oozie/models2.py:2813
 msgid "Path to manipulate before starting the application."
 msgstr ""
 
-#: src/oozie/models2.py:1064 src/oozie/models2.py:1163
-#: src/oozie/models2.py:1345 src/oozie/models2.py:1506
-#: src/oozie/models2.py:1573 src/oozie/models2.py:1664
-#: src/oozie/models2.py:1931 src/oozie/models2.py:2079
-#: src/oozie/models2.py:2221 src/oozie/models2.py:2351
-#: src/oozie/models2.py:2436 src/oozie/models2.py:2503
-#: src/oozie/models2.py:2577 src/oozie/models2.py:2708
-#: src/oozie/models2.py:2782
+#: src/oozie/models2.py:1095 src/oozie/models2.py:1194
+#: src/oozie/models2.py:1376 src/oozie/models2.py:1537
+#: src/oozie/models2.py:1604 src/oozie/models2.py:1695
+#: src/oozie/models2.py:1962 src/oozie/models2.py:2110
+#: src/oozie/models2.py:2252 src/oozie/models2.py:2382
+#: src/oozie/models2.py:2467 src/oozie/models2.py:2541
+#: src/oozie/models2.py:2615 src/oozie/models2.py:2746
+#: src/oozie/models2.py:2820
 msgid "Refer to a Hadoop JobConf job.xml"
 msgstr ""
 
-#: src/oozie/models2.py:1069 src/oozie/models2.py:1168
-#: src/oozie/models2.py:1243 src/oozie/models2.py:1350
-#: src/oozie/models2.py:1436 src/oozie/models2.py:1511
-#: src/oozie/models2.py:1578 src/oozie/models2.py:1669
-#: src/oozie/models2.py:1725 src/oozie/models2.py:1792
-#: src/oozie/models2.py:1866 src/oozie/models2.py:1935
-#: src/oozie/models2.py:1985 src/oozie/models2.py:2084
-#: src/oozie/models2.py:2226 src/oozie/models2.py:2356
-#: src/oozie/models2.py:2441 src/oozie/models2.py:2508
-#: src/oozie/models2.py:2582 src/oozie/models2.py:2639
-#: src/oozie/models2.py:2713 src/oozie/models2.py:2787
+#: src/oozie/models2.py:1100 src/oozie/models2.py:1199
+#: src/oozie/models2.py:1274 src/oozie/models2.py:1381
+#: src/oozie/models2.py:1467 src/oozie/models2.py:1542
+#: src/oozie/models2.py:1609 src/oozie/models2.py:1700
+#: src/oozie/models2.py:1756 src/oozie/models2.py:1823
+#: src/oozie/models2.py:1897 src/oozie/models2.py:1966
+#: src/oozie/models2.py:2016 src/oozie/models2.py:2115
+#: src/oozie/models2.py:2257 src/oozie/models2.py:2387
+#: src/oozie/models2.py:2472 src/oozie/models2.py:2546
+#: src/oozie/models2.py:2620 src/oozie/models2.py:2677
+#: src/oozie/models2.py:2751 src/oozie/models2.py:2825
 msgid "Max retry"
 msgstr ""
 
-#: src/oozie/models2.py:1071 src/oozie/models2.py:1170
-#: src/oozie/models2.py:1245 src/oozie/models2.py:1352
-#: src/oozie/models2.py:1438 src/oozie/models2.py:1513
-#: src/oozie/models2.py:1580 src/oozie/models2.py:1671
-#: src/oozie/models2.py:1727 src/oozie/models2.py:1794
-#: src/oozie/models2.py:1868 src/oozie/models2.py:1937
-#: src/oozie/models2.py:1987 src/oozie/models2.py:2086
-#: src/oozie/models2.py:2228 src/oozie/models2.py:2358
-#: src/oozie/models2.py:2443 src/oozie/models2.py:2510
-#: src/oozie/models2.py:2584 src/oozie/models2.py:2641
-#: src/oozie/models2.py:2715 src/oozie/models2.py:2789
+#: src/oozie/models2.py:1102 src/oozie/models2.py:1201
+#: src/oozie/models2.py:1276 src/oozie/models2.py:1383
+#: src/oozie/models2.py:1469 src/oozie/models2.py:1544
+#: src/oozie/models2.py:1611 src/oozie/models2.py:1702
+#: src/oozie/models2.py:1758 src/oozie/models2.py:1825
+#: src/oozie/models2.py:1899 src/oozie/models2.py:1968
+#: src/oozie/models2.py:2018 src/oozie/models2.py:2117
+#: src/oozie/models2.py:2259 src/oozie/models2.py:2389
+#: src/oozie/models2.py:2474 src/oozie/models2.py:2548
+#: src/oozie/models2.py:2622 src/oozie/models2.py:2679
+#: src/oozie/models2.py:2753 src/oozie/models2.py:2827
 msgid "Number of times, default is 3"
 msgstr ""
 
-#: src/oozie/models2.py:1076 src/oozie/models2.py:1175
-#: src/oozie/models2.py:1250 src/oozie/models2.py:1357
-#: src/oozie/models2.py:1443 src/oozie/models2.py:1518
-#: src/oozie/models2.py:1585 src/oozie/models2.py:1676
-#: src/oozie/models2.py:1732 src/oozie/models2.py:1799
-#: src/oozie/models2.py:1873 src/oozie/models2.py:1942
-#: src/oozie/models2.py:1992 src/oozie/models2.py:2091
-#: src/oozie/models2.py:2233 src/oozie/models2.py:2363
-#: src/oozie/models2.py:2448 src/oozie/models2.py:2515
-#: src/oozie/models2.py:2589 src/oozie/models2.py:2646
-#: src/oozie/models2.py:2720 src/oozie/models2.py:2794
+#: src/oozie/models2.py:1107 src/oozie/models2.py:1206
+#: src/oozie/models2.py:1281 src/oozie/models2.py:1388
+#: src/oozie/models2.py:1474 src/oozie/models2.py:1549
+#: src/oozie/models2.py:1616 src/oozie/models2.py:1707
+#: src/oozie/models2.py:1763 src/oozie/models2.py:1830
+#: src/oozie/models2.py:1904 src/oozie/models2.py:1973
+#: src/oozie/models2.py:2023 src/oozie/models2.py:2122
+#: src/oozie/models2.py:2264 src/oozie/models2.py:2394
+#: src/oozie/models2.py:2479 src/oozie/models2.py:2553
+#: src/oozie/models2.py:2627 src/oozie/models2.py:2684
+#: src/oozie/models2.py:2758 src/oozie/models2.py:2832
 msgid "Retry interval"
 msgstr ""
 
-#: src/oozie/models2.py:1078 src/oozie/models2.py:1177
-#: src/oozie/models2.py:1252 src/oozie/models2.py:1359
-#: src/oozie/models2.py:1445 src/oozie/models2.py:1520
-#: src/oozie/models2.py:1587 src/oozie/models2.py:1678
-#: src/oozie/models2.py:1734 src/oozie/models2.py:1801
-#: src/oozie/models2.py:1875 src/oozie/models2.py:1944
-#: src/oozie/models2.py:1994 src/oozie/models2.py:2093
-#: src/oozie/models2.py:2235 src/oozie/models2.py:2365
-#: src/oozie/models2.py:2450 src/oozie/models2.py:2517
-#: src/oozie/models2.py:2591 src/oozie/models2.py:2648
-#: src/oozie/models2.py:2722 src/oozie/models2.py:2796
+#: src/oozie/models2.py:1109 src/oozie/models2.py:1208
+#: src/oozie/models2.py:1283 src/oozie/models2.py:1390
+#: src/oozie/models2.py:1476 src/oozie/models2.py:1551
+#: src/oozie/models2.py:1618 src/oozie/models2.py:1709
+#: src/oozie/models2.py:1765 src/oozie/models2.py:1832
+#: src/oozie/models2.py:1906 src/oozie/models2.py:1975
+#: src/oozie/models2.py:2025 src/oozie/models2.py:2124
+#: src/oozie/models2.py:2266 src/oozie/models2.py:2396
+#: src/oozie/models2.py:2481 src/oozie/models2.py:2555
+#: src/oozie/models2.py:2629 src/oozie/models2.py:2686
+#: src/oozie/models2.py:2760 src/oozie/models2.py:2834
 msgid "Wait time in minutes, default is 10"
 msgstr ""
 
-#: src/oozie/models2.py:1095 src/oozie/models2.py:1537
+#: src/oozie/models2.py:1126 src/oozie/models2.py:1568
 msgid "Path to the jar on HDFS."
 msgstr ""
 
-#: src/oozie/models2.py:1102
+#: src/oozie/models2.py:1133
 msgid "Java class. e.g. org.apache.hadoop.examples.Grep"
 msgstr ""
 
-#: src/oozie/models2.py:1117 src/oozie/models2.py:1981
-#: src/oozie/models2.py:2305 src/oozie/models2.py:2635
+#: src/oozie/models2.py:1148 src/oozie/models2.py:2012
+#: src/oozie/models2.py:2336 src/oozie/models2.py:2673
 msgid "Parameters for the JVM, e.g. -Dprop1=a -Dprop2=b"
 msgstr ""
 
-#: src/oozie/models2.py:1236
+#: src/oozie/models2.py:1267
 msgid "Hive XML"
 msgstr ""
 
-#: src/oozie/models2.py:1238
+#: src/oozie/models2.py:1269
 msgid "Refer to a hive-site.xml for connecting to Hive"
 msgstr ""
 
-#: src/oozie/models2.py:1294
+#: src/oozie/models2.py:1325
 msgid ""
 "Arguments for beeline. E.g. --showHeader=true, "
 "-Djavax.net.ssl.trustStore=/etc/cdep-ssl-conf/CA_STANDARD/truststore.jks"
 msgstr ""
 
-#: src/oozie/models2.py:1299 src/oozie/models2.py:2176
+#: src/oozie/models2.py:1330 src/oozie/models2.py:2207
 msgid "HiveServer2 URL"
 msgstr ""
 
-#: src/oozie/models2.py:1301 src/oozie/models2.py:2178
+#: src/oozie/models2.py:1332 src/oozie/models2.py:2209
 msgid "e.g. jdbc:hive2://localhost:10000/default. JDBC URL for the Hive Server 2."
 msgstr ""
 
-#: src/oozie/models2.py:1306 src/oozie/models2.py:2183
+#: src/oozie/models2.py:1337 src/oozie/models2.py:2214
 msgid "Password"
 msgstr ""
 
-#: src/oozie/models2.py:1308 src/oozie/models2.py:2185
+#: src/oozie/models2.py:1339 src/oozie/models2.py:2216
 msgid ""
 "The password element must contain the password of the current user. "
 "However, the password is only used if Hive Server 2 is backed by "
@@ -1388,320 +1388,320 @@ msgid ""
 "Kerberized Hive Server 2 don't require a password."
 msgstr ""
 
-#: src/oozie/models2.py:1389 src/oozie/models2.py:2255
+#: src/oozie/models2.py:1420 src/oozie/models2.py:2286
 msgid "Impalad hostname"
 msgstr ""
 
-#: src/oozie/models2.py:1391
+#: src/oozie/models2.py:1422
 msgid ""
 "e.g. impalad-001.cluster.com. The hostname of the Impalad to send the "
 "query to."
 msgstr ""
 
-#: src/oozie/models2.py:1396 src/oozie/models2.py:2262
+#: src/oozie/models2.py:1427 src/oozie/models2.py:2293
 msgid "Keytab path"
 msgstr ""
 
-#: src/oozie/models2.py:1398 src/oozie/models2.py:2264
+#: src/oozie/models2.py:1429 src/oozie/models2.py:2295
 msgid ""
 "Path to the keytab to use when on a secure cluster, e.g. "
 "/user/joe/joe.keytab."
 msgstr ""
 
-#: src/oozie/models2.py:1403 src/oozie/models2.py:2269
+#: src/oozie/models2.py:1434 src/oozie/models2.py:2300
 msgid "User principal"
 msgstr ""
 
-#: src/oozie/models2.py:1405 src/oozie/models2.py:2271
+#: src/oozie/models2.py:1436 src/oozie/models2.py:2302
 msgid ""
 "Name of the principal to use in the kinit, e.g.: kinit -k -t "
 "/home/joe/joe.keytab joe@PROD.EDH."
 msgstr ""
 
-#: src/oozie/models2.py:1417
+#: src/oozie/models2.py:1448
 msgid ""
 "The sub-workflow application to include. You must own all the sub-"
 "workflows"
 msgstr ""
 
-#: src/oozie/models2.py:1460 src/oozie/models2.py:2532
+#: src/oozie/models2.py:1491 src/oozie/models2.py:2570
 msgid "Sqoop command"
 msgstr ""
 
-#: src/oozie/models2.py:1602
+#: src/oozie/models2.py:1633
 msgid "Shell command"
 msgstr ""
 
-#: src/oozie/models2.py:1604
+#: src/oozie/models2.py:1635
 msgid "Shell command to execute, e.g script.sh"
 msgstr ""
 
-#: src/oozie/models2.py:1611 src/oozie/models2.py:1709
+#: src/oozie/models2.py:1642 src/oozie/models2.py:1740
 msgid "One arg, e.g. -l, --help"
 msgstr ""
 
-#: src/oozie/models2.py:1616
+#: src/oozie/models2.py:1647
 msgid "Environment variables"
 msgstr ""
 
-#: src/oozie/models2.py:1618
+#: src/oozie/models2.py:1649
 msgid "e.g. MAX=10 or PATH=$PATH:mypath"
 msgstr ""
 
-#: src/oozie/models2.py:1693
+#: src/oozie/models2.py:1724
 msgid "User and Host"
 msgstr ""
 
-#: src/oozie/models2.py:1700
+#: src/oozie/models2.py:1731
 msgid "Ssh command"
 msgstr ""
 
-#: src/oozie/models2.py:1751
+#: src/oozie/models2.py:1782
 msgid "Deletes recursively all content."
 msgstr ""
 
-#: src/oozie/models2.py:1758
+#: src/oozie/models2.py:1789
 msgid "Sub directories are created if needed."
 msgstr ""
 
-#: src/oozie/models2.py:1763
+#: src/oozie/models2.py:1794
 msgid "Move file or directory"
 msgstr ""
 
-#: src/oozie/models2.py:1765
+#: src/oozie/models2.py:1796
 msgid "Destination."
 msgstr ""
 
-#: src/oozie/models2.py:1772 src/oozie/models2.py:1786
+#: src/oozie/models2.py:1803 src/oozie/models2.py:1817
 msgid "File or directory."
 msgstr ""
 
-#: src/oozie/models2.py:1779
+#: src/oozie/models2.py:1810
 msgid "Or update its modification date."
 msgstr ""
 
-#: src/oozie/models2.py:1784
+#: src/oozie/models2.py:1815
 msgid "Change the group"
 msgstr ""
 
-#: src/oozie/models2.py:1816
+#: src/oozie/models2.py:1847
 msgid "To addresses"
 msgstr ""
 
-#: src/oozie/models2.py:1818 src/oozie/models2.py:1825
-#: src/oozie/models2.py:1832
+#: src/oozie/models2.py:1849 src/oozie/models2.py:1856
+#: src/oozie/models2.py:1863
 msgid "Comma-separated values"
 msgstr ""
 
-#: src/oozie/models2.py:1823
+#: src/oozie/models2.py:1854
 msgid "cc"
 msgstr ""
 
-#: src/oozie/models2.py:1830
+#: src/oozie/models2.py:1861
 msgid "bcc"
 msgstr ""
 
-#: src/oozie/models2.py:1839 src/oozie/models2.py:1846
+#: src/oozie/models2.py:1870 src/oozie/models2.py:1877
 msgid "Plain-text"
 msgstr ""
 
-#: src/oozie/models2.py:1851
+#: src/oozie/models2.py:1882
 msgid "Attachment"
 msgstr ""
 
-#: src/oozie/models2.py:1853
+#: src/oozie/models2.py:1884
 msgid "Comma separated list of HDFS files."
 msgstr ""
 
-#: src/oozie/models2.py:1858
+#: src/oozie/models2.py:1889
 msgid "Content-type"
 msgstr ""
 
-#: src/oozie/models2.py:1860
+#: src/oozie/models2.py:1891
 msgid "Default is text/plain"
 msgstr ""
 
-#: src/oozie/models2.py:1961
+#: src/oozie/models2.py:1992
 msgid "Options first, then source / destination paths"
 msgstr ""
 
-#: src/oozie/models2.py:2009 src/oozie/models2.py:2387
+#: src/oozie/models2.py:2040 src/oozie/models2.py:2418
 msgid "Spark Master"
 msgstr ""
 
-#: src/oozie/models2.py:2011 src/oozie/models2.py:2389
+#: src/oozie/models2.py:2042 src/oozie/models2.py:2420
 msgid "Ex: spark://host:port, mesos://host:port, yarn, or local."
 msgstr ""
 
-#: src/oozie/models2.py:2016 src/oozie/models2.py:2394
+#: src/oozie/models2.py:2047 src/oozie/models2.py:2425
 msgid "Mode"
 msgstr ""
 
-#: src/oozie/models2.py:2018 src/oozie/models2.py:2396
+#: src/oozie/models2.py:2049 src/oozie/models2.py:2427
 msgid "e.g. Client cluster"
 msgstr ""
 
-#: src/oozie/models2.py:2023
+#: src/oozie/models2.py:2054
 msgid "App name"
 msgstr ""
 
-#: src/oozie/models2.py:2025
+#: src/oozie/models2.py:2056
 msgid "The name of the spark application"
 msgstr ""
 
-#: src/oozie/models2.py:2032 src/oozie/models2.py:2403
+#: src/oozie/models2.py:2063 src/oozie/models2.py:2434
 msgid "Path to file to put in the running directory."
 msgstr ""
 
-#: src/oozie/models2.py:2039
+#: src/oozie/models2.py:2070
 msgid "Only if using jars, e.g. org.apache.spark.examples.mllib.JavaALS"
 msgstr ""
 
-#: src/oozie/models2.py:2044
+#: src/oozie/models2.py:2075
 msgid "Jar/py name"
 msgstr ""
 
-#: src/oozie/models2.py:2046
+#: src/oozie/models2.py:2077
 msgid "Name of main file added in Files."
 msgstr ""
 
-#: src/oozie/models2.py:2051
+#: src/oozie/models2.py:2082
 msgid "Options list"
 msgstr ""
 
-#: src/oozie/models2.py:2053
+#: src/oozie/models2.py:2084
 msgid "Ex: --executor-memory 20G --num-executors 50"
 msgstr ""
 
-#: src/oozie/models2.py:2060 src/oozie/models2.py:2410
+#: src/oozie/models2.py:2091 src/oozie/models2.py:2441
 msgid "Arguments, one by one, e.g. 1000, /path/a."
 msgstr ""
 
-#: src/oozie/models2.py:2108
+#: src/oozie/models2.py:2139
 #: src/oozie/templates/editor2/common_workflow.mako:354
 msgid "Message"
 msgstr ""
 
-#: src/oozie/models2.py:2110
+#: src/oozie/models2.py:2141
 msgid "Message to display when the workflow fails. Can contain some EL functions."
 msgstr ""
 
-#: src/oozie/models2.py:2134
+#: src/oozie/models2.py:2165
 msgid "XML of the action"
 msgstr ""
 
-#: src/oozie/models2.py:2136
+#: src/oozie/models2.py:2167
 msgid "Insert verbatim the XML of the action to insert into the workflow."
 msgstr ""
 
-#: src/oozie/models2.py:2161
-#: src/oozie/templates/editor2/workflow_editor.mako:145
-#: src/oozie/templates/editor2/workflow_editor.mako:217
+#: src/oozie/models2.py:2192
+#: src/oozie/templates/editor2/workflow_editor.mako:153
+#: src/oozie/templates/editor2/workflow_editor.mako:246
 msgid "Hive query"
 msgstr ""
 
-#: src/oozie/models2.py:2163
+#: src/oozie/models2.py:2194
 msgid "Select a saved Hive query you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2170
+#: src/oozie/models2.py:2201
 msgid "The parameters of the script. E.g. N=5, INPUT=${inputDir}"
 msgstr ""
 
-#: src/oozie/models2.py:2257
+#: src/oozie/models2.py:2288
 msgid "e.g. impalad-001.cluster.com (optional)"
 msgstr ""
 
-#: src/oozie/models2.py:2276
-#: src/oozie/templates/editor2/workflow_editor.mako:153
+#: src/oozie/models2.py:2307
+#: src/oozie/templates/editor2/workflow_editor.mako:163
 msgid "Impala query"
 msgstr ""
 
-#: src/oozie/models2.py:2278
+#: src/oozie/models2.py:2309
 msgid "Select a saved Impala query you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2288
-#: src/oozie/templates/editor2/workflow_editor.mako:262
+#: src/oozie/models2.py:2319
+#: src/oozie/templates/editor2/workflow_editor.mako:303
 msgid "Java program"
 msgstr ""
 
-#: src/oozie/models2.py:2290
+#: src/oozie/models2.py:2321
 msgid "Select a saved Java program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2380
-#: src/oozie/templates/editor2/workflow_editor.mako:255
+#: src/oozie/models2.py:2411
+#: src/oozie/templates/editor2/workflow_editor.mako:294
 msgid "Spark program"
 msgstr ""
 
-#: src/oozie/models2.py:2382 src/oozie/models2.py:2467
+#: src/oozie/models2.py:2413 src/oozie/models2.py:2498
 msgid "Select a saved Spark program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2465
+#: src/oozie/models2.py:2496
 msgid "Pig script"
 msgstr ""
 
-#: src/oozie/models2.py:2534
+#: src/oozie/models2.py:2572
 msgid "Select a saved Sqoop program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2606
+#: src/oozie/models2.py:2644
 msgid "DistCp program"
 msgstr ""
 
-#: src/oozie/models2.py:2608
+#: src/oozie/models2.py:2646
 msgid "Select a saved DistCp program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2663
+#: src/oozie/models2.py:2701
 msgid "Shell program"
 msgstr ""
 
-#: src/oozie/models2.py:2665
+#: src/oozie/models2.py:2703
 msgid "Select a saved Shell program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:2737
+#: src/oozie/models2.py:2775
 msgid "MapReduce program"
 msgstr ""
 
-#: src/oozie/models2.py:2739
+#: src/oozie/models2.py:2777
 msgid "Select a saved MapReduce program you want to schedule."
 msgstr ""
 
-#: src/oozie/models2.py:3246
+#: src/oozie/models2.py:3284
 #, python-format
 msgid "%s for %s"
 msgstr ""
 
-#: src/oozie/models2.py:3360
+#: src/oozie/models2.py:3398
 msgid "Cannot return workflow since document attribute is None."
 msgstr ""
 
-#: src/oozie/models2.py:3405
+#: src/oozie/models2.py:3443
 #, python-format
 msgid ""
 "The frequency of the workflow parameter \"%s\" cannot be guessed from the"
 " frequency of the coordinator. It so needs to be specified manually."
 msgstr ""
 
-#: src/oozie/models2.py:3661 src/oozie/models2.py:3697
-msgid "Schedule of "
+#: src/oozie/models2.py:3699 src/oozie/models2.py:3735
+msgid "Task of "
 msgstr ""
 
-#: src/oozie/models2.py:3683 src/oozie/models2.py:3709
+#: src/oozie/models2.py:3721 src/oozie/models2.py:3747
 #, python-format
 msgid "Snippet type %s is not supported in batch execution."
 msgstr ""
 
-#: src/oozie/utils.py:76
+#: src/oozie/utils.py:78
 #, python-format
 msgid "Could not set field %(field)s: %(exception)s"
 msgstr ""
 
-#: src/oozie/utils.py:171
+#: src/oozie/utils.py:173
 #, python-format
 msgid "invalid frequency: %s"
 msgstr ""
@@ -1718,7 +1718,7 @@ msgstr ""
 msgid "Could not find any nodes in Bundle definition. Maybe it's malformed?"
 msgstr ""
 
-#: src/oozie/importlib/coordinators.py:194
+#: src/oozie/importlib/coordinators.py:195
 msgid "Could not find any nodes in Coordinator definition. Maybe it's malformed?"
 msgstr ""
 
@@ -1795,41 +1795,73 @@ msgstr ""
 msgid "Could not find workflow at path %s: %s"
 msgstr ""
 
-#: src/oozie/importlib/workflows.py:686
+#: src/oozie/importlib/workflows.py:687
 msgid "Could not find any nodes in Workflow definition. Maybe it's malformed?"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:57
+#: src/oozie/management/commands/oozie_setup.py:60
 #, python-format
 msgid "Installing workflow %s"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:80
+#: src/oozie/management/commands/oozie_setup.py:84
 #, python-format
 msgid "Installing coordinator %s"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:100
+#: src/oozie/management/commands/oozie_setup.py:105
 #, python-format
 msgid "Installing bundle %s"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:117
+#: src/oozie/management/commands/oozie_setup.py:115
+msgid "MapReduce Sleep Job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:137
+msgid "Sleep: Example MapReduce job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:170
+msgid "Java TeraGen Job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:189
+msgid "TeraGen: Generates N rows of random data to a directory."
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:222
+msgid "Spark File Copy Job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:242
+msgid "File Copy: Example Spark job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:276
+msgid "PySpark Pi Estimator Job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:293
+msgid "Pi Estimator: Example PySpark job"
+msgstr ""
+
+#: src/oozie/management/commands/oozie_setup.py:335
 #, python-format
 msgid "Creating sample directory '%s' in HDFS"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:125
+#: src/oozie/management/commands/oozie_setup.py:343
 #, python-format
 msgid "Copying examples %(local_dir)s to %(remote_data_dir)s\n"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:132
+#: src/oozie/management/commands/oozie_setup.py:350
 #, python-format
 msgid "Copying data %(local_dir)s to %(remote_data_dir)s\n"
 msgstr ""
 
-#: src/oozie/management/commands/oozie_setup.py:137
+#: src/oozie/management/commands/oozie_setup.py:363
 msgid "Installing examples..."
 msgstr ""
 
@@ -1858,18 +1890,17 @@ msgid "Oozie Editor"
 msgstr ""
 
 #: src/oozie/templates/navigation-bar.mako:82
-#: src/oozie/templates/navigation-bar.mako:91
-#: src/oozie/templates/navigation-bar.mako:93
-#: src/oozie/templates/navigation-bar.mako:111
+#: src/oozie/templates/navigation-bar.mako:90
+#: src/oozie/templates/navigation-bar.mako:94
 #: src/oozie/templates/editor/list_workflows.mako:26
 #: src/oozie/templates/editor2/list_editor_workflows.mako:25
+#: src/oozie/templates/editor2/workflow_editor.mako:68
 msgid "Workflows"
 msgstr ""
 
 #: src/oozie/templates/navigation-bar.mako:83
-#: src/oozie/templates/navigation-bar.mako:98
-#: src/oozie/templates/navigation-bar.mako:100
-#: src/oozie/templates/navigation-bar.mako:112
+#: src/oozie/templates/navigation-bar.mako:91
+#: src/oozie/templates/navigation-bar.mako:95
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:68
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:144
 #: src/oozie/templates/editor/edit_bundle.mako:58
@@ -1882,10 +1913,10 @@ msgid "Coordinators"
 msgstr ""
 
 #: src/oozie/templates/navigation-bar.mako:84
-#: src/oozie/templates/navigation-bar.mako:105
-#: src/oozie/templates/navigation-bar.mako:107
-#: src/oozie/templates/navigation-bar.mako:113
+#: src/oozie/templates/navigation-bar.mako:92
+#: src/oozie/templates/navigation-bar.mako:96
 #: src/oozie/templates/editor/list_bundles.mako:27
+#: src/oozie/templates/editor2/bundle_editor.mako:64
 #: src/oozie/templates/editor2/list_editor_bundles.mako:26
 msgid "Bundles"
 msgstr ""
@@ -1911,14 +1942,14 @@ msgstr ""
 #: src/oozie/templates/editor2/common_workflow.mako:1454
 #: src/oozie/templates/editor2/common_workflow.mako:1531
 #: src/oozie/templates/editor2/common_workflow.mako:1606
-#: src/oozie/templates/editor2/common_workflow.mako:1657
-#: src/oozie/templates/editor2/common_workflow.mako:1711
-#: src/oozie/templates/editor2/common_workflow.mako:1767
-#: src/oozie/templates/editor2/common_workflow.mako:1925
-#: src/oozie/templates/editor2/common_workflow.mako:2052
-#: src/oozie/templates/editor2/common_workflow.mako:2113
-#: src/oozie/templates/editor2/common_workflow.mako:2180
-#: src/oozie/templates/editor2/common_workflow.mako:2255
+#: src/oozie/templates/editor2/common_workflow.mako:1659
+#: src/oozie/templates/editor2/common_workflow.mako:1713
+#: src/oozie/templates/editor2/common_workflow.mako:1771
+#: src/oozie/templates/editor2/common_workflow.mako:1931
+#: src/oozie/templates/editor2/common_workflow.mako:2058
+#: src/oozie/templates/editor2/common_workflow.mako:2119
+#: src/oozie/templates/editor2/common_workflow.mako:2186
+#: src/oozie/templates/editor2/common_workflow.mako:2261
 msgid "SLA"
 msgstr ""
 
@@ -1927,16 +1958,16 @@ msgstr ""
 msgid "Oozie"
 msgstr ""
 
-#: src/oozie/templates/navigation-bar.mako:123
+#: src/oozie/templates/navigation-bar.mako:107
 msgid "This is the old editor, please migrate your jobs to the "
 msgstr ""
 
-#: src/oozie/templates/navigation-bar.mako:124
+#: src/oozie/templates/navigation-bar.mako:108
 msgid "new editor."
 msgstr ""
 
 #: src/oozie/templates/utils.inc.mako:136
-#: src/oozie/templates/dashboard/list_oozie_info.mako:163
+#: src/oozie/templates/dashboard/list_oozie_info.mako:172
 #: src/oozie/templates/dashboard/list_oozie_workflow_action.mako:101
 #: src/oozie/templates/editor/action_utils.mako:400
 #: src/oozie/templates/editor/action_utils.mako:504
@@ -1989,7 +2020,7 @@ msgid "Upstream apps"
 msgstr ""
 
 #: src/oozie/templates/utils.inc.mako:329
-#: src/oozie/templates/utils.inc.mako:587
+#: src/oozie/templates/utils.inc.mako:606
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:299
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:147
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:466
@@ -2021,21 +2052,15 @@ msgstr ""
 #: src/oozie/templates/editor/list_workflows.mako:131
 #: src/oozie/templates/editor/list_workflows.mako:148
 #: src/oozie/templates/editor/submit_job_popup.mako:27
-#: src/oozie/templates/editor2/bundle_editor.mako:144
-#: src/oozie/templates/editor2/bundle_editor.mako:179
-#: src/oozie/templates/editor2/bundle_editor.mako:219
+#: src/oozie/templates/editor2/bundle_editor.mako:167
+#: src/oozie/templates/editor2/bundle_editor.mako:202
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:393
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:428
-#: src/oozie/templates/editor2/coordinator_editor.mako:89
 #: src/oozie/templates/editor2/list_editor_bundles.mako:120
 #: src/oozie/templates/editor2/list_editor_coordinators.mako:119
 #: src/oozie/templates/editor2/list_editor_workflows.mako:119
 #: src/oozie/templates/editor2/submit_job_popup.mako:28
-#: src/oozie/templates/editor2/submit_job_popup.mako:109
-#: src/oozie/templates/editor2/workflow_editor.mako:447
-#: src/oozie/templates/editor2/workflow_editor.mako:503
-#: src/oozie/templates/editor2/workflow_editor.mako:542
-#: src/oozie/templates/editor2/workflow_editor.mako:551
+#: src/oozie/templates/editor2/workflow_editor.mako:513
 msgid "Close"
 msgstr ""
 
@@ -2202,11 +2227,11 @@ msgstr ""
 msgid "december"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:588
+#: src/oozie/templates/utils.inc.mako:607
 msgid "Do you really want to kill the selected jobs?"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:591
+#: src/oozie/templates/utils.inc.mako:610
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:303
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:151
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:479
@@ -2237,7 +2262,7 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:592
+#: src/oozie/templates/utils.inc.mako:611
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:304
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:152
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:480
@@ -2268,27 +2293,27 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:665
+#: src/oozie/templates/utils.inc.mako:684
 msgid "The selected jobs have been suspended correctly."
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:666
+#: src/oozie/templates/utils.inc.mako:685
 msgid "Some of the selected jobs may not have been suspended correctly:"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:667
+#: src/oozie/templates/utils.inc.mako:686
 msgid "The selected jobs have been resumed correctly."
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:668
+#: src/oozie/templates/utils.inc.mako:687
 msgid "Some of the selected jobs may not have been resumed correctly:"
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:669
+#: src/oozie/templates/utils.inc.mako:688
 msgid "The selected jobs have been killed correctly."
 msgstr ""
 
-#: src/oozie/templates/utils.inc.mako:670
+#: src/oozie/templates/utils.inc.mako:689
 msgid "Some of the selected jobs may not have been killed correctly:"
 msgstr ""
 
@@ -2345,7 +2370,7 @@ msgid "Progress"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:61
-#: src/oozie/templates/editor2/bundle_editor.mako:183
+#: src/oozie/templates/editor2/bundle_editor.mako:206
 msgid "Kick off time"
 msgstr ""
 
@@ -2400,7 +2425,7 @@ msgstr ""
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:42
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:98
 #: src/oozie/templates/dashboard/list_oozie_workflows.mako:43
-#: src/oozie/templates/editor2/workflow_editor.mako:339
+#: src/oozie/templates/editor2/workflow_editor.mako:402
 msgid "Kill"
 msgstr ""
 
@@ -2454,7 +2479,7 @@ msgstr ""
 #: src/oozie/templates/editor/edit_bundle.mako:70
 #: src/oozie/templates/editor/edit_coordinator.mako:76
 #: src/oozie/templates/editor/edit_workflow.mako:64
-#: src/oozie/templates/editor2/workflow_editor.mako:133
+#: src/oozie/templates/editor2/workflow_editor.mako:139
 msgid "Actions"
 msgstr ""
 
@@ -2468,7 +2493,7 @@ msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:147
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:182
-#: src/oozie/templates/dashboard/list_oozie_info.mako:49
+#: src/oozie/templates/dashboard/list_oozie_info.mako:58
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:158
 #: src/oozie/templates/dashboard/list_oozie_workflow_action.mako:90
 msgid "Configuration"
@@ -2555,7 +2580,7 @@ msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_bundle.mako:285
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:455
-#: src/oozie/templates/dashboard/list_oozie_info.mako:211
+#: src/oozie/templates/dashboard/list_oozie_info.mako:220
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:336
 #: src/oozie/templates/dashboard/list_oozie_workflow_action.mako:200
 #: src/oozie/templates/editor/create_bundle.mako:59
@@ -2573,19 +2598,19 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_bundle.mako:394
+#: src/oozie/templates/dashboard/list_oozie_bundle.mako:393
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:395
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:662
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:661
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:434
 #: src/oozie/templates/dashboard/list_oozie_workflows.mako:446
 msgid "Problem: "
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_bundle.mako:410
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:679
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:590
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:606
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:622
+#: src/oozie/templates/dashboard/list_oozie_bundle.mako:409
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:678
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:589
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:605
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:621
 msgid "Error: "
 msgstr ""
 
@@ -2709,7 +2734,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:245
 #: src/oozie/templates/editor/list_workflows.mako:302
 #: src/oozie/templates/editor2/list_editor_bundles.mako:269
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:266
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:267
 #: src/oozie/templates/editor2/list_editor_workflows.mako:267
 msgid "Previous"
 msgstr ""
@@ -2733,7 +2758,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:244
 #: src/oozie/templates/editor/list_workflows.mako:301
 #: src/oozie/templates/editor2/list_editor_bundles.mako:268
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:265
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:266
 #: src/oozie/templates/editor2/list_editor_workflows.mako:266
 msgid "Next"
 msgstr ""
@@ -2788,14 +2813,14 @@ msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:229
 #: src/oozie/templates/dashboard/list_oozie_bundles.mako:255
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:554
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:553
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:260
 #: src/oozie/templates/dashboard/list_oozie_coordinators.mako:291
-#: src/oozie/templates/dashboard/list_oozie_info.mako:237
-#: src/oozie/templates/dashboard/list_oozie_info.mako:254
-#: src/oozie/templates/dashboard/list_oozie_info.mako:276
+#: src/oozie/templates/dashboard/list_oozie_info.mako:246
+#: src/oozie/templates/dashboard/list_oozie_info.mako:263
+#: src/oozie/templates/dashboard/list_oozie_info.mako:285
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:271
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:527
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:526
 #: src/oozie/templates/dashboard/list_oozie_workflows.mako:263
 #: src/oozie/templates/dashboard/list_oozie_workflows.mako:291
 #: src/oozie/templates/editor/list_bundles.mako:279
@@ -2806,7 +2831,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:240
 #: src/oozie/templates/editor/list_workflows.mako:297
 #: src/oozie/templates/editor2/list_editor_bundles.mako:264
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:261
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:262
 #: src/oozie/templates/editor2/list_editor_workflows.mako:262
 msgid "No matching records"
 msgstr ""
@@ -2887,7 +2912,7 @@ msgid "Sync Workflow"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:179
-#: src/oozie/templates/editor2/bundle_editor.mako:243
+#: src/oozie/templates/editor2/bundle_editor.mako:252
 #: src/oozie/templates/editor2/submit_job_popup.mako:65
 msgid "Calendar"
 msgstr ""
@@ -2935,11 +2960,11 @@ msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:285
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:424
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:523
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:522
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:134
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:175
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:306
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:480
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:479
 msgid "Nominal Time"
 msgstr ""
 
@@ -3005,7 +3030,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:243
 #: src/oozie/templates/editor/list_workflows.mako:300
 #: src/oozie/templates/editor2/list_editor_bundles.mako:267
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:264
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:265
 #: src/oozie/templates/editor2/list_editor_workflows.mako:265
 msgid "Last"
 msgstr ""
@@ -3059,38 +3084,38 @@ msgid "Time since Nominal Time in min"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:425
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:524
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:523
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:135
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:176
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:307
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:481
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:480
 msgid "Expected Start"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:426
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:525
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:524
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:136
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:177
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:308
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:482
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:481
 msgid "Actual Start"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:427
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:526
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:525
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:137
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:178
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:309
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:483
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:482
 msgid "Expected End"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_coordinator.mako:428
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:527
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:526
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:138
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:179
 #: src/oozie/templates/dashboard/list_oozie_workflow.mako:310
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:484
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:483
 msgid "Actual End"
 msgstr ""
 
@@ -3113,7 +3138,7 @@ msgstr ""
 #: src/oozie/templates/editor/action_utils.mako:49
 #: src/oozie/templates/editor/edit_coordinator.mako:329
 #: src/oozie/templates/editor/edit_workflow.mako:429
-#: src/oozie/templates/editor/submit_job_popup.mako:65
+#: src/oozie/templates/editor/submit_job_popup.mako:69
 #: src/oozie/templates/editor2/submit_job_popup.mako:102
 msgid "Cancel"
 msgstr ""
@@ -3122,17 +3147,17 @@ msgstr ""
 msgid "Update"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:528
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:485
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:527
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:484
 msgid "click for the SLA dashboard"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:553
-#: src/oozie/templates/dashboard/list_oozie_info.mako:236
-#: src/oozie/templates/dashboard/list_oozie_info.mako:253
-#: src/oozie/templates/dashboard/list_oozie_info.mako:275
+#: src/oozie/templates/dashboard/list_oozie_coordinator.mako:552
+#: src/oozie/templates/dashboard/list_oozie_info.mako:245
+#: src/oozie/templates/dashboard/list_oozie_info.mako:262
+#: src/oozie/templates/dashboard/list_oozie_info.mako:284
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:270
-#: src/oozie/templates/dashboard/list_oozie_workflow.mako:526
+#: src/oozie/templates/dashboard/list_oozie_workflow.mako:525
 #: src/oozie/templates/editor/list_bundles.mako:275
 #: src/oozie/templates/editor/list_coordinators.mako:287
 #: src/oozie/templates/editor/list_history.mako:88
@@ -3141,7 +3166,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:236
 #: src/oozie/templates/editor/list_workflows.mako:293
 #: src/oozie/templates/editor2/list_editor_bundles.mako:260
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:257
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:258
 #: src/oozie/templates/editor2/list_editor_workflows.mako:258
 msgid "No data available"
 msgstr ""
@@ -3168,25 +3193,25 @@ msgstr ""
 msgid "Oozie Information"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_info.mako:37
+#: src/oozie/templates/dashboard/list_oozie_info.mako:46
 msgid "Oozie status"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_info.mako:45
+#: src/oozie/templates/dashboard/list_oozie_info.mako:54
 msgid "Instrumentation"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_info.mako:47
+#: src/oozie/templates/dashboard/list_oozie_info.mako:56
 msgid "Metrics"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_info.mako:57
-#: src/oozie/templates/dashboard/list_oozie_info.mako:119
-#: src/oozie/templates/dashboard/list_oozie_info.mako:204
+#: src/oozie/templates/dashboard/list_oozie_info.mako:66
+#: src/oozie/templates/dashboard/list_oozie_info.mako:128
+#: src/oozie/templates/dashboard/list_oozie_info.mako:213
 msgid "Text Filter"
 msgstr ""
 
-#: src/oozie/templates/dashboard/list_oozie_info.mako:194
+#: src/oozie/templates/dashboard/list_oozie_info.mako:203
 msgid "No metrics available for this section."
 msgstr ""
 
@@ -3238,7 +3263,6 @@ msgid "Chart"
 msgstr ""
 
 #: src/oozie/templates/dashboard/list_oozie_sla.mako:133
-#: src/oozie/templates/editor2/workflow_editor.mako:510
 msgid "ID"
 msgstr ""
 
@@ -3398,14 +3422,14 @@ msgstr ""
 #: src/oozie/templates/editor/list_bundles.mako:47
 #: src/oozie/templates/editor/list_coordinators.mako:49
 #: src/oozie/templates/editor/list_workflows.mako:46
-#: src/oozie/templates/editor/submit_job_popup.mako:66
-#: src/oozie/templates/editor2/bundle_editor.mako:37
+#: src/oozie/templates/editor/submit_job_popup.mako:70
+#: src/oozie/templates/editor2/bundle_editor.mako:38
 #: src/oozie/templates/editor2/coordinator_editor.mako:40
 #: src/oozie/templates/editor2/list_editor_bundles.mako:43
 #: src/oozie/templates/editor2/list_editor_coordinators.mako:42
 #: src/oozie/templates/editor2/list_editor_workflows.mako:42
 #: src/oozie/templates/editor2/submit_job_popup.mako:103
-#: src/oozie/templates/editor2/workflow_editor.mako:49
+#: src/oozie/templates/editor2/workflow_editor.mako:47
 msgid "Submit"
 msgstr ""
 
@@ -3464,14 +3488,14 @@ msgstr ""
 #: src/oozie/templates/editor2/common_workflow.mako:1455
 #: src/oozie/templates/editor2/common_workflow.mako:1532
 #: src/oozie/templates/editor2/common_workflow.mako:1607
-#: src/oozie/templates/editor2/common_workflow.mako:1658
-#: src/oozie/templates/editor2/common_workflow.mako:1712
-#: src/oozie/templates/editor2/common_workflow.mako:1768
-#: src/oozie/templates/editor2/common_workflow.mako:1926
-#: src/oozie/templates/editor2/common_workflow.mako:2053
-#: src/oozie/templates/editor2/common_workflow.mako:2114
-#: src/oozie/templates/editor2/common_workflow.mako:2181
-#: src/oozie/templates/editor2/common_workflow.mako:2256
+#: src/oozie/templates/editor2/common_workflow.mako:1660
+#: src/oozie/templates/editor2/common_workflow.mako:1714
+#: src/oozie/templates/editor2/common_workflow.mako:1772
+#: src/oozie/templates/editor2/common_workflow.mako:1932
+#: src/oozie/templates/editor2/common_workflow.mako:2059
+#: src/oozie/templates/editor2/common_workflow.mako:2120
+#: src/oozie/templates/editor2/common_workflow.mako:2187
+#: src/oozie/templates/editor2/common_workflow.mako:2262
 msgid "Credentials"
 msgstr ""
 
@@ -3561,8 +3585,8 @@ msgstr ""
 #: src/oozie/templates/editor/workflow_utils.mako:40
 #: src/oozie/templates/editor2/common_workflow.mako:422
 #: src/oozie/templates/editor2/common_workflow.mako:1476
-#: src/oozie/templates/editor2/common_workflow.mako:2202
-#: src/oozie/templates/editor2/common_workflow.mako:2277
+#: src/oozie/templates/editor2/common_workflow.mako:2208
+#: src/oozie/templates/editor2/common_workflow.mako:2283
 #: src/oozie/templates/editor2/list_editor_bundles.mako:59
 #: src/oozie/templates/editor2/list_editor_coordinators.mako:58
 #: src/oozie/templates/editor2/list_editor_workflows.mako:58
@@ -3586,17 +3610,17 @@ msgid "Property name"
 msgstr ""
 
 #: src/oozie/templates/editor/action_utils.mako:418
-#: src/oozie/templates/editor2/workflow_editor.mako:480
+#: src/oozie/templates/editor2/workflow_editor.mako:546
 msgid "Add property"
 msgstr ""
 
 #: src/oozie/templates/editor/action_utils.mako:433
-#: src/oozie/templates/editor2/workflow_editor.mako:413
+#: src/oozie/templates/editor2/workflow_editor.mako:479
 msgid "Source"
 msgstr ""
 
 #: src/oozie/templates/editor/action_utils.mako:434
-#: src/oozie/templates/editor2/workflow_editor.mako:417
+#: src/oozie/templates/editor2/workflow_editor.mako:483
 msgid "Destination"
 msgstr ""
 
@@ -3636,8 +3660,8 @@ msgstr ""
 #: src/oozie/templates/editor/action_utils.mako:537
 #: src/oozie/templates/editor2/common_workflow.mako:407
 #: src/oozie/templates/editor2/common_workflow.mako:1461
-#: src/oozie/templates/editor2/common_workflow.mako:2187
-#: src/oozie/templates/editor2/common_workflow.mako:2262
+#: src/oozie/templates/editor2/common_workflow.mako:2193
+#: src/oozie/templates/editor2/common_workflow.mako:2268
 msgid "Prepare"
 msgstr ""
 
@@ -3674,7 +3698,7 @@ msgstr ""
 #: src/oozie/templates/editor/edit_bundle.mako:60
 #: src/oozie/templates/editor/job_action_properties.mako:53
 #: src/oozie/templates/editor/workflow_utils.mako:45
-#: src/oozie/templates/editor2/workflow_editor.mako:440
+#: src/oozie/templates/editor2/workflow_editor.mako:506
 msgid "Add"
 msgstr ""
 
@@ -3740,16 +3764,16 @@ msgstr ""
 #: src/oozie/templates/editor2/common_workflow.mako:1530
 #: src/oozie/templates/editor2/common_workflow.mako:1572
 #: src/oozie/templates/editor2/common_workflow.mako:1605
-#: src/oozie/templates/editor2/common_workflow.mako:1656
-#: src/oozie/templates/editor2/common_workflow.mako:1710
-#: src/oozie/templates/editor2/common_workflow.mako:1766
-#: src/oozie/templates/editor2/common_workflow.mako:1924
-#: src/oozie/templates/editor2/common_workflow.mako:2051
-#: src/oozie/templates/editor2/common_workflow.mako:2112
-#: src/oozie/templates/editor2/common_workflow.mako:2179
-#: src/oozie/templates/editor2/common_workflow.mako:2207
-#: src/oozie/templates/editor2/common_workflow.mako:2254
-#: src/oozie/templates/editor2/common_workflow.mako:2282
+#: src/oozie/templates/editor2/common_workflow.mako:1658
+#: src/oozie/templates/editor2/common_workflow.mako:1712
+#: src/oozie/templates/editor2/common_workflow.mako:1770
+#: src/oozie/templates/editor2/common_workflow.mako:1930
+#: src/oozie/templates/editor2/common_workflow.mako:2057
+#: src/oozie/templates/editor2/common_workflow.mako:2118
+#: src/oozie/templates/editor2/common_workflow.mako:2185
+#: src/oozie/templates/editor2/common_workflow.mako:2213
+#: src/oozie/templates/editor2/common_workflow.mako:2260
+#: src/oozie/templates/editor2/common_workflow.mako:2288
 msgid "Properties"
 msgstr ""
 
@@ -3770,11 +3794,11 @@ msgstr ""
 #: src/oozie/templates/editor/edit_bundle.mako:205
 #: src/oozie/templates/editor/edit_bundled_coordinator.mako:34
 #: src/oozie/templates/editor/edit_workflow.mako:396
-#: src/oozie/templates/editor2/bundle_editor.mako:49
+#: src/oozie/templates/editor2/bundle_editor.mako:46
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:374
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:376
-#: src/oozie/templates/editor2/coordinator_editor.mako:52
-#: src/oozie/templates/editor2/workflow_editor.mako:76
+#: src/oozie/templates/editor2/coordinator_editor.mako:48
+#: src/oozie/templates/editor2/workflow_editor.mako:51
 msgid "Save"
 msgstr ""
 
@@ -3820,7 +3844,7 @@ msgstr ""
 #: src/oozie/templates/editor/edit_coordinator.mako:105
 #: src/oozie/templates/editor/edit_workflow.mako:70
 #: src/oozie/templates/editor/list_workflows.mako:47
-#: src/oozie/templates/editor2/workflow_editor.mako:53
+#: src/oozie/templates/editor2/workflow_editor.mako:75
 msgid "Schedule"
 msgstr ""
 
@@ -3901,7 +3925,6 @@ msgstr ""
 #: src/oozie/templates/editor/edit_workflow.mako:356
 #: src/oozie/templates/editor/list_history.mako:27
 #: src/oozie/templates/editor/list_history_record.mako:32
-#: src/oozie/templates/editor2/workflow_editor.mako:63
 msgid "History"
 msgstr ""
 
@@ -3968,7 +3991,6 @@ msgstr ""
 #: src/oozie/templates/editor/edit_bundle.mako:223
 #: src/oozie/templates/editor/edit_coordinator.mako:413
 #: src/oozie/templates/editor/edit_workflow.mako:365
-#: src/oozie/templates/editor2/workflow_editor.mako:509
 msgid "Date"
 msgstr ""
 
@@ -4105,7 +4127,7 @@ msgid "Edit Workflow"
 msgstr ""
 
 #: src/oozie/templates/editor/edit_workflow.mako:36
-#: src/oozie/templates/editor2/bundle_editor.mako:34
+#: src/oozie/templates/editor2/bundle_editor.mako:35
 #: src/oozie/templates/editor2/coordinator_editor.mako:37
 #: src/oozie/templates/editor2/workflow_editor.mako:40
 msgid "Unsaved"
@@ -4238,7 +4260,7 @@ msgstr ""
 #: src/oozie/templates/editor/edit_workflow.mako:515
 #: src/oozie/templates/editor/edit_workflow.mako:533
 #: src/oozie/templates/editor/edit_workflow.mako:569
-#: src/oozie/templates/editor2/bundle_editor.mako:41
+#: src/oozie/templates/editor2/bundle_editor.mako:42
 #: src/oozie/templates/editor2/coordinator_editor.mako:44
 #: src/oozie/templates/editor2/workflow_editor.mako:43
 msgid "Edit"
@@ -4410,7 +4432,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:237
 #: src/oozie/templates/editor/list_workflows.mako:294
 #: src/oozie/templates/editor2/list_editor_bundles.mako:261
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:258
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:259
 #: src/oozie/templates/editor2/list_editor_workflows.mako:259
 msgid "Showing _START_ to _END_ of _TOTAL_ entries"
 msgstr ""
@@ -4423,7 +4445,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:238
 #: src/oozie/templates/editor/list_workflows.mako:295
 #: src/oozie/templates/editor2/list_editor_bundles.mako:262
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:259
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:260
 #: src/oozie/templates/editor2/list_editor_workflows.mako:260
 msgid "Showing 0 to 0 of 0 entries"
 msgstr ""
@@ -4436,7 +4458,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:239
 #: src/oozie/templates/editor/list_workflows.mako:296
 #: src/oozie/templates/editor2/list_editor_bundles.mako:263
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:260
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:261
 #: src/oozie/templates/editor2/list_editor_workflows.mako:261
 msgid "(filtered from _MAX_ total entries)"
 msgstr ""
@@ -4449,7 +4471,7 @@ msgstr ""
 #: src/oozie/templates/editor/list_trashed_workflows.mako:242
 #: src/oozie/templates/editor/list_workflows.mako:299
 #: src/oozie/templates/editor2/list_editor_bundles.mako:266
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:263
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:264
 #: src/oozie/templates/editor2/list_editor_workflows.mako:264
 msgid "First"
 msgstr ""
@@ -4469,7 +4491,6 @@ msgid "Delete the selected coordinator(s)?"
 msgstr ""
 
 #: src/oozie/templates/editor/list_history.mako:33
-#: src/oozie/templates/editor2/workflow_editor.mako:504
 msgid "Submission History"
 msgstr ""
 
@@ -4622,8 +4643,13 @@ msgstr ""
 msgid "Submit this job?"
 msgstr ""
 
-#: src/oozie/templates/editor/submit_job_popup.mako:60
+#: src/oozie/templates/editor/submit_job_popup.mako:64
 msgid "Do a dryrun before submitting the job?"
+msgstr ""
+
+#: src/oozie/templates/editor/submit_job_popup.mako:86
+#: src/oozie/templates/editor2/submit_job_popup.mako:176
+msgid "Submission was not successful"
 msgstr ""
 
 #: src/oozie/templates/editor/gen/workflow-graph-status.xml.mako:54
@@ -4633,45 +4659,54 @@ msgstr ""
 msgid "View workflow action"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:25
+#: src/oozie/templates/editor2/bundle_editor.mako:26
 #: src/oozie/templates/editor2/list_editor_bundles.mako:33
 msgid "Bundle Editor"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:45
-#: src/oozie/templates/editor2/bundle_editor.mako:180
-#: src/oozie/templates/editor2/coordinator_editor.mako:48
-#: src/oozie/templates/editor2/workflow_editor.mako:59
-msgid "Settings"
-msgstr ""
-
-#: src/oozie/templates/editor2/bundle_editor.mako:49
+#: src/oozie/templates/editor2/bundle_editor.mako:46
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:374
-#: src/oozie/templates/editor2/coordinator_editor.mako:52
-#: src/oozie/templates/editor2/workflow_editor.mako:76
+#: src/oozie/templates/editor2/coordinator_editor.mako:48
+#: src/oozie/templates/editor2/workflow_editor.mako:51
 msgid "Saving..."
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:60
-#: src/oozie/templates/editor2/coordinator_editor.mako:64
-#: src/oozie/templates/editor2/workflow_editor.mako:90
+#: src/oozie/templates/editor2/bundle_editor.mako:58
+#: src/oozie/templates/editor2/coordinator_editor.mako:60
+#: src/oozie/templates/editor2/workflow_editor.mako:62
 msgid "New"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:89
+#: src/oozie/templates/editor2/bundle_editor.mako:71
+#: src/oozie/templates/editor2/bundle_editor.mako:203
+#: src/oozie/templates/editor2/coordinator_editor.mako:73
+#: src/oozie/templates/editor2/workflow_editor.mako:80
+msgid "Settings"
+msgstr ""
+
+#: src/oozie/templates/editor2/bundle_editor.mako:76
+#: src/oozie/templates/editor2/coordinator_editor.mako:78
+#: src/oozie/templates/editor2/list_editor_bundles.mako:51
+#: src/oozie/templates/editor2/list_editor_coordinators.mako:50
+#: src/oozie/templates/editor2/list_editor_workflows.mako:50
+#: src/oozie/templates/editor2/workflow_editor.mako:93
+msgid "Share"
+msgstr ""
+
+#: src/oozie/templates/editor2/bundle_editor.mako:112
 msgid "Which schedules to bundle?"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:92
+#: src/oozie/templates/editor2/bundle_editor.mako:115
 msgid "This bundle has no defined coordinators."
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:94
+#: src/oozie/templates/editor2/bundle_editor.mako:117
 msgid "Add a coordinator"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:103
-#: src/oozie/templates/editor2/bundle_editor.mako:161
+#: src/oozie/templates/editor2/bundle_editor.mako:126
+#: src/oozie/templates/editor2/bundle_editor.mako:184
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:46
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:52
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:411
@@ -4680,49 +4715,47 @@ msgstr ""
 #: src/oozie/templates/editor2/common_workflow.mako:673
 #: src/oozie/templates/editor2/common_workflow.mako:1565
 #: src/oozie/templates/editor2/common_workflow.mako:1596
-#: src/oozie/templates/editor2/workflow_editor.mako:404
-#: src/oozie/templates/editor2/workflow_editor.mako:429
+#: src/oozie/templates/editor2/workflow_editor.mako:470
+#: src/oozie/templates/editor2/workflow_editor.mako:495
 msgid "Open"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:130
+#: src/oozie/templates/editor2/bundle_editor.mako:153
 msgid "Add a parameter"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:145
+#: src/oozie/templates/editor2/bundle_editor.mako:168
 msgid "Choose a coordinator"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:153
+#: src/oozie/templates/editor2/bundle_editor.mako:176
 msgid "Filter coordinators"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:167
+#: src/oozie/templates/editor2/bundle_editor.mako:190
 msgid "There are no coordinators matching your search term."
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:189
+#: src/oozie/templates/editor2/bundle_editor.mako:212
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:432
 msgid "Submission Parameters"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:206
+#: src/oozie/templates/editor2/bundle_editor.mako:229
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:364
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:445
-#: src/oozie/templates/editor2/workflow_editor.mako:462
+#: src/oozie/templates/editor2/workflow_editor.mako:528
 msgid "Add parameter"
 msgstr ""
 
-#: src/oozie/templates/editor2/bundle_editor.mako:220
-#: src/oozie/templates/editor2/coordinator_editor.mako:90
-#: src/oozie/templates/editor2/submit_job_popup.mako:110
-#: src/oozie/templates/editor2/workflow_editor.mako:552
-msgid "Choose a file"
-msgstr ""
-
-#: src/oozie/templates/editor2/bundle_editor.mako:240
+#: src/oozie/templates/editor2/bundle_editor.mako:249
 #: src/oozie/templates/editor2/submit_job_popup.mako:62
 msgid "Now"
+msgstr ""
+
+#: src/oozie/templates/editor2/bundle_editor.mako:368
+#: src/oozie/views/editor.py:860 src/oozie/views/editor2.py:856
+msgid "Bundle submitted."
 msgstr ""
 
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:38
@@ -4754,7 +4787,7 @@ msgid "From"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_scheduler.inc.mako:145
-#: src/oozie/templates/editor2/common_workflow.mako:2042
+#: src/oozie/templates/editor2/common_workflow.mako:2048
 msgid "To"
 msgstr ""
 
@@ -4837,34 +4870,34 @@ msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:172
 #: src/oozie/templates/editor2/common_workflow.mako:176
-#: src/oozie/templates/editor2/workflow_editor.mako:146
-#: src/oozie/templates/editor2/workflow_editor.mako:218
-#: src/oozie/templates/editor2/workflow_editor.mako:226
-#: src/oozie/templates/editor2/workflow_editor.mako:233
+#: src/oozie/templates/editor2/workflow_editor.mako:154
+#: src/oozie/templates/editor2/workflow_editor.mako:247
+#: src/oozie/templates/editor2/workflow_editor.mako:257
+#: src/oozie/templates/editor2/workflow_editor.mako:266
 msgid "Hive icon"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:180
-#: src/oozie/templates/editor2/workflow_editor.mako:154
-#: src/oozie/templates/editor2/workflow_editor.mako:241
+#: src/oozie/templates/editor2/workflow_editor.mako:164
+#: src/oozie/templates/editor2/workflow_editor.mako:276
 msgid "Impala icon"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:184
-#: src/oozie/templates/editor2/workflow_editor.mako:176
-#: src/oozie/templates/editor2/workflow_editor.mako:249
+#: src/oozie/templates/editor2/workflow_editor.mako:192
+#: src/oozie/templates/editor2/workflow_editor.mako:286
 msgid "Pig icon"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:192
-#: src/oozie/templates/editor2/workflow_editor.mako:190
-#: src/oozie/templates/editor2/workflow_editor.mako:270
+#: src/oozie/templates/editor2/workflow_editor.mako:210
+#: src/oozie/templates/editor2/workflow_editor.mako:313
 msgid "Sqoop icon"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:228
-#: src/oozie/templates/editor2/workflow_editor.mako:169
-#: src/oozie/templates/editor2/workflow_editor.mako:256
+#: src/oozie/templates/editor2/workflow_editor.mako:183
+#: src/oozie/templates/editor2/workflow_editor.mako:295
 msgid "Spark icon"
 msgstr ""
 
@@ -4902,22 +4935,22 @@ msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:419
 #: src/oozie/templates/editor2/common_workflow.mako:1473
-#: src/oozie/templates/editor2/common_workflow.mako:2199
-#: src/oozie/templates/editor2/common_workflow.mako:2274
+#: src/oozie/templates/editor2/common_workflow.mako:2205
+#: src/oozie/templates/editor2/common_workflow.mako:2280
 msgid "Directory"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:437
 #: src/oozie/templates/editor2/common_workflow.mako:1434
-#: src/oozie/templates/editor2/common_workflow.mako:2212
-#: src/oozie/templates/editor2/common_workflow.mako:2287
+#: src/oozie/templates/editor2/common_workflow.mako:2218
+#: src/oozie/templates/editor2/common_workflow.mako:2293
 msgid "name, e.g. mapred.job.queue.name"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:444
 #: src/oozie/templates/editor2/common_workflow.mako:1587
-#: src/oozie/templates/editor2/common_workflow.mako:2219
-#: src/oozie/templates/editor2/common_workflow.mako:2294
+#: src/oozie/templates/editor2/common_workflow.mako:2225
+#: src/oozie/templates/editor2/common_workflow.mako:2300
 msgid "No properties defined."
 msgstr ""
 
@@ -4955,7 +4988,7 @@ msgid "Requires hbase-site.xml in job path"
 msgstr ""
 
 #: src/oozie/templates/editor2/common_workflow.mako:653
-#: src/oozie/templates/editor2/workflow_editor.mako:401
+#: src/oozie/templates/editor2/workflow_editor.mako:467
 msgid "Search your documents..."
 msgstr ""
 
@@ -4987,14 +5020,14 @@ msgstr ""
 #: src/oozie/templates/editor2/common_workflow.mako:1456
 #: src/oozie/templates/editor2/common_workflow.mako:1533
 #: src/oozie/templates/editor2/common_workflow.mako:1608
-#: src/oozie/templates/editor2/common_workflow.mako:1659
-#: src/oozie/templates/editor2/common_workflow.mako:1713
-#: src/oozie/templates/editor2/common_workflow.mako:1769
-#: src/oozie/templates/editor2/common_workflow.mako:1927
-#: src/oozie/templates/editor2/common_workflow.mako:2054
-#: src/oozie/templates/editor2/common_workflow.mako:2115
-#: src/oozie/templates/editor2/common_workflow.mako:2182
-#: src/oozie/templates/editor2/common_workflow.mako:2257
+#: src/oozie/templates/editor2/common_workflow.mako:1661
+#: src/oozie/templates/editor2/common_workflow.mako:1715
+#: src/oozie/templates/editor2/common_workflow.mako:1773
+#: src/oozie/templates/editor2/common_workflow.mako:1933
+#: src/oozie/templates/editor2/common_workflow.mako:2060
+#: src/oozie/templates/editor2/common_workflow.mako:2121
+#: src/oozie/templates/editor2/common_workflow.mako:2188
+#: src/oozie/templates/editor2/common_workflow.mako:2263
 msgid "Transitions"
 msgstr ""
 
@@ -5002,46 +5035,48 @@ msgstr ""
 msgid "Name, e.g. input"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1824
-#: src/oozie/templates/editor2/common_workflow.mako:1833
-#: src/oozie/templates/editor2/common_workflow.mako:1845
+#: src/oozie/templates/editor2/common_workflow.mako:1830
+#: src/oozie/templates/editor2/common_workflow.mako:1839
+#: src/oozie/templates/editor2/common_workflow.mako:1851
 msgid "to"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1909
+#: src/oozie/templates/editor2/common_workflow.mako:1915
 msgid "Source path"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1912
+#: src/oozie/templates/editor2/common_workflow.mako:1918
 msgid "New destination path"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1942
+#: src/oozie/templates/editor2/common_workflow.mako:1948
 msgid "755, -rwxrw-rw-"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1943
-#: src/oozie/templates/editor2/common_workflow.mako:1964
+#: src/oozie/templates/editor2/common_workflow.mako:1949
+#: src/oozie/templates/editor2/common_workflow.mako:1970
 msgid "Only for directories"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1945
-#: src/oozie/templates/editor2/common_workflow.mako:1966
+#: src/oozie/templates/editor2/common_workflow.mako:1951
+#: src/oozie/templates/editor2/common_workflow.mako:1972
 msgid "Recursive to sub directories"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:1963
+#: src/oozie/templates/editor2/common_workflow.mako:1969
 msgid "e.g. newgroup"
 msgstr ""
 
-#: src/oozie/templates/editor2/common_workflow.mako:2045
+#: src/oozie/templates/editor2/common_workflow.mako:2051
 msgid "About"
 msgstr ""
 
-#: src/oozie/templates/editor2/list_editor_bundles.mako:51
-#: src/oozie/templates/editor2/list_editor_coordinators.mako:50
-#: src/oozie/templates/editor2/list_editor_workflows.mako:50
-msgid "Share"
+#: src/oozie/templates/editor2/coordinator_editor.mako:66
+msgid "Schedules"
+msgstr ""
+
+#: src/oozie/templates/editor2/coordinator_editor.mako:195
+msgid "Schedule submitted."
 msgstr ""
 
 #: src/oozie/templates/editor2/list_editor_workflows.mako:32
@@ -5070,143 +5105,143 @@ msgstr ""
 msgid "profile."
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:68
+#: src/oozie/templates/editor2/workflow_editor.mako:85
 msgid "Go upload additional files and libraries to the deployment directory"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:121
+#: src/oozie/templates/editor2/workflow_editor.mako:127
 msgid "DOCUMENTS"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:124
+#: src/oozie/templates/editor2/workflow_editor.mako:130
 msgid "ACTIONS"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:130
+#: src/oozie/templates/editor2/workflow_editor.mako:136
 msgid "Documents"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:161
+#: src/oozie/templates/editor2/workflow_editor.mako:173
 msgid "Saved Java program"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:168
+#: src/oozie/templates/editor2/workflow_editor.mako:182
 msgid "Saved Spark program"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:175
+#: src/oozie/templates/editor2/workflow_editor.mako:191
 msgid "Saved Pig script"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:182
+#: src/oozie/templates/editor2/workflow_editor.mako:200
 msgid "Saved MapReduce job"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:189
+#: src/oozie/templates/editor2/workflow_editor.mako:209
 msgid "Saved Sqoop command"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:196
+#: src/oozie/templates/editor2/workflow_editor.mako:218
 msgid "Saved DistCp command"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:203
+#: src/oozie/templates/editor2/workflow_editor.mako:227
 msgid "Saved Shell command"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:225
+#: src/oozie/templates/editor2/workflow_editor.mako:256
 msgid "Hive Script"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:232
+#: src/oozie/templates/editor2/workflow_editor.mako:265
 msgid "HiveServer2 Script"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:240
+#: src/oozie/templates/editor2/workflow_editor.mako:275
 msgid "Impala Script"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:248
+#: src/oozie/templates/editor2/workflow_editor.mako:285
 msgid "Pig Script"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:269
+#: src/oozie/templates/editor2/workflow_editor.mako:312
 msgid "Sqoop 1"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:276
+#: src/oozie/templates/editor2/workflow_editor.mako:321
 msgid "MapReduce job"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:283
+#: src/oozie/templates/editor2/workflow_editor.mako:330
 msgid "Sub workflow"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:290
+#: src/oozie/templates/editor2/workflow_editor.mako:339
 msgid "Shell"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:297
+#: src/oozie/templates/editor2/workflow_editor.mako:348
 msgid "Ssh"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:304
+#: src/oozie/templates/editor2/workflow_editor.mako:357
 msgid "Fs"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:311
+#: src/oozie/templates/editor2/workflow_editor.mako:366
 msgid "Email"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:318
+#: src/oozie/templates/editor2/workflow_editor.mako:375
 msgid "Streaming"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:325
+#: src/oozie/templates/editor2/workflow_editor.mako:384
 msgid "Distcp"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:332
+#: src/oozie/templates/editor2/workflow_editor.mako:393
 msgid "Generic"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:378
+#: src/oozie/templates/editor2/workflow_editor.mako:444
 msgid "Select some file systems operations after adding the action."
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:414
+#: src/oozie/templates/editor2/workflow_editor.mako:480
 msgid "e.g. ${nameNode1}/path/to/input.txt"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:418
+#: src/oozie/templates/editor2/workflow_editor.mako:484
 msgid "e.g. ${nameNode2}/path/to/output.txt"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:448
+#: src/oozie/templates/editor2/workflow_editor.mako:514
 msgid "Workflow Settings"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:454
+#: src/oozie/templates/editor2/workflow_editor.mako:520
 msgid "Name, e.g. market"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:455
+#: src/oozie/templates/editor2/workflow_editor.mako:521
 msgid "Value, e.g. US"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:472
+#: src/oozie/templates/editor2/workflow_editor.mako:538
 msgid "Name, e.g. mapred.map.tasks"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:473
+#: src/oozie/templates/editor2/workflow_editor.mako:539
 msgid "Value, e.g. ${n}"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:484
+#: src/oozie/templates/editor2/workflow_editor.mako:550
 msgid "Toggle arrow showing"
 msgstr ""
 
-#: src/oozie/templates/editor2/workflow_editor.mako:490
+#: src/oozie/templates/editor2/workflow_editor.mako:556
 msgid "Path to job.xml"
 msgstr ""
 
@@ -5214,58 +5249,58 @@ msgstr ""
 msgid "Workflow submitted."
 msgstr ""
 
-#: src/oozie/views/api.py:90
+#: src/oozie/views/api.py:95
 msgid "Could not find node of type"
 msgstr ""
 
-#: src/oozie/views/api.py:107
+#: src/oozie/views/api.py:112
 msgid "links must be a list"
 msgstr ""
 
-#: src/oozie/views/api.py:113
+#: src/oozie/views/api.py:118
 msgid ""
 "Start should have two children: 'related' to end, 'to' to any node but an"
 " end."
 msgstr ""
 
-#: src/oozie/views/api.py:117
+#: src/oozie/views/api.py:122
 msgid "End should have no children."
 msgstr ""
 
-#: src/oozie/views/api.py:121
+#: src/oozie/views/api.py:126
 msgid "Kill should have no children."
 msgstr ""
 
-#: src/oozie/views/api.py:125
+#: src/oozie/views/api.py:130
 msgid "Join and Decision End should have one child: 'to' to any node."
 msgstr ""
 
-#: src/oozie/views/api.py:129
+#: src/oozie/views/api.py:134
 msgid ""
 "Fork and Decision should have at least two children: 'related' to their "
 "respective ends, 'start' to any node."
 msgstr ""
 
-#: src/oozie/views/api.py:133
+#: src/oozie/views/api.py:138
 msgid "Actions should have two children: 'error' to kill, 'ok' to any node."
 msgstr ""
 
-#: src/oozie/views/api.py:155
+#: src/oozie/views/api.py:160
 #, python-format
 msgid "%(node_type)s should have %(count)d more %(link_type)s linknode_type"
 msgstr ""
 
-#: src/oozie/views/api.py:218 src/oozie/views/api.py:238
-#: src/oozie/views/api.py:335 src/oozie/views/api.py:342
+#: src/oozie/views/api.py:223 src/oozie/views/api.py:243
+#: src/oozie/views/api.py:340 src/oozie/views/api.py:347
 msgid "Error saving workflow"
 msgstr ""
 
-#: src/oozie/views/api.py:327
+#: src/oozie/views/api.py:332
 msgid "Must be POST request."
 msgstr ""
 
-#: src/oozie/views/api.py:380 src/oozie/views/api.py:389
-#: src/oozie/views/api.py:404
+#: src/oozie/views/api.py:385 src/oozie/views/api.py:394
+#: src/oozie/views/api.py:409
 msgid "Must be GET request."
 msgstr ""
 
@@ -5277,8 +5312,8 @@ msgstr ""
 msgid "Use a POST request to manage the Oozie jobs."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:179 src/oozie/views/dashboard.py:950
-#: src/oozie/views/editor.py:378 src/oozie/views/editor2.py:455
+#: src/oozie/views/dashboard.py:179 src/oozie/views/dashboard.py:956
+#: src/oozie/views/editor.py:378 src/oozie/views/editor2.py:449
 msgid "The Oozie server is not running"
 msgstr ""
 
@@ -5286,86 +5321,86 @@ msgstr ""
 msgid "An error occurred with Oozie."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:541
+#: src/oozie/views/dashboard.py:547
 #, python-format
 msgid "Error accessing Oozie action %s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:720
+#: src/oozie/views/dashboard.py:726
 msgid "Successfully updated Workflow definition"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:723 src/oozie/views/dashboard.py:837
-#: src/oozie/views/dashboard.py:903 src/oozie/views/dashboard.py:960
+#: src/oozie/views/dashboard.py:729 src/oozie/views/dashboard.py:843
+#: src/oozie/views/dashboard.py:909 src/oozie/views/dashboard.py:968
 #: src/oozie/views/editor.py:356 src/oozie/views/editor.py:654
-#: src/oozie/views/editor.py:863 src/oozie/views/editor2.py:419
-#: src/oozie/views/editor2.py:686 src/oozie/views/editor2.py:858
+#: src/oozie/views/editor.py:863 src/oozie/views/editor2.py:413
+#: src/oozie/views/editor2.py:681 src/oozie/views/editor2.py:859
 #, python-format
 msgid "Invalid submission form: %s"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:737 src/oozie/views/dashboard.py:968
+#: src/oozie/views/dashboard.py:743 src/oozie/views/dashboard.py:976
 msgid "Job"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:738
+#: src/oozie/views/dashboard.py:744
 msgid "Sync Workflow definition?"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:772
+#: src/oozie/views/dashboard.py:778
 msgid "Workflow re-running."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:775
+#: src/oozie/views/dashboard.py:781
 #, python-format
 msgid "Invalid submission form: %s %s"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:797
+#: src/oozie/views/dashboard.py:803
 #, python-format
 msgid "Error re-running workflow %s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:834
+#: src/oozie/views/dashboard.py:840
 msgid "Coordinator re-running."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:860
+#: src/oozie/views/dashboard.py:866
 #, python-format
 msgid "Error re-running coordinator %s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:900
+#: src/oozie/views/dashboard.py:906
 msgid "Bundle re-running."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:925
+#: src/oozie/views/dashboard.py:931
 #, python-format
 msgid "Error re-running bundle %s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:954
+#: src/oozie/views/dashboard.py:958
 #, python-format
 msgid "Error submitting job %s"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:956
+#: src/oozie/views/dashboard.py:964
 msgid "Oozie job submitted"
 msgstr ""
 
-#: src/oozie/views/dashboard.py:1154
+#: src/oozie/views/dashboard.py:1165
 #, python-format
 msgid "Error accessing Oozie job %s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:1163
+#: src/oozie/views/dashboard.py:1174
 #, python-format
 msgid ""
 "Permission denied. %(username)s does not have the permissions to access "
 "job %(id)s."
 msgstr ""
 
-#: src/oozie/views/dashboard.py:1173
+#: src/oozie/views/dashboard.py:1184
 #, python-format
 msgid ""
 "Permission denied. %(username)s does not have the permissions to modify "
@@ -5418,8 +5453,8 @@ msgstr ""
 #: src/oozie/views/editor.py:623 src/oozie/views/editor.py:631
 #: src/oozie/views/editor.py:709 src/oozie/views/editor.py:729
 #: src/oozie/views/editor.py:840 src/oozie/views/editor.py:934
-#: src/oozie/views/editor2.py:144 src/oozie/views/editor2.py:175
-#: src/oozie/views/editor2.py:565 src/oozie/views/editor2.py:815
+#: src/oozie/views/editor2.py:138 src/oozie/views/editor2.py:169
+#: src/oozie/views/editor2.py:560 src/oozie/views/editor2.py:812
 msgid "A POST request is required."
 msgstr ""
 
@@ -5435,7 +5470,7 @@ msgstr ""
 msgid "Workflow(s) restored."
 msgstr ""
 
-#: src/oozie/views/editor.py:353 src/oozie/views/editor2.py:416
+#: src/oozie/views/editor.py:353 src/oozie/views/editor2.py:410
 msgid "Workflow submitted"
 msgstr ""
 
@@ -5482,11 +5517,11 @@ msgstr ""
 msgid "Coordinator data created"
 msgstr ""
 
-#: src/oozie/views/editor.py:651 src/oozie/views/editor2.py:683
+#: src/oozie/views/editor.py:651 src/oozie/views/editor2.py:678
 msgid "Coordinator submitted."
 msgstr ""
 
-#: src/oozie/views/editor.py:681 src/oozie/views/editor2.py:716
+#: src/oozie/views/editor.py:681 src/oozie/views/editor2.py:711
 #, python-format
 msgid "Error submitting coordinator %s"
 msgstr ""
@@ -5511,71 +5546,61 @@ msgstr ""
 msgid "Bundled coordinator updated!"
 msgstr ""
 
-#: src/oozie/views/editor.py:860 src/oozie/views/editor2.py:855
-msgid "Bundle submitted."
-msgstr ""
-
-#: src/oozie/views/editor.py:894 src/oozie/views/editor2.py:902
+#: src/oozie/views/editor.py:894 src/oozie/views/editor2.py:904
 #, python-format
 msgid "Error submitting bundle %s"
 msgstr ""
 
-#: src/oozie/views/editor2.py:166
+#: src/oozie/views/editor2.py:160
 msgid "Document deleted."
 msgstr ""
 
-#: src/oozie/views/editor2.py:197
+#: src/oozie/views/editor2.py:191
 msgid "Workflows copied."
 msgstr ""
 
-#: src/oozie/views/editor2.py:197
+#: src/oozie/views/editor2.py:191
 msgid "Workflow copied."
 msgstr ""
 
-#: src/oozie/views/editor2.py:221
+#: src/oozie/views/editor2.py:215
 msgid "Page saved !"
 msgstr ""
 
-#: src/oozie/views/editor2.py:411
+#: src/oozie/views/editor2.py:405
 msgid "Workflow submission failed"
 msgstr ""
 
-#: src/oozie/views/editor2.py:457
+#: src/oozie/views/editor2.py:451
 #, python-format
 msgid "Error submitting workflow %s: %s"
 msgstr ""
 
-#: src/oozie/views/editor2.py:515
+#: src/oozie/views/editor2.py:509
 msgid "You don't have access to the workflow or document of this coordinator."
 msgstr ""
 
-#: src/oozie/views/editor2.py:521
+#: src/oozie/views/editor2.py:515
 msgid "You don't have access to the workflow of this coordinator."
 msgstr ""
 
-#: src/oozie/views/editor2.py:587
+#: src/oozie/views/editor2.py:582
 msgid "Coordinator copied."
 msgstr ""
 
-#: src/oozie/views/editor2.py:627
+#: src/oozie/views/editor2.py:622
 msgid "Saved!"
 msgstr ""
 
-#: src/oozie/views/editor2.py:627
+#: src/oozie/views/editor2.py:622
 msgid "Updated!"
 msgstr ""
 
-#: src/oozie/views/editor2.py:806
+#: src/oozie/views/editor2.py:803
 msgid "Saved !"
 msgstr ""
 
-#: src/oozie/views/editor2.py:837
+#: src/oozie/views/editor2.py:834
 msgid "Bundle copied."
 msgstr ""
-
-#~ msgid "Sqoop program"
-#~ msgstr ""
-
-#~ msgid "Saved Hive query"
-#~ msgstr ""
 

@@ -29,11 +29,11 @@ ${ commonheader(_('Hadoop Security'), "security", user, request) | n,unicode }
 
 ${ layout.menubar(section='hdfs', is_embeddable=is_embeddable) }
 
-<span id="securityHdfsComponents">
+<span id="securityHdfsComponents" class="security-components">
 
 <script type="text/html" id="aclDisplay">
   <div data-bind="visible: status() != 'deleted'">
-    <span data-bind="text: printAcl($data)"></span>
+    <span data-bind="text: $root.printAcl($data)"></span>
   </div>
 </script>
 

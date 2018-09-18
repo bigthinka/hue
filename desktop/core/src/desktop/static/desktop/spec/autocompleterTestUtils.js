@@ -16,6 +16,30 @@
 
 var SqlTestUtils = (function() {
 
+  // Needed to compare by val without taking attr order into account
+  var resultEquals = function (a, b) {
+    if (typeof a !== typeof b) {
+      return false;
+    }
+    if (a === b) {
+      return true;
+    }
+    if (typeof a === 'object') {
+      var aKeys = Object.keys(a);
+      if (aKeys.length !== Object.keys(b).length) {
+        return false;
+      }
+      for (var i = 0; i < aKeys.length; i++) {
+        if (!resultEquals(a[aKeys[i]], b[aKeys[i]])) {
+          return false;
+        }
+      }
+      return true;
+    } else {
+      return jasmine.matchersUtil.equals(a, b);
+    }
+  };
+
   var LOTS_OF_PARSE_RESULTS = [
     {index:0,colRef:{identifierChain:[{name:"ident_one"},{name:"ident_two"},{name:"ident_three"}]},lowerCase:false},
     {index:1,colRef:{identifierChain:[{name:"ident_one"},{name:"ident_two"}]},lowerCase:false},
@@ -443,9 +467,17 @@ var SqlTestUtils = (function() {
               }
             }
 
+            if (testDefinition.dialect !== 'impala' && actualResponse.locations) {
+              actualResponse.locations = actualResponse.locations.filter(function (location) {
+                if (location.type !== 'statementType') {
+                  return location;
+                }
+              })
+            }
+
             if (testDefinition.locationsOnly) {
               return {
-                pass: jasmine.matchersUtil.equals(actualResponse.locations, testDefinition.expectedLocations),
+                pass: resultEquals(actualResponse.locations, testDefinition.expectedLocations),
                 message: '\n        Statement: ' + testDefinition.beforeCursor + '|' + testDefinition.afterCursor + '\n' +
                 '          Dialect: ' + testDefinition.dialect + '\n' +
                 'Expected locations: ' + jsonStringToJsString(JSON.stringify(testDefinition.expectedLocations)) + '\n' +
@@ -483,9 +515,25 @@ var SqlTestUtils = (function() {
                   '  Dialect: ' + testDefinition.dialect + '\n' +
                   '           No colRef keywords found'
                 }
-              } else {
-                delete actualResponse.suggestColRefKeywords;
+              } else if (testDefinition.containsColRefKeywords !== true) {
+                var contains = true;
+                testDefinition.containsColRefKeywords.forEach(function (keyword) {
+                  contains = contains && (actualResponse.suggestColRefKeywords.BOOLEAN.indexOf(keyword) !== -1 ||
+                    actualResponse.suggestColRefKeywords.NUMBER.indexOf(keyword) !== -1 ||
+                    actualResponse.suggestColRefKeywords.STRING.indexOf(keyword) !== -1);
+                });
+                if (!contains) {
+                  return {
+                    pass: false,
+                    message: '\nStatement: ' + testDefinition.beforeCursor + '|' + testDefinition.afterCursor + '\n' +
+                               '  Dialect: ' + testDefinition.dialect + '\n' +
+                               '           Expected colRef keywords not found ' +
+                               'Expected keywords: ' + JSON.stringify(testDefinition.containsColRefKeywords) + '\n' +
+                               '  Parser keywords: ' + JSON.stringify(actualResponse.suggestColRefKeywords) +   '\n'
+                  }
+                }
               }
+              delete actualResponse.suggestColRefKeywords;
             }
 
             if (typeof testDefinition.containsKeywords !== 'undefined') {
@@ -533,7 +581,7 @@ var SqlTestUtils = (function() {
               delete actualResponse.suggestKeywords;
             }
             return {
-              pass: jasmine.matchersUtil.equals(actualResponse, testDefinition.expectedResult),
+              pass: resultEquals(actualResponse, testDefinition.expectedResult),
               message: '\n        Statement: ' + testDefinition.beforeCursor + '|' + testDefinition.afterCursor + '\n' +
                          '          Dialect: ' + testDefinition.dialect + '\n' +
                          'Expected response: ' + jsonStringToJsString(JSON.stringify(testDefinition.expectedResult) + '\n') +
@@ -547,11 +595,9 @@ var SqlTestUtils = (function() {
     assertAutocomplete: function(testDefinition) {
       var debug = false;
       if (typeof testDefinition.dialect === 'undefined') {
-        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor, testDefinition.dialect, debug)).toEqualDefinition(testDefinition);
-        testDefinition.dialect = 'hive';
-        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor,  testDefinition.dialect, debug)).toEqualDefinition(testDefinition);
-        testDefinition.dialect = 'impala';
-        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor,  testDefinition.dialect, debug)).toEqualDefinition(testDefinition);
+        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor, undefined, debug)).toEqualDefinition(testDefinition);
+        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor, 'hive', debug)).toEqualDefinition(testDefinition);
+        expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor, 'impala', debug)).toEqualDefinition(testDefinition);
       } else {
         expect(sqlAutocompleteParser.parseSql(testDefinition.beforeCursor, testDefinition.afterCursor, testDefinition.dialect, debug)).toEqualDefinition(testDefinition);
       }

@@ -23,22 +23,17 @@
 .hue-scrollbar-x-rail {
   position: fixed;
   z-index: 1039;
-  padding: 2px;
-  background-color: #F4F4F4;
-  border: 1px solid #F0F0F0;
+  padding: 0;
+  background-color: transparent;
   &>.hue-scrollbar-x {
     position: absolute;
-    background-color: #C1C1C1;
-    -webkit-border-radius: 5px;
-    -moz-border-radius: 5px;
+    background-color: @cui-gray-300;
     border-radius: 5px;
-    .hue-linear-transition(background-color);
-    height: 8px;
+    border: 1px solid @cui-white;
+    height: 7px;
     z-index: 1039;
-  }
-  &:hover {
-    &>.hue-scrollbar-x {
-      background-color: #7D7D7D;
+    &:hover {
+      background-color: @cui-gray-500;
     }
   }
 }

@@ -15,10 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 
-from desktop.lib import export_csvxls
 from desktop.lib.i18n import force_unicode
 
 from beeswax import data_export
@@ -108,13 +106,13 @@ class RdbmsApi(Api):
 
 
   @query_error_handler
-  def download(self, notebook, snippet, format):
+  def download(self, notebook, snippet, format, user_agent=None):
 
     file_name = _get_snippet_name(notebook)
     results = self._execute(notebook, snippet)
     db = FixedResult(results)
 
-    return data_export.download(None, format, db, id=snippet['id'], file_name=file_name)
+    return data_export.download(None, format, db, id=snippet['id'], file_name=file_name, user_agent=user_agent)
 
 
   @query_error_handler
@@ -151,7 +149,7 @@ class RdbmsApi(Api):
 
 
   @query_error_handler
-  def get_sample_data(self, snippet, database=None, table=None, column=None):
+  def get_sample_data(self, snippet, database=None, table=None, column=None, async=False):
     query_server = dbms.get_query_server_config(server=self.interpreter)
     db = dbms.get(self.user, query_server)
 
@@ -163,6 +161,7 @@ class RdbmsApi(Api):
     if sample_data:
       response['status'] = 0
       response['headers'] = sample_data.columns
+      response['full_headers'] = sample_data.columns_description
       response['rows'] = list(sample_data.rows())
     else:
       response['message'] = _('Failed to get sample data.')
@@ -172,6 +171,35 @@ class RdbmsApi(Api):
   @query_error_handler
   def get_browse_query(self, snippet, database, table, partition_spec=None):
     return "SELECT * FROM `%s`.`%s` LIMIT 1000" % (database, table)
+
+  @query_error_handler
+  def explain(self, notebook, snippet):
+    query_server = dbms.get_query_server_config(server=self.interpreter)
+    db = dbms.get(self.user, query_server)
+
+    db.use(snippet['database'])
+    result = db.explain(snippet['statement'])
+
+    rows = list(result.rows())
+    cols = result.cols()
+
+    # Prettify output
+    explanation = ""
+    cols_pretty = [(col + ":  ") for col in cols]
+    col_width = max(len(col) for col in cols_pretty)
+    for index, col in enumerate(cols_pretty):
+      lines = []
+      for row in rows:
+        lines += str(row[index]).split("\n")
+      explanation += col.ljust(col_width) + lines[0] + "\n"
+      for line in lines[1:]:
+        explanation += (" " * col_width) + line + "\n"
+
+    return {
+      'status': 0,
+      'explanation': explanation,
+      'statement': snippet['statement'],
+    }
 
 
 class Assist():

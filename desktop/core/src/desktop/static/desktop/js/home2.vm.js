@@ -34,43 +34,24 @@ var HomeViewModel = (function () {
     // self.apiHelper.withTotalStorage('assist', 'assist_panel_visible', self.isLeftPanelVisible, true);
 
     self.serverTypeFilter = ko.observable();
-    self.allDocumentTypes = ko.observableArray();
 
     var initialType = window.location.getParameter('type') !== '' ? window.location.getParameter('type') : 'all';
-    var availableTypes = $.map(DocumentTypeGlobals, function (value, key) {
-      var type = {
-        type: key,
-        label: value
-      };
-      if (initialType === type.type) {
-        self.serverTypeFilter(type);
+
+    DOCUMENT_TYPES.some(function (docType) {
+      if (docType.type === initialType) {
+        self.serverTypeFilter(docType);
+        return true;
       }
-      return type;
     });
 
     if (!self.serverTypeFilter()) {
-      var unknownType = {
-        type: initialType,
-        label: initialType
-      };
-      self.serverTypeFilter(unknownType);
-      availableTypes.push(unknownType);
+      self.serverTypeFilter(DOCUMENT_TYPES[0]);
     }
-
-    availableTypes.sort(function (a, b) {
-      if (a.type === 'all') {
-        return -1;
-      }
-      if (b.type === 'all') {
-        return 1;
-      }
-      return a.label.localeCompare(b.label);
-    });
-    self.allDocumentTypes(availableTypes);
 
     self.activeEntry = ko.observable();
     self.trashEntry = ko.observable();
-    self.activeEntry(new HueFileEntry({
+
+    self.defaultFileEntry = new HueFileEntry({
       serverTypeFilter: self.serverTypeFilter,
       activeEntry: self.activeEntry,
       trashEntry: self.trashEntry,
@@ -82,7 +63,9 @@ var HomeViewModel = (function () {
       definition: {
         name: '/'
       }
-    }));
+    });
+
+    self.activeEntry(self.defaultFileEntry);
 
     self.serverTypeFilter.subscribe(function (newVal) {
       if (self.activeEntry()) {
@@ -124,16 +107,21 @@ var HomeViewModel = (function () {
 
     var lastParent = entry;
 
+    var openDefault = function () {
+      self.activeEntry(self.defaultFileEntry);
+      self.activeEntry().load();
+    }
+
     var loadParents = function () {
       if (lastParent.parent) {
         lastParent = lastParent.parent;
-        lastParent.load(loadParents);
+        lastParent.load(loadParents, openDefault);
       } else {
         self.activeEntry(entry);
       }
     };
 
-    entry.load(loadParents);
+    entry.load(loadParents, openDefault);
   };
 
   HomeViewModel.prototype.openPath = function (path) {

@@ -21,8 +21,10 @@ from desktop import conf
 from desktop.lib.i18n import smart_unicode
 from desktop.views import _ko, antixss
 
-from metadata.conf import has_optimizer
-from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_BATCH_EXECUTE, ENABLE_EXTERNAL_STATEMENT
+from desktop.conf import IS_EMBEDDED
+from metadata.conf import has_optimizer, OPTIMIZER
+from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_BATCH_EXECUTE, ENABLE_EXTERNAL_STATEMENT, ENABLE_PRESENTATION
+from desktop.auth.backend import is_admin
 %>
 
 <%def name="includes(is_embeddable=False, suffix='')">
@@ -33,25 +35,23 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
 <link rel="stylesheet" href="${ static('notebook/css/notebook.css') }">
 <link rel="stylesheet" href="${ static('desktop/ext/css/bootstrap-editable.css') }">
 <link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/hue-charts.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/leaflet.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/leaflet.markercluster.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/nv.d3.min.css') }">
-<link rel="stylesheet" href="${ static('desktop/css/nv.d3.css') }">
+
 <link rel="stylesheet" href="${ static('desktop/ext/select2/select2.css') }">
 <link rel="stylesheet" href="${ static('desktop/ext/css/medium-editor.min.css') }">
 <link rel="stylesheet" href="${ static('desktop/css/bootstrap-medium-editor.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/jquery.mCustomScrollbar.min.css') }">
+<link rel="stylesheet" href="${ static('desktop/ext/css/bootstrap-datepicker.min.css') }">
 
+<script src="${ static('desktop/ext/js/bootstrap-datepicker.min.js') }" type="text/javascript" charset="utf-8"></script>
 % if not is_embeddable:
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }"></script>
 <script src="${ static('desktop/ext/js/knockout-sortable.min.js') }"></script>
-<script src="${ static('desktop/js/ko.charts.js') }"></script>
 <script src="${ static('desktop/js/ko.editable.js') }"></script>
+<script src="${ static('desktop/js/share2.vm.js') }"></script>
 % endif
 
 <script src="${ static('desktop/ext/js/clipboard.min.js') }"></script>
 <script src="${ static('desktop/ext/js/selectize.min.js') }"></script>
+<script src="${ static('desktop/ext/js/selectize-plugin-clear.js') }"></script>
 <script src="${ static('notebook/js/notebook.ko.js') }"></script>
 
 % if ENABLE_QUERY_SCHEDULING.get():
@@ -64,7 +64,7 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
 <script src="${ static('desktop/js/autocomplete/sqlParseSupport.js') }"></script>
 <script src="${ static('desktop/js/autocomplete/sqlStatementsParser.js') }"></script>
 <script src="${ static('desktop/js/autocomplete/sqlAutocompleteParser.js') }"></script>
-<script src="${ static('desktop/js/sqlAutocompleter.js') }"></script>
+<script src="${ static('desktop/js/autocomplete/globalSearchParser.js') }"></script>
 <script src="${ static('desktop/js/sqlAutocompleter2.js') }"></script>
 <script src="${ static('desktop/js/sqlAutocompleter3.js') }"></script>
 <script src="${ static('desktop/js/hdfsAutocompleter.js') }"></script>
@@ -74,7 +74,6 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
 <script src="${ static('desktop/ext/js/markdown.min.js') }"></script>
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery.hotkeys.js') }"></script>
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery.mousewheel.min.js') }"></script>
-<script src="${ static('desktop/ext/js/jquery.mCustomScrollbar.concat.min.js') }"></script>
 
 
 %if ENABLE_QUERY_BUILDER.get():
@@ -118,48 +117,12 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
 <script src="${ static('desktop/ext/js/bootstrap-editable.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 
-<script src="${ static('desktop/js/hue.geo.js') }" type="text/javascript" charset="utf-8"></script>
-
-<script src="${ static('desktop/ext/js/leaflet/leaflet.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/leaflet/leaflet.markercluster.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/leaflet/leaflet.heat.js') }" type="text/javascript" charset="utf-8"></script>
-
-<script src="${ static('desktop/js/nv.d3.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topojson.v1.min.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/world.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/usa.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/chn.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/bra.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/can.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/ind.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/gbr.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/ita.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/fra.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/deu.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/jpn.topo.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/topo/aus.topo.js') }" type="text/javascript" charset="utf-8"></script>
-
-<script src="${ static('desktop/js/nv.d3.datamaps.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.legend.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.multiBarWithBrushChart.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.lineWithBrushChart.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingDiscreteBar.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingDiscreteBarChart.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingMultiBar.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingMultiBarChart.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingPie.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.growingPieChart.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.scatter.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/nv.d3.scatterChart.js') }" type="text/javascript" charset="utf-8"></script>
-
 <script src="${ static('desktop/ext/select2/select2.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <!--[if IE 9]>
   <script src="${ static('desktop/ext/js/classList.min.js') }" type="text/javascript" charset="utf-8"></script>
 <![endif]-->
 <script src="${ static('desktop/ext/js/medium-editor.min.js') }" type="text/javascript" charset="utf-8"></script>
-
-<script src="${ static('desktop/ext/js/download.min.js') }"></script>
 
 <%namespace name="dashboard" file="/common_dashboard.mako" />
 <%namespace name="sqlSyntaxDropdown" file="/sql_syntax_dropdown.mako" />
@@ -194,133 +157,73 @@ from notebook.conf import ENABLE_QUERY_BUILDER, ENABLE_QUERY_SCHEDULING, ENABLE_
 
 ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
-<div class="print-logo">
-  <img class="pull-right" src="${ static('desktop/art/icon_hue_48.png') }"  alt="${ _('Hue logo') }"/>
-</div>
-
-<div class="navbar hue-title-bar" data-bind="visible: ! $root.isPlayerMode()">
+<div class="navbar hue-title-bar" data-bind="visible: ! $root.isPresentationMode() && ! $root.isResultFullScreenMode()">
   <div class="navbar-inner">
     <div class="container-fluid">
-      <div class="pull-right margin-right-10">
 
-        <div class="btn-group">
-          <a class="btn" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: function() { if ($root.canSave() ) { saveNotebook() } else { $('#saveAsModal${ suffix }').modal('show');} }, attr: { title: $root.canSave() ? '${ _ko('Save') }' : '${ _ko('Save As') }' }"><i class="fa fa-save"></i></a>
-
-          <!-- ko if: $root.canSave -->
-          <a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a>
-          <ul class="dropdown-menu">
-            <li>
-              <a class="pointer" data-bind="click: function() { $('#saveAsModal${ suffix }').modal('show'); }">
-                <i class="fa fa-save"></i> ${ _('Save as...') }
-              </a>
-            </li>
-          </ul>
-          <!-- /ko -->
-        </div>
-
-        <!-- ko ifnot: editorMode -->
-        <div class="btn-group">
-          <a class="btn dropdown-toggle" data-toggle="dropdown">
-            <i class="fa fa-bars"></i>
-          </a>
-          <ul class="dropdown-menu pull-right">
-            <li>
-              <a class="pointer" data-bind="click: function(){ hueUtils.goFullScreen(); $root.isEditing(false); $root.isFullscreenMode(true); $root.isPlayerMode(true);}">
-                <i class="fa fa-fw fa-expand"></i> ${ _('Player mode') }
-              </a>
-            </li>
-            <li>
-              <a class="pointer" data-bind="click: function() { $root.selectedNotebook().executeAll() }">
-                <i class="fa fa-fw fa-play"></i> ${ _('Execute all snippets') }
-              </a>
-            </li>
-            <li>
-              <a class="pointer" data-bind="click: function() { $root.selectedNotebook().clearResults() }">
-                <i class="fa fa-fw fa-eraser"></i> ${ _('Clear all results') }
-              </a>
-            </li>
-            <li>
-              <a href="javascript:void(0)" data-bind="click: displayCombinedContent">
-                <i class="fa fa-fw fa-file-text-o"></i> ${ _('Display all Notebook content') }
-              </a>
-            </li>
-            <li>
-              <a class="pointer" data-bind="click: function() { $root.selectedNotebook().exportJupyterNotebook() }">
-                <i class="fa fa-fw fa-file-code-o"></i> ${ _('Export to Jupyter') }
-              </a>
-            </li>
-          </ul>
-        </div>
-        <!-- /ko -->
-
-        <!-- ko if: editorMode -->
-        <a class="btn" href="javascript:void(0)" data-bind="click: function() { newNotebook($root.editorType(), null, selectedNotebook() ? $root.selectedNotebook().snippets()[0].currentQueryTab() : null); }, attr: { 'title': '${ _('New ') }' +  editorTypeTitle() + '${ _(' Query') }' }" rel="tooltip" data-placement="bottom">
-          <i class="fa fa-file-o"></i>
-        </a>
-        <!-- /ko -->
-        <!-- ko ifnot: editorMode -->
-        <a class="btn" href="javascript:void(0)" data-bind="click: newNotebook" title="${ _('New Notebook') }" rel="tooltip" data-placement="bottom">
-          <i class="fa fa-file-o"></i>
-        </a>
-        <!-- /ko -->
-
-        <!-- ko if: IS_HUE_4 -->
-        <a class="btn" data-bind="hueLink: '/home/?type=' + (editorMode() ? 'query-' : '') + editorType(), attr: { 'title': editorMode() ? '${ _('Queries') }' : '${ _('Notebooks') }'  }" rel="tooltip" data-placement="bottom">
-          <i class="fa fa-list"></i>
-        </a>
-        <!-- /ko -->
-        <!-- ko ifnot: IS_HUE_4 -->
-        <a class="btn" data-bind="hueLink: '${ url('notebook:notebooks') }?type=' + editorType(), attr: { 'title': editorMode() ? '${ _('Queries') }' : '${ _('Notebooks') }'  }" rel="tooltip" data-placement="bottom">
-          <i class="fa fa-list"></i>
-        </a>
-        <!-- /ko -->
-
-        <a class="btn pointer" title="${ _('Context') }" rel="tooltip" data-placement="bottom" data-bind="css: {'active': $root.isContextPanelVisible }, click: function() { $root.isContextPanelVisible(!$root.isContextPanelVisible()); }">
-          <i class="fa fa-cogs"></i>
-        </a>
-      </div>
+      <!-- ko template: { name: 'notebook-menu-buttons-${ suffix }' } --><!-- /ko -->
 
       <div class="nav-collapse">
         <ul class="nav editor-nav">
           <li class="app-header">
             <!-- ko if: editorMode -->
-              <a data-bind="hueLink: '${ url('notebook:editor') }?type=' + editorType(), attr: { 'title': editorTypeTitle() + '${ _(' Editor') }'}" style="cursor: pointer">
+              % if IS_EMBEDDED.get():
+                <span>
+                  <!-- ko template: { name: 'app-icon-template', data: { icon: editorType() } } --><!-- /ko -->
+                  <!-- ko switch: editorType() -->
+                  <!-- ko case: 'impala' -->Impala<!-- /ko -->
+                  <!-- ko case: 'rdbms' -->DB Query<!-- /ko -->
+                  <!-- ko case: 'pig' -->Pig<!-- /ko -->
+                  <!-- ko case: 'java' -->Java<!-- /ko -->
+                  <!-- ko case: 'spark2' -->Spark<!-- /ko -->
+                  <!-- ko case: 'sqoop1' -->Sqoop 1<!-- /ko -->
+                  <!-- ko case: 'distcp' -->DistCp<!-- /ko -->
+                  <!-- ko case: 'shell' -->Shell<!-- /ko -->
+                  <!-- ko case: 'mapreduce' -->MapReduce<!-- /ko -->
+                  <!-- ko case: ['beeswax', 'hive'] -->Hive<!-- /ko -->
+                  <!-- ko case: 'mapreduce' -->MapReduce<!-- /ko -->
+                  <!-- ko case: 'spark' -->Scala<!-- /ko -->
+                  <!-- ko case: 'pyspark' -->PySpark<!-- /ko -->
+                  <!-- ko case: 'r' -->R<!-- /ko -->
+                  <!-- ko case: 'jar' -->Spark Submit Jar<!-- /ko -->
+                  <!-- ko case: 'py' -->Spark Submit Python<!-- /ko -->
+                  <!-- ko case: 'solr' -->Solr SQL<!-- /ko -->
+                  <!-- ko case: 'kafkasql' -->Kafka SQL<!-- /ko -->
+                  <!-- ko case: 'markdown' -->Markdown<!-- /ko -->
+                  <!-- ko case: 'text' -->Text<!-- /ko -->
+                  <!-- ko case: $default -->SQL<!-- /ko -->
+                  <!-- /ko -->
+                </span>
+              % else:
+                <a data-bind="hueLink: '${ url('notebook:editor') }?type=' + editorType(), attr: { 'title': editorTypeTitle() + '${ _(' Editor') }'}" style="cursor: pointer">
               <!-- ko template: { name: 'app-icon-template', data: { icon: editorType() } } --><!-- /ko -->
-              <!-- ko if: editorType() == 'impala' -->
-                Impala
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'rdbms' -->
-                DB Query
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'pig' -->
-                Pig
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'java' -->
-                Java
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'spark2' -->
-                Spark
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'sqoop1' -->
-                Sqoop 1
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'distcp' -->
-                DistCp
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'shell' -->
-                Shell
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'mapreduce' -->
-                MapReduce
-              <!-- /ko -->
-              <!-- ko if: editorType() == 'beeswax' || editorType() == 'hive' -->
-                Hive
-              <!-- /ko -->
-              <!-- ko if: ['impala', 'pig', 'hive', 'beeswax', 'rdbms', 'java', 'spark2', 'sqoop1', 'distcp', 'shell', 'mapreduce'].indexOf(editorType()) == -1 -->
-                SQL
+
+              <!-- ko switch: editorType() -->
+                <!-- ko case: 'impala' -->Impala<!-- /ko -->
+                <!-- ko case: 'rdbms' -->DB Query<!-- /ko -->
+                <!-- ko case: 'pig' -->Pig<!-- /ko -->
+                <!-- ko case: 'java' -->Java<!-- /ko -->
+                <!-- ko case: 'spark2' -->Spark<!-- /ko -->
+                <!-- ko case: 'sqoop1' -->Sqoop 1<!-- /ko -->
+                <!-- ko case: 'distcp' -->DistCp<!-- /ko -->
+                <!-- ko case: 'shell' -->Shell<!-- /ko -->
+                <!-- ko case: 'mapreduce' -->MapReduce<!-- /ko -->
+                <!-- ko case: ['beeswax', 'hive'] -->Hive<!-- /ko -->
+                <!-- ko case: 'mapreduce' -->MapReduce<!-- /ko -->
+                <!-- ko case: 'spark' -->Scala<!-- /ko -->
+                <!-- ko case: 'pyspark' -->PySpark<!-- /ko -->
+                <!-- ko case: 'r' -->R<!-- /ko -->
+                <!-- ko case: 'jar' -->Spark Submit Jar<!-- /ko -->
+                <!-- ko case: 'py' -->Spark Submit Python<!-- /ko -->
+                <!-- ko case: 'solr' -->Solr SQL<!-- /ko -->
+                <!-- ko case: 'kafkasql' -->Kafka SQL<!-- /ko -->
+                <!-- ko case: 'markdown' -->Markdown<!-- /ko -->
+                <!-- ko case: 'text' -->Text<!-- /ko -->
+                <!-- ko case: $default -->SQL<!-- /ko -->
               <!-- /ko -->
               <!-- ko component: { name: 'hue-favorite-app', params: { hue4: IS_HUE_4, app: 'editor', interpreter: editorType() }} --><!-- /ko -->
               </a>
+              % endif
             <!-- /ko -->
             <!-- ko ifnot: editorMode -->
               <i class="fa fa-file-text-o app-icon" style="vertical-align: middle"></i>
@@ -329,6 +232,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             <!-- /ko -->
           </li>
 
+          % if not IS_EMBEDDED.get():
           <!-- ko with: selectedNotebook -->
           <li class="no-horiz-padding">
             <a>&nbsp;</a>
@@ -349,30 +253,170 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           <li data-bind="visible: isSaved() && ! isHistory() && ! parentSavedQueryUuid()" style="display: none" class="no-horiz-padding muted">
             <a title="${ _('This is a saved query') }"><i class="fa fa-fw fa-file-o"></i></a>
           </li>
-          <li class="query-name no-horiz-padding">
+          <li data-bind="visible: isSchedulerJobRunning" style="display: none" class="no-horiz-padding muted">
+            <a title="${ _('Click to open original saved query') }" data-bind="click: function() { $root.openNotebook(parentSavedQueryUuid()) }" class="pointer inactive-action">
+              ${ _("Scheduling on") }
+            </a>
+          </li>
+          <li class="query-name no-horiz-padding skip-width-calculation">
             <a href="javascript:void(0)">
               <div class="notebook-name-desc" data-bind="editable: name, editableOptions: { inputclass: 'notebook-name-input', enabled: true, placement: 'bottom', emptytext: '${_ko('Add a name...')}', tpl: '<input type=\'text\' maxlength=\'255\'>' }"></div>
             </a>
           </li>
-          <li data-bind="tooltip: { placement: 'bottom', title: description }">
+          <li class="skip-width-calculation" data-bind="tooltip: { placement: 'bottom', title: description }">
             <a href="javascript:void(0)">
               <div class="notebook-name-desc" data-bind="editable: description, editableOptions: { type: 'textarea', enabled: true, placement: 'bottom', emptytext: '${_ko('Add a description...')}' }"></div>
             </a>
           </li>
           <!-- /ko -->
+          % endif
         </ul>
       </div>
     </div>
   </div>
 </div>
 
- <div class="player-toolbar" data-bind="visible: $root.isPlayerMode() && $root.isFullscreenMode()" style="display: none;">
-    <div class="pull-right pointer" data-bind="click: function(){ hueUtils.exitFullScreen(); $root.isPlayerMode(false); $root.isFullscreenMode(false);  }"><i class="fa fa-times"></i></div>
-    <img src="${ static('desktop/art/icon_hue_48.png') }"  alt="${ _('Hue logo') }"/>
-    <!-- ko if: $root.selectedNotebook() -->
-    <h4 data-bind="text: $root.selectedNotebook().name"></h4>
+
+<script type="text/html" id="notebook-menu-buttons-${ suffix }">
+  <div class="pull-right margin-right-10">
+  % if ENABLE_PRESENTATION.get() and not IS_EMBEDDED.get():
+    <!-- ko with: selectedNotebook() -->
+      <div class="btn-group">
+        <a class="btn" data-bind="click: function() { isPresentationMode(!isPresentationMode()); },
+        css: {'btn-inverse': $root.isPresentationMode()}, attr: {title: isPresentationMode() ? '${ _ko('Exit presentation') }' : '${ _ko('View as a presentation') }'}">
+          <i class="fa fa-line-chart"></i>
+        </a>
+
+        <!-- ko if: $root.canSave() -->
+        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a>
+        <ul class="dropdown-menu pull-right">
+          <li>
+            <a class="pointer" title="${ _ko('Whether to open in presentation or editor mode by default') }" data-bind="click: function() { isPresentationModeDefault(!isPresentationModeDefault()); }">
+              <i class="fa" data-bind="css: {'fa-toggle-on': isPresentationModeDefault(), 'fa-toggle-off': !isPresentationModeDefault()}"></i> ${ _('Open as presentation') }
+            </a>
+          </li>
+        </ul>
+        <!-- /ko -->
+      </div>
     <!-- /ko -->
+  % endif
+
+    % if IS_EMBEDDED.get():
+      <div class="btn-group">
+        <a class="btn" rel="tooltip" data-bind="click: function() { newNotebook($root.editorType(), null, selectedNotebook() ? $root.selectedNotebook().snippets()[0].currentQueryTab() : null); }, attr: { 'title': '${ _('New ') }' +  editorTypeTitle() + '${ _(' Query') }' }">
+          <i class="fa fa-fw fa-file-o"></i>
+        </a>
+      </div>
+      <div class="btn-group">
+        <a class="btn" rel="tooltip" data-bind="css: {'active': $root.isContextPanelVisible }, click: function() { $root.isContextPanelVisible(!$root.isContextPanelVisible()); }">
+          <i class="fa fa-fw fa-cogs"></i>
+        </a>
+      </div>
+    % else:
+      <div class="btn-group">
+        <a class="btn" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: function() { if ($root.canSave() ) { saveNotebook() } else { $('#saveAsModal${ suffix }').modal('show');} }, attr: { title: $root.canSave() ? '${ _ko('Save') }' : '${ _ko('Save As') }' }">
+          <i class="fa fa-save"></i>
+        </a>
+
+        <!-- ko if: $root.canSave -->
+        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a>
+        <ul class="dropdown-menu pull-right">
+          <li>
+            <a class="pointer" data-bind="click: function() { $('#saveAsModal${ suffix }').modal('show'); }">
+              <i class="fa fa-fw fa-save"></i> ${ _('Save as...') }
+            </a>
+          </li>
+        </ul>
+        <!-- /ko -->
+      </div>
+
+      <!-- ko template: { ifnot: editorMode() || isPresentationMode(), name: 'notebook-actions' }--><!-- /ko -->
+
+      <!-- ko ifnot: isPresentationMode() -->
+      <div class="dropdown pull-right margin-left-10">
+        <a class="btn" data-toggle="dropdown" href="javascript: void(0)">
+          <i class="fa fa-fw fa-ellipsis-v"></i>
+        </a>
+        <ul class="dropdown-menu pull-right">
+          <li>
+          <!-- ko if: editorMode -->
+            <a href="javascript:void(0)" data-bind="click: function() { newNotebook($root.editorType(), null, selectedNotebook() ? $root.selectedNotebook().snippets()[0].currentQueryTab() : null); }, attr: { 'title': '${ _('New ') }' +  editorTypeTitle() + '${ _(' Query') }' }">
+              <i class="fa fa-fw fa-file-o"></i> ${ _('New') }
+            </a>
+          <!-- /ko -->
+          <!-- ko ifnot: editorMode -->
+            <a href="javascript:void(0)" data-bind="click: newNotebook">
+              <i class="fa fa-fw fa-file-o"></i> ${ _('New Notebook') }
+            </a>
+          <!-- /ko -->
+          </li>
+          <li>
+            <!-- ko if: IS_HUE_4 -->
+            <a href="javascript:void(0)" data-bind="publish: { 'assist.show.documents': editorMode() ? 'query-' + editorType() : editorType() }">
+              <svg class="hi hi-fw hi-bigger"><use xlink:href="#hi-documents"></use></svg> <span data-bind="text: editorMode() ? '${ _ko('Queries') }' : '${ _ko('Notebooks') }'"></span>
+            </a>
+            <!-- /ko -->
+            <!-- ko ifnot: IS_HUE_4 -->
+            <a href="javascript:void(0)" class="btn" data-bind="hueLink: '${ url('notebook:notebooks') }?type=' + editorType()">
+              <svg class="hi hi-fw hi-bigger"><use xlink:href="#hi-documents"></use></svg> <span data-bind="text: editorMode() ? '${ _ko('Queries') }' : '${ _ko('Notebooks') }'"></span>
+            </a>
+            <!-- /ko -->
+          </li>
+          <li class="divider"></li>
+          <!-- ko if: $root.canSave -->
+          <li>
+            <a class="share-link" data-bind="click: prepareShareModal,
+              css: {'isShared': isShared()}">
+              <i class="fa fa-fw fa-users"></i> ${ _('Share') }
+            </a>
+          </li>
+          <!-- /ko -->
+          <li>
+            <a class="pointer" data-bind="css: {'active': $root.isContextPanelVisible }, click: function() { $root.isContextPanelVisible(!$root.isContextPanelVisible()); }">
+              <i class="fa fa-fw fa-cogs"></i> ${ _('Session') }
+            </a>
+          </li>
+        </ul>
+      </div>
+      <!-- /ko -->
+    % endif
   </div>
+</script>
+
+
+<!-- ko if: $root.isResultFullScreenMode() -->
+<a class="hueAnchor collapse-results" href="javascript:void(0)" title="${ _('Collapse results') }" data-bind="click: function(){ $root.isResultFullScreenMode(false); }">
+  <i class="fa fa-times fa-fw"></i>
+</a>
+<!-- /ko -->
+
+<!-- ko if: $root.isPresentationMode() -->
+<a class="hueAnchor collapse-results" href="javascript:void(0)" title="${ _('Exit presentation') }" data-bind="click: function(){ $root.selectedNotebook().isPresentationMode(false); }">
+  <i class="fa fa-times fa-fw"></i>
+</a>
+<!-- /ko -->
+
+<div class="player-toolbar margin-top-10" data-bind="visible: $root.isPresentationMode()" style="display: none">
+  <!-- ko if: $root.isPresentationMode() -->
+    <!-- ko if: $root.selectedNotebook() -->
+      <!-- ko if: $root.selectedNotebook().name() || $root.selectedNotebook().description() -->
+        <h2 class="margin-left-30 margin-right-10 inline padding-left-5" data-bind="text: $root.selectedNotebook().name"></h2>
+        <h2 class="muted inline" data-bind="text: $root.selectedNotebook().description"></h2>
+        <div class="clearfix"></div>
+      <!-- /ko -->
+
+      <!-- ko template: { name: 'notebook-menu-buttons-${ suffix }' } --><!-- /ko -->
+
+      <div class="margin-left-30 margin-top-10 padding-left-5 margin-bottom-20">
+        <!-- ko template: { name: 'notebook-actions' } --><!-- /ko -->
+        <!-- ko if: $root.preEditorTogglingSnippet -->
+          <!-- ko template: { if: $root.isPresentationMode(), name: 'snippet-variables', data: $root.preEditorTogglingSnippet }--><!-- /ko -->
+        <!-- /ko -->
+      </div>
+
+    <!-- /ko -->
+  <!-- /ko -->
+</div>
 </%def>
 
 
@@ -381,7 +425,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 <div id="helpModal${ suffix }" class="modal transparent-modal hide" data-backdrop="true" style="width:980px;margin-left:-510px!important">
   <div class="modal-header">
     <button type="button" class="close" data-dismiss="modal" aria-label="${ _('Close') }"><span aria-hidden="true">&times;</span></button>
-    <h2 class="modal-title">${_('Editor keyboard shortcuts')}</h2>
+    <h2 class="modal-title">${_('Editor help')}</h2>
   </div>
   <div class="modal-body">
     <!-- ko component: 'aceKeyboardShortcuts' --><!-- /ko -->
@@ -430,7 +474,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
 
 <div data-bind="css: {'main-content': true, 'editor-mode': $root.editorMode()}">
-  <div class="vertical-full container-fluid" data-bind="style: { 'padding-left' : $root.isLeftPanelVisible() || $root.isPlayerMode() ? '0' : '20px' }" >
+  <div class="vertical-full container-fluid" data-bind="style: { 'padding-left' : $root.isLeftPanelVisible() || $root.isPresentationMode() || $root.isResultFullScreenMode() ? '0' : '20px' }" >
     <div class="vertical-full">
       <div class="vertical-full tab-pane row-fluid panel-container" data-bind="css: { active: selectedNotebook() === $data }, template: { name: 'notebook${ suffix }'}">
       </div>
@@ -467,7 +511,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
   <div class="content-panel" data-bind="event: { scroll: function(){ var ls = $(MAIN_SCROLLABLE).data('lastScroll'); if (ls && ls != $(MAIN_SCROLLABLE).scrollTop()){ $(document).trigger('hideAutocomplete'); }; $(MAIN_SCROLLABLE).data('lastScroll', $(MAIN_SCROLLABLE).scrollTop()) } }, with: selectedNotebook">
     <div>
-      <div class="row-fluid row-container sortable-snippets" data-bind="css: {'is-editing': $root.isEditing},
+      <div class="row-fluid row-container sortable-snippets" data-bind="css: {'is-editing': $root.isEditing, 'margin-left-10': $root.isPresentationMode},
         sortable: {
           template: 'snippet${ suffix }',
           data: snippets,
@@ -560,22 +604,35 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       <p>${ _('There are currently no active sessions, please reload the page.') }</p>
       <!-- /ko -->
       <!-- ko foreach: sessions -->
-      <h4 data-bind="text: $parents[1].getSnippetName(type())" style="clear:left; display: inline-block"></h4>
+      <h4 style="clear:left; display: inline-block">
+        <span data-bind="text: $parents[1].getSnippetName(type())"></span>
+        <!-- ko if: typeof session_id != 'undefined' && session_id -->
+          <span data-bind="text: session_id"></span>
+        <!-- /ko -->
+      </h4>
       <div class="session-actions">
         <a class="inactive-action pointer" title="${ _('Recreate session') }" rel="tooltip" data-bind="click: function() { $parent.restartSession($data) }">
           <i class="fa fa-refresh" data-bind="css: { 'fa-spin': restarting }"></i> ${ _('Recreate') }
         </a>
-        <a class="inactive-action pointer margin-left-10" title="${ _('Close session') }" rel="tooltip" data-bind="click: function() { $parent.closeAndRemoveSession($data) }"><i class="fa fa-times"></i> ${ _('Close') }</a>
+        <a class="inactive-action pointer margin-left-10" title="${ _('Close session') }" rel="tooltip" data-bind="click: function() { $parent.closeAndRemoveSession($data) }">
+          <i class="fa fa-times"></i> ${ _('Close') }
+        </a>
         % if conf.USE_DEFAULT_CONFIGURATION.get():
           <a class="inactive-action pointer margin-left-10" title="${ _('Save session settings as default') }" rel="tooltip" data-bind="click: function() { $parent.saveDefaultUserProperties($data) }"><i class="fa fa-save"></i> ${ _('Set as default settings') }</a>
         % endif
+        % if not IS_EMBEDDED.get():
         <!-- ko if: type() == 'impala' && typeof http_addr != 'undefined' -->
-        <a class="margin-left-10" data-bind="attr: {'href': http_addr()}" target="_blank"><i class="fa fa-external-link"></i> <span data-bind="text: http_addr().replace(/^(https?):\/\//, '')"></span></a>
+          <a class="margin-left-10" data-bind="attr: {'href': http_addr()}" target="_blank">
+            <span data-bind="text: http_addr().replace(/^(https?):\/\//, '')"></span> <i class="fa fa-external-link"></i>
+          </a>
         <!-- /ko -->
+        % endif
       </div>
+      % if conf.USE_DEFAULT_CONFIGURATION.get():
       <div style="width:100%;">
         <!-- ko component: { name: 'property-selector', params: { properties: properties } } --><!-- /ko -->
       </div>
+      % endif
       <div style="clear:both; padding-left: 120px;">
         <!-- ko if: availableNewProperties().length -->
         <a class="pointer" style="padding:5px;" data-bind="click: selectedSessionProperty() && function() {
@@ -603,16 +660,18 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 </script>
 
 <script type="text/html" id="snippet-log${ suffix }">
-  <div class="snippet-log-container margin-bottom-10" data-bind="visible: showLogs() && status() != 'ready' && status() != 'loading'" style="display: none;">
-    <div data-bind="delayedOverflow, css: resultsKlass" style="margin-top: 5px; position: relative;">
+  <div class="snippet-log-container margin-bottom-10">
+    <div data-bind="delayedOverflow: 'slow', css: resultsKlass" style="margin-top: 5px; position: relative;">
+      <a href="javascript: void(0)" class="inactive-action close-logs-overlay" data-bind="click: function(){ showLogs(false) }">&times;</a>
+      %if not IS_EMBEDDED.get():
       <ul data-bind="visible: jobs().length > 0, foreach: jobs" class="unstyled jobs-overlay">
         <li data-bind="attr: {'id': $data.name.substr(4)}">
           %if is_embeddable:
-            <a class="pointer" data-bind="text: $.trim($data.name), click: function() { huePubSub.publish('show.jobs.panel', $data.name); }, clickBubble: false"></a>
+            <a class="pointer" data-bind="text: $.trim($data.name), click: function() { huePubSub.publish('show.jobs.panel', {id: $data.name, interface: $parent.type() == 'impala' ? 'queries' : 'jobs'}); }, clickBubble: false"></a>
           %else:
             <a data-bind="text: $.trim($data.name), hueLink: $data.url"></a>
           %endif
-          <!-- ko if: typeof percentJob !== 'undefined' && percentJob() > -1 -->
+          <!-- ko if: typeof percentJob === 'function' && percentJob() > -1 -->
           <div class="progress-job progress pull-left" style="background-color: #FFF; width: 100%" data-bind="css: {'progress-warning': percentJob() < 100, 'progress-success': percentJob() === 100}">
             <div class="bar" data-bind="style: {'width': percentJob() + '%'}"></div>
           </div>
@@ -620,8 +679,11 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           <div class="clearfix"></div>
         </li>
       </ul>
-      <pre data-bind="visible: result.logs() && result.logs().length == 0" class="logs logs-bigger">${ _('No logs available at this moment.') }</pre>
-      <pre data-bind="visible: result.logs() && result.logs().length > 0, text: result.logs, logScroller: result.logs, logScrollerVisibilityEvent: showLogs, niceScroll" class="logs logs-bigger logs-populated"></pre>
+      %endif
+      <span data-bind="visible: !$root.isPresentationMode() || !$root.isHidingCode()">
+        <pre data-bind="visible: (!result.logs() || result.logs().length == 0) && jobs().length > 0" class="logs logs-bigger">${ _('No logs available at this moment.') }</pre>
+        <pre data-bind="visible: result.logs() && result.logs().length > 0, text: result.logs, logScroller: result.logs, logScrollerVisibilityEvent: showLogs" class="logs logs-bigger logs-populated"></pre>
+      </span>
     </div>
     <div class="snippet-log-resizer" data-bind="visible: result.logs().length > 0, logResizer: {parent: '.snippet-log-container', target: '.logs-populated', mainScrollable: MAIN_SCROLLABLE, onStart: hideFixedHeaders, onResize: function(){ hideFixedHeaders(); redrawFixedHeaders(500); }, minHeight: 50}">
       <i class="fa fa-ellipsis-h"></i>
@@ -650,22 +712,25 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
 <script type="text/html" id="query-tabs${ suffix }">
   <div class="query-history-container" data-bind="onComplete: function(){ redrawFixedHeaders(200); }">
-    <div data-bind="delayedOverflow, css: resultsKlass" style="margin-top: 5px; position: relative;">
-      <ul class="nav nav-tabs">
+    <div data-bind="delayedOverflow: 'slow', css: resultsKlass" style="margin-top: 5px; position: relative;">
+      <ul class="nav nav-tabs nav-tabs-editor">
         <li data-bind="click: function(){ currentQueryTab('queryHistory'); }, css: {'active': currentQueryTab() == 'queryHistory'}, onClickOutside: function () { if ($parent.historyFilterVisible() && $parent.historyFilter() === '') { $parent.historyFilterVisible(false) } }">
           <a class="inactive-action" href="#queryHistory" data-toggle="tab">${_('Query History')}
-            <div class="inline-block inactive-action margin-left-10 pointer" title="${_('Search the query history')}" data-bind="click: function(data, e){ $parent.historyFilterVisible(!$parent.historyFilterVisible()); if ($parent.historyFilterVisible()) { window.setTimeout(function(){ $(e.target).parent().siblings('input').focus(); }, 0); } else { $parent.historyFilter('') }}"><i class="snippet-icon fa fa-search"></i></div>
+            <div class="inline-block inactive-action margin-left-10 pointer visible-on-hover" title="${_('Search the query history')}" data-bind="click: function(data, e){ $parent.historyFilterVisible(!$parent.historyFilterVisible()); if ($parent.historyFilterVisible()) { window.setTimeout(function(){ $(e.target).parent().siblings('input').focus(); }, 0); } else { $parent.historyFilter('') }}"><i class="snippet-icon fa fa-search"></i></div>
             <input class="input-small inline-tab-filter" type="text" data-bind="visible: $parent.historyFilterVisible, clearable: $parent.historyFilter, valueUpdate:'afterkeydown'" placeholder="${ _('Search...') }">
-            <div class="inline-block inactive-action pointer" title="${_('Clear the query history')}" data-target="#clearHistoryModal${ suffix }" data-toggle="modal" rel="tooltip" data-bind="visible: $parent.history().length > 0"><i class="snippet-icon fa fa-calendar-times-o"></i></div>
+            % if not IS_EMBEDDED.get():
+            <div class="inline-block inactive-action pointer visible-on-hover" title="${_('Clear the query history')}" data-target="#clearHistoryModal${ suffix }" data-toggle="modal" rel="tooltip" data-bind="visible: $parent.history().length > 0"><i class="snippet-icon fa fa-calendar-times-o"></i></div>
+            %endif
           </a>
         </li>
+        % if not IS_EMBEDDED.get():
         <li data-bind="click: function(){ currentQueryTab('savedQueries'); }, css: {'active': currentQueryTab() == 'savedQueries'}, onClickOutside: function () { if (queriesFilterVisible() && queriesFilter() === '') { queriesFilterVisible(false) } }">
           <a class="inactive-action" href="#savedQueries" data-toggle="tab">${_('Saved Queries')}
-            <div class="inline-block inactive-action margin-left-10 pointer" title="${_('Search the saved queries')}" data-bind="visible: !queriesHasErrors(), click: function(data, e){ queriesFilterVisible(!queriesFilterVisible()); if (queriesFilterVisible()) { window.setTimeout(function(){ $(e.target).parent().siblings('input').focus(); }, 0); } else { queriesFilter('') }}"><i class="snippet-icon fa fa-search"></i></div>
+            <div class="inline-block inactive-action margin-left-10 pointer visible-on-hover" title="${_('Search the saved queries')}" data-bind="visible: !queriesHasErrors(), click: function(data, e){ queriesFilterVisible(!queriesFilterVisible()); if (queriesFilterVisible()) { window.setTimeout(function(){ $(e.target).parent().siblings('input').focus(); }, 0); } else { queriesFilter('') }}"><i class="snippet-icon fa fa-search"></i></div>
             <input class="input-small inline-tab-filter" type="text" data-bind="visible: queriesFilterVisible, clearable: queriesFilter, valueUpdate:'afterkeydown'" placeholder="${ _('Search...') }">
-            <div class="inline-block inactive-action pointer" title="${_('Refresh')}" rel="tooltip" data-bind="click: fetchQueries"><i class="snippet-icon fa fa-refresh"></i></div>
           </a>
         </li>
+        % endif
         % if ENABLE_QUERY_BUILDER.get():
         <!-- ko if: isSqlDialect -->
         <li data-bind="click: function(){ currentQueryTab('queryBuilderTab'); }, css: {'active': currentQueryTab() == 'queryBuilderTab'}"><a class="inactive-action" href="#queryBuilderTab" data-toggle="tab">${_('Query Builder')}</a></li>
@@ -678,10 +743,16 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
               (<span data-bind="text: result.rows().toLocaleString() + (type() == 'impala' && result.rows() == 1024 ? '+' : '')" title="${ _('Number of rows') }"></span>)
             <!-- /ko -->
             <!-- ko if: showGrid -->
-            <div class="inline-block inactive-action margin-left-10 pointer" title="${_('Search the results')}" data-bind="click: function(data, e){ $(e.target).parents('.snippet').find('.resultTable').hueDataTable().fnShowSearch() }"><i class="snippet-icon fa fa-search"></i></div>
+            <div class="inline-block inactive-action pointer margin-left-10 visible-on-hover" title="${_('Search the results')}" data-bind="click: function(data, e){ $(e.target).parents('.snippet').find('.resultTable').hueDataTable().fnShowSearch() }">
+              <i class="snippet-icon fa fa-search"></i>
+            </div>
             <!-- /ko -->
-            <div class="inline-block inactive-action pointer" title="${_('Expand results')}" rel="tooltip" data-bind="css: { 'margin-left-10': !showGrid()}, visible: !$root.isFullscreenMode() && !$root.isPlayerMode(), click: function(){ $root.isPlayerMode(true); }"><i class="snippet-icon fa fa-expand"></i></div>
-            <div class="inline-block inactive-action pointer" title="${_('Collapse results')}" rel="tooltip" data-bind="visible: !$root.isFullscreenMode() && $root.isPlayerMode(), click: function(){ $root.isPlayerMode(false); }"><i class="snippet-icon fa fa-compress"></i></div>
+            <div class="inline-block inactive-action pointer visible-on-hover" title="${_('Expand results')}" rel="tooltip" data-bind="css: { 'margin-left-10': !showGrid()}, visible: !$root.isResultFullScreenMode(), click: function(){ $root.isResultFullScreenMode(true); }">
+              <i class="snippet-icon fa fa-expand"></i>
+            </div>
+            <div class="inline-block inactive-action pointer visible-on-hover" title="${_('Collapse results')}" rel="tooltip" data-bind="visible: $root.isResultFullScreenMode(), click: function(){ $root.isResultFullScreenMode(false); }">
+              <i class="snippet-icon fa fa-compress"></i>
+            </div>
           </a>
         </li>
         <!-- /ko -->
@@ -692,13 +763,15 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <li data-bind="click: function() { $parent.currentQueryTab(tabId) }, css: { 'active': $parent.currentQueryTab() === tabId }">
           <a class="inactive-action" data-toggle="tab" data-bind="attr: { 'href': '#' + tabId }">
             <i class="snippet-icon fa" data-bind="css: iconClass"></i> <span data-bind="text: title"></span>
-            <div class="inline-block inactive-action margin-left-10 pointer" data-bind="click: function () { $parent.removeContextTab($data); }"><i class="snippet-icon fa fa-times"></i></div>
+            <div class="inline-block inactive-action margin-left-10 pointer" data-bind="click: function () { $parent.removeContextTab($data); }">
+              <i class="snippet-icon fa fa-times"></i>
+            </div>
           </a>
         </li>
         <!-- /ko -->
       </ul>
       <div class="tab-content" style="border: none; overflow-x: hidden">
-        <div class="tab-pane" id="queryHistory" data-bind="css: {'active': currentQueryTab() == 'queryHistory'}">
+        <div class="tab-pane" id="queryHistory" data-bind="css: {'active': currentQueryTab() == 'queryHistory'}, style: { 'height' : $parent.historyInitialHeight() > 0 ? Math.max($parent.historyInitialHeight(), 40) + 'px' : '' }">
           <!-- ko if: $parent.loadingHistory -->
           <div style="padding: 20px">
             <i class="fa fa-spinner fa-spin muted"></i>
@@ -717,7 +790,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
             <!-- ko if: $parent.history().length > 0 -->
             <table class="table table-condensed margin-top-10 history-table">
-              <tbody data-bind="foreach: $parent.history">
+              <tbody data-bind="foreach: { data: $parent.history, afterRender: function(){ huePubSub.publish('editor.calculate.history.height'); } }">
                 <tr data-bind="click: function() { if (uuid() != $root.selectedNotebook().uuid()) { $root.openNotebook(uuid()); } }, css: { 'highlight': uuid() == $root.selectedNotebook().uuid(), 'pointer': uuid() != $root.selectedNotebook().uuid() }">
                   <td style="width: 100px" class="muted" data-bind="style: {'border-top-width': $index() == 0 ? '0' : ''}">
                     <span data-bind="momentFromNow: {data: lastExecuted, interval: 10000, titleFormat: 'LLL'}"></span>
@@ -831,7 +904,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
         <!-- ko foreach: pinnedContextTabs -->
         <div class="tab-pane" style="height: 300px; position: relative; overflow: hidden;" data-bind="attr: { 'id': tabId }, css: {'active': $parent.currentQueryTab() === tabId }">
-          <div style="display: flex; flex-direction: column; margin-top: 10px; overflow: hidden; height: 100%; position: relative;" data-bind="template: 'sql-context-contents'"></div>
+          <div style="display: flex; flex-direction: column; margin-top: 10px; overflow: hidden; height: 100%; position: relative;" data-bind="template: 'context-popover-contents'"></div>
         </div>
         <!-- /ko -->
       </div>
@@ -861,44 +934,71 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 </script>
 
 <script type="text/html" id="notebook-snippet-header${ suffix }">
-  <div class="inactive-action hover-actions inline"><span class="inactive-action" data-bind="css: { 'empty-title': name() === '' }, editable: name, editableOptions: { emptytext: '${_ko('My Snippet')}', mode: 'inline', enabled: true, placement: 'right' }" style="border:none;color: #DDD"></span></div>
+  <!-- ko if: $root.isPresentationMode() || $root.isResultFullScreenMode() -->
+  <div class="inline">
+    <!-- ko if: name() -->
+      <span data-bind="text: name"></span>
+    <!-- /ko -->
+    <!-- ko if: !name() && !$root.isHidingCode() -->
+      <span>${ _("Add -- comments on top of the SQL statement to display a title") }</span>
+    <!-- /ko -->
+  </div>
+  <!-- /ko -->
+
+  <!-- ko if: ! $root.isPresentationMode() && ! $root.isResultFullScreenMode() -->
+  <div class="inactive-action hover-actions inline">
+    <span class="inactive-action" data-bind="css: { 'empty-title': name() === '' }, editable: name, editableOptions: { emptytext: '${_ko('My Snippet')}', mode: 'inline', enabled: true, placement: 'right' }" style="border:none;color: #DDD"></span>
+  </div>
   <div class="hover-actions inline pull-right" style="font-size: 15px;">
     <!-- ko template: { name: 'query-redacted${ suffix }' } --><!-- /ko -->
     <!-- ko template: { name: 'longer-operation${ suffix }' } --><!-- /ko -->
-    <a class="inactive-action" href="javascript:void(0)" data-bind="visible: status() != 'ready' && status() != 'loading' && errors().length == 0, click: function() { hideFixedHeaders(); $data.showLogs(!$data.showLogs());}, css: {'blue': $data.showLogs}" title="${ _('Show Logs') }"><i class="fa fa-file-text-o"></i></a>
     <span class="execution-timer" data-bind="visible: type() != 'text' && status() != 'ready' && status() != 'loading', text: result.executionTime().toHHMMSS()" title="${ _('Execution time') }"></span>
 
+    <!-- ko template: { name: 'snippet-header-database-selection' } --><!-- /ko -->
     <!-- ko template: { name: 'snippet-header-statement-type${ suffix }' } --><!-- /ko -->
 
     <a class="inactive-action move-widget" href="javascript:void(0)"><i class="fa fa-arrows"></i></a>
-    <a class="inactive-action" href="javascript:void(0)" data-bind="toggle: settingsVisible, visible: hasProperties, css: { 'blue' : settingsVisible }" title="${ _('Settings and properties') }"><i class="fa fa-cog"></i></a>
+    <a class="inactive-action" href="javascript:void(0)" data-bind="toggle: settingsVisible, visible: hasProperties, css: { 'blue' : settingsVisible }" title="${ _('Snippet settings') }"><i class="fa fa-cog"></i></a>
     <a class="inactive-action" href="javascript:void(0)" data-bind="click: function(){ $root.removeSnippet($parent, $data); }"><i class="fa fa-times"></i></a>
   </div>
+  <!-- /ko -->
 </script>
 
 <script type="text/html" id="editor-snippet-header${ suffix }">
-  <div class="hover-actions inline pull-right" style="font-size: 15px; position: relative;" data-bind="style: { 'marginRight': $root.editorMode() && !$root.isFullscreenMode() && $root.isPlayerMode() ? '40px' : '0' }">
+  <div class="hover-actions inline pull-right" style="font-size: 15px; position: relative;" data-bind="style: { 'marginRight': $root.isPresentationMode() || $root.isResultFullScreenMode() ? '40px' : '0' }">
     <!-- ko template: { name: 'query-redacted${ suffix }' } --><!-- /ko -->
     <!-- ko template: { name: 'longer-operation${ suffix }' } --><!-- /ko -->
     <span class="execution-timer" data-bind="visible: type() != 'text' && status() != 'ready' && status() != 'loading', text: result.executionTime().toHHMMSS()" title="${ _('Execution time') }"></span>
-    <!-- ko if: availableDatabases().length > 0 && isSqlDialect() -->
-    <div class="margin-left-10" data-bind="component: { name: 'hue-drop-down', params: { icon: 'fa-database', value: database, entries: availableDatabases, foreachVisible: true, searchable: true, linkTitle: '${ _ko('Active database') }' } }" style="display: inline-block"></div>
-    <!-- /ko -->
 
-   <!-- ko template: { name: 'snippet-header-statement-type${ suffix }' } --><!-- /ko -->
+    <!-- ko template: { name: 'snippet-header-database-selection' } --><!-- /ko -->
+    <!-- ko template: { name: 'snippet-header-statement-type${ suffix }' } --><!-- /ko -->
 
-    <a class="inactive-action margin-left-10" href="javascript:void(0)" data-bind="visible: status() != 'ready' && status() != 'loading', click: function() { hideFixedHeaders(); $data.showLogs(!$data.showLogs());}, css: {'blue': $data.showLogs}" title="${ _('Show Logs') }"><i class="fa fa-file-text-o"></i></a>
-    <a class="inactive-action margin-left-10" href="javascript:void(0)" data-bind="toggle: settingsVisible, visible: hasProperties, css: { 'blue' : settingsVisible }" title="${ _('Settings and properties') }"><i class="fa fa-cog"></i></a>
-    <a class="inactive-action margin-left-10 pointer" title="${ _('Show editor shortcuts') }" data-toggle="modal" data-target="#helpModal${ suffix }"><i class="fa fa-question"></i></a>
+    <a class="inactive-action margin-left-10" href="javascript:void(0)" data-bind="toggle: settingsVisible, visible: hasProperties, css: { 'blue' : settingsVisible }" title="${ _('Query settings') }"><i class="fa fa-cog"></i></a>
+    <a class="inactive-action margin-left-10 pointer" title="${ _('Show editor help') }" data-toggle="modal" data-target="#helpModal${ suffix }"><i class="fa fa-question"></i></a>
   </div>
-  <a class="hueAnchor collapse-results" href="javascript:void(0)" title="${ _('Collapse results') }" data-bind="visible: $root.editorMode() && !$root.isFullscreenMode() && $root.isPlayerMode(), click: function(){ $root.isPlayerMode(false); }" style="display: none;"><i class="fa fa-times fa-fw"></i></a>
 </script>
 
+<script type="text/html" id="snippet-header-database-selection">
+  <!-- ko if: isSqlDialect() || type() == 'spark2' -->
+    <!-- ko component: {
+      name: 'hue-context-selector',
+      params: {
+        sourceType: type,
+        compute: compute,
+        namespace: namespace,
+        availableDatabases: availableDatabases,
+        database: database,
+        hideDatabases: !isSqlDialect()
+      }
+    } --><!-- /ko -->
+  <!-- /ko -->
+</script>
 
 <script type="text/html" id="snippet-header-statement-type${ suffix }">
-  % if ENABLE_EXTERNAL_STATEMENT.get():
+  % if ENABLE_EXTERNAL_STATEMENT.get() and not IS_EMBEDDED.get():
   <!-- ko if: isSqlDialect() -->
-    <div class="margin-left-10 statement-type-selector" data-bind="component: { name: 'hue-drop-down', params: { value: statementType, entries: statementTypes, linkTitle: '${ _ko('Statement type') }' } }" style="display: inline-block"></div>
+    <span class="editor-header-title">${ _('Type') }</span>
+    <div data-bind="component: { name: 'hue-drop-down', params: { value: statementType, entries: statementTypes, linkTitle: '${ _ko('Statement type') }' } }" style="display: inline-block"></div>
   <!-- /ko -->
   % endif
 </script>
@@ -910,13 +1010,13 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <div style="position: relative;">
           <div class="snippet-row" style="position: relative;">
             <div class="snippet-left-bar">
-              <!-- ko template: { if: ! $root.editorMode(), name: 'notebook-snippet-type-controls${ suffix }' } --><!-- /ko -->
-              <!-- ko template: { if: ['text', 'markdown'].indexOf(type()) == -1, name: 'snippet-execution-controls${ suffix }' } --><!-- /ko -->
+              <!-- ko template: { if: ! $root.editorMode() && ! $root.isPresentationMode() && ! $root.isResultFullScreenMode(), name: 'notebook-snippet-type-controls${ suffix }' } --><!-- /ko -->
+              <!-- ko template: { if: ['text', 'markdown'].indexOf(type()) == -1 && ! $root.isResultFullScreenMode(), name: 'snippet-execution-controls${ suffix }' } --><!-- /ko -->
             </div>
-            <div class="snippet-body" data-bind="clickForAceFocus: ace">
+            <div class="snippet-body" data-bind="clickForAceFocus: ace, visible: ! $root.isResultFullScreenMode()">
               <h5 class="card-heading-print" data-bind="text: name, css: {'visible': name() != ''}"></h5>
 
-              <h2 style="margin-left:5px;padding: 3px 0" class="card-heading simple" data-bind="dblclick: function(){ if (!$root.editorMode()) { $parent.newSnippetAbove(id()) } }, clickForAceFocus: ace">
+              <h2 style="margin-left:5px;padding: 3px 0" class="card-heading simple" data-bind="dblclick: function(){ if (!$root.editorMode() && !$root.isPresentationMode()) { $parent.newSnippetAbove(id()) } }, clickForAceFocus: ace">
                 <!-- ko template: { if: $root.editorMode(), name: 'editor-snippet-header${ suffix }' } --><!-- /ko -->
                 <!-- ko template: { if: ! $root.editorMode(), name: 'notebook-snippet-header${ suffix }' } --><!-- /ko -->
               </h2>
@@ -930,14 +1030,15 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             </div>
           </div>
           <!-- ko template: { if: ['text', 'markdown'].indexOf(type()) == -1, name: 'snippet-execution-status${ suffix }' } --><!-- /ko -->
-          <!-- ko template: { if: $root.editorMode() && ['jar', 'java', 'spark2', 'distcp', 'shell', 'mapreduce'].indexOf(type()) == -1, name: 'snippet-code-resizer${ suffix }' } --><!-- /ko -->
+          <!-- ko template: { if: $root.editorMode() && ! $root.isResultFullScreenMode() && ['jar', 'java', 'spark2', 'distcp', 'shell', 'mapreduce'].indexOf(type()) == -1, name: 'snippet-code-resizer${ suffix }' } --><!-- /ko -->
+          <!-- ko if: !$root.isResultFullScreenMode() -->
+            <!-- ko template: 'snippet-log${ suffix }' --><!-- /ko -->
+          <!-- /ko -->
           <!-- ko if: $root.editorMode() -->
-          <!-- ko template: 'snippet-log${ suffix }' --><!-- /ko -->
-          <!-- ko template: 'query-tabs${ suffix }' --><!-- /ko -->
+            <!-- ko template: 'query-tabs${ suffix }' --><!-- /ko -->
           <!-- /ko -->
           <!-- ko ifnot: $root.editorMode() -->
-          <!-- ko template: 'snippet-log${ suffix }' --><!-- /ko -->
-          <!-- ko template: { if: ['text', 'jar', 'java', 'distcp', 'shell', 'mapreduce', 'py', 'markdown'].indexOf(type()) == -1, name: 'snippet-results${ suffix }' } --><!-- /ko -->
+            <!-- ko template: { if: ['text', 'jar', 'java', 'distcp', 'shell', 'mapreduce', 'py', 'markdown'].indexOf(type()) == -1, name: 'snippet-results${ suffix }' } --><!-- /ko -->
           <!-- /ko -->
 
           <div class="clearfix"></div>
@@ -964,6 +1065,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <!-- ko template: { if: typeof properties().functions != 'undefined', name: 'property', data: { type: 'functions', label: '${ _ko('Functions') }', value: properties().functions, visibleObservable: settingsVisible, title: '${ _ko('UDFs name and class') }'}} --><!-- /ko -->
         <!-- ko template: { if: typeof properties().settings != 'undefined', name: 'property', data: { type: 'settings', label: '${ _ko('Settings') }', value: properties().settings, visibleObservable: settingsVisible, title: '${ _ko('Properties') }'}} --><!-- /ko -->
 
+        <!-- ko template: { if: typeof properties().spark_opts != 'undefined', name: 'property', data: { type: 'csv', label: '${ _ko('Spark Arguments') }', value: properties().spark_opts, title: '${ _ko('Names and values of Spark parameters') }', placeholder: '${ _ko('e.g. --executor-memory 20G --num-executors 50') }'}} --><!-- /ko -->
         <!-- ko template: { if: typeof properties().parameters != 'undefined', name: 'property', data: { type: 'csv', label: '${ _ko('Parameters') }', value: properties().parameters, title: '${ _ko('Names and values of Pig parameters and options') }', placeholder: '${ _ko('e.g. input /user/data, -param input=/user/data, -optimizer_off SplitFilter, -verbose') }'}} --><!-- /ko -->
         <!-- ko template: { if: typeof properties().hadoopProperties != 'undefined', name: 'property', data: { type: 'csv', label: '${ _ko('Hadoop properties') }', value: properties().hadoopProperties, title: '${ _ko('Name and values of Hadoop properties') }', placeholder: '${ _ko('e.g. mapred.job.queue.name=production, mapred.map.tasks.speculative.execution=false') }'}} --><!-- /ko -->
         <!-- ko template: { if: typeof properties().resources != 'undefined', name: 'property', data: { type: 'csv-hdfs-files', label: '${ _ko('Resources') }', value: properties().resources, title: '${ _ko('HDFS Files or compressed files') }', placeholder: '${ _ko('e.g. /tmp/file, /tmp.file.zip') }'}} --><!-- /ko -->
@@ -976,13 +1078,13 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 </script>
 
 <script type="text/html" id="code-editor-snippet-body${ suffix }">
-  <!-- ko if: HAS_OPTIMIZER && (type() == 'impala' || type() == 'hive') -->
+  <!-- ko if: HAS_OPTIMIZER && (type() == 'impala' || type() == 'hive') && ! $root.isPresentationMode() && ! $root.isResultFullScreenMode() -->
   <div class="optimizer-container" data-bind="css: { 'active': showOptimizer }">
     <!-- ko if: hasSuggestion() -->
       <!-- ko with: suggestion() -->
         <!-- ko if: parseError -->
           <!-- ko if: $parent.compatibilityTargetPlatform() == $parent.type() && $parent.compatibilitySourcePlatform() == $parent.type() -->
-            <div class="round-icon error" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
+            <div class="optimizer-icon error" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
               <i class="fa fa-exclamation"></i>
             </div>
             <!-- ko if: $parent.showOptimizer -->
@@ -991,7 +1093,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           <!-- /ko -->
           ## Oracle, MySQL compatibility... as they return a parseError and not encounteredString.
           <!-- ko if: $parent.compatibilityTargetPlatform() != $parent.type() || $parent.type() != $parent.compatibilitySourcePlatform() -->
-            <div class="round-icon warning" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
+            <div class="optimizer-icon warning" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
               <i class="fa fa-exclamation"></i>
             </div>
             <!-- ko if: $parent.showOptimizer -->
@@ -1001,7 +1103,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <!-- /ko -->
         <!-- ko if: !parseError() && ($parent.compatibilityTargetPlatform() != $parent.type() || $parent.compatibilitySourcePlatform() != $parent.type()) -->
           <!-- ko if: queryError.encounteredString().length == 0 -->
-            <div class="round-icon success" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
+            <div class="optimizer-icon success" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
               <i class="fa fa-check"></i>
             </div>
             <!-- ko if: $parent.showOptimizer -->
@@ -1018,7 +1120,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           <!-- /ko -->
         <!-- /ko -->
         <!-- ko ifnot: queryError.encounteredString().length == 0 -->
-          <div class="round-icon warning" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
+          <div class="optimizer-icon warning" data-bind="click: function(){ $parent.showOptimizer(! $parent.showOptimizer()) }, attr: { 'title': $parent.showOptimizer() ? '${ _ko('Close Validator') }' : '${ _ko('Open Validator') }'}">
             <i class="fa fa-exclamation"></i>
           </div>
           <!-- ko if: $parent.showOptimizer -->
@@ -1030,23 +1132,23 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     <!-- /ko -->
     <!-- ko if: ! hasSuggestion() && topRisk() -->
       <!-- ko if: topRisk().risk === 'low' -->
-        <div class="round-icon success" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some low risks were detected, see the assistant for details.') }">
+        <div class="optimizer-icon success" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some low risks were detected, see the assistant for details.') }">
           <i class="fa fa-check"></i>
         </div>
       <!-- /ko -->
       <!-- ko if: topRisk().risk == 'medium' -->
-        <div class="round-icon warning" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some medium risks were detected, see the assistant for details.') }">
+        <div class="optimizer-icon warning" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some medium risks were detected, see the assistant for details.') }">
           <i class="fa fa-exclamation"></i>
         </div>
       <!-- /ko -->
       <!-- ko if: topRisk().risk == 'high' -->
-        <div class="round-icon error" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some high risks were detected, see the assistant for details.') }">
+        <div class="optimizer-icon error" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Some high risks were detected, see the assistant for details.') }">
           <i class="fa fa-exclamation"></i>
         </div>
       <!-- /ko -->
     <!-- /ko -->
     <!-- ko if: hasSuggestion() == '' && ! topRisk() -->
-      <div class="round-icon success" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Query validated, no issues found.') }">
+      <div class="optimizer-icon success" data-bind="click: function () { huePubSub.publish('assist.highlight.risk.suggestions'); }, tooltip: { placement: 'bottom' }" title="${ _('Query validated, no issues found.') }">
         <i class="fa fa-check"></i>
       </div>
     <!-- /ko -->
@@ -1056,7 +1158,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
   <div class="row-fluid" style="margin-bottom: 5px">
 
-    <div class="editor span12" data-bind="css: {'single-snippet-editor ace-container-resizable' : $root.editorMode() }, clickForAceFocus: ace">
+    <div class="editor span12" data-bind="css: {'single-snippet-editor ace-container-resizable' : $root.editorMode() }, clickForAceFocus: ace, visible: ! $root.isResultFullScreenMode() && ! ($root.isPresentationMode() && $root.isHidingCode())">
       <!-- ko if: statementType() == 'file' -->
         <div class="margin-top-10">
           <label class="pull-left" style="margin-top: 6px;margin-right: 10px;">${_('Query File')}</label>
@@ -1095,20 +1197,20 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <div class="clearfix margin-bottom-20"></div>
       <!-- /ko -->
 
-      <div class="ace-editor" data-bind="visible: statementType() === 'text' || statementType() !== 'text' && externalStatementLoaded(), css: {'single-snippet-editor ace-editor-resizable' : $root.editorMode(), 'active-editor': inFocus }, attr: { id: id() }, delayedOverflow, aceEditor: {
+      <div class="ace-editor" data-bind="visible: statementType() === 'text' || statementType() !== 'text' && externalStatementLoaded(), css: {'single-snippet-editor ace-editor-resizable' : $root.editorMode(), 'active-editor': inFocus }, attr: { id: id() }, delayedOverflow: 'slow', aceEditor: {
         snippet: $data,
         contextTooltip: '${ _ko("Right-click for details") }',
         expandStar: '${ _ko("Right-click to expand with columns") }',
-        onBlur: saveTemporarySnippet,
         highlightedRange: result.statement_range,
         useNewAutocompleter: $root.useNewAutocompleter,
+        readOnly: $root.isPresentationMode(),
         aceOptions: {
           showLineNumbers: $root.editorMode(),
           showGutter: $root.editorMode(),
           maxLines: $root.editorMode() ? null : 25,
           minLines: $root.editorMode() ? null : 3
         }
-      }, style: {opacity: statementType() !== 'text' ? '0.75' : '1', 'top': $root.editorMode() && statementType() !== 'text' ? '60px' : '0'}"></div>
+      }, style: {opacity: statementType() !== 'text' || $root.isPresentationMode() ? '0.75' : '1', 'min-height': $root.editorMode() ? '0' : '48px', 'top': $root.editorMode() && statementType() !== 'text' ? '60px' : '0'}"></div>
       % if conf.USE_NEW_AUTOCOMPLETER.get():
       <!-- ko component: { name: 'hueAceAutocompleter', params: { editor: ace, snippet: $data } } --><!-- /ko -->
       % endif
@@ -1121,25 +1223,106 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <li class="editor-drop-insert"><a href="javascript:void(0);">INSERT INTO <span class="editor-drop-identifier"></span>...</a></li>
         <li class="editor-drop-update"><a href="javascript:void(0);">UPDATE <span class="editor-drop-identifier"></span>...</a></li>
         <li class="editor-drop-drop"><a href="javascript:void(0);">DROP TABLE <span class="editor-drop-identifier"></span>...</a></li>
+        <li class="editor-drop-view"><a href="javascript:void(0);">DROP VIEW <span class="editor-drop-identifier"></span>...</a></li>
       </ul>
     </div>
 
     <div class="clearfix"></div>
-    <ul data-bind="foreach: variables" class="unstyled inline">
-      <li>
-        <div class="input-prepend margin-top-10">
-          <span class="muted add-on" data-bind="text: name"></span>
-          <input class="input-medium" type="text" placeholder="${ _("Variable value") }" data-bind="value: value, valueUpdate: 'afterkeydown', autogrowInput: { minWidth: 150, maxWidth: 270, comfortZone: 15 }, event: { 'keypress': function (context, e){ if (e.ctrlKey && e.which === 13) { $parent.ace().commands.commands['execute'].exec(); } return true; } }">
-        </div>
-      </li>
-    </ul>
+    <!-- ko template: { if: ! $root.isPresentationMode() && ! $root.isResultFullScreenMode(), name: 'snippet-variables' }--><!-- /ko -->
   </div>
   <div class="clearfix"></div>
 </script>
 
+
+<script type="text/html" id="notebook-actions">
+  <div class="btn-group">
+    <!-- ko if: $root.selectedNotebook() -->
+    <!-- ko with: $root.selectedNotebook() -->
+      <a class="btn" rel="tooltip" data-placement="bottom" title="${ _("Execute all") }" data-bind="visible: ! isExecutingAll(), click: function() { executeAll(); }">
+        <i class="fa fa-fw fa-play"></i>
+      </a>
+      <!-- ko if: ! (snippets()[executingAllIndex()] && snippets()[executingAllIndex()].isCanceling()) -->
+      <a class="btn red" rel="tooltip" data-placement="bottom" title="${ _("Stop all") }" data-bind="visible: isExecutingAll(), click: function() { cancelExecutingAll(); }">
+        <i class="fa fa-fw fa-stop"></i>
+      </a>
+      <!-- /ko -->
+      <!-- ko if: snippets()[executingAllIndex()] && snippets()[executingAllIndex()].isCanceling() -->
+      <a class="btn" style="cursor: default;" title="${ _('Canceling operation...') }">
+        <i class="fa fa-fw fa-spinner snippet-side-single fa-spin"></i>
+      </a>
+      <!-- /ko -->
+    <!-- /ko -->
+
+    <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+      <span class="caret"></span>
+    </a>
+    <ul class="dropdown-menu pull-right">
+      <li>
+        <a class="pointer" rel="tooltip" data-placement="bottom" data-bind="click: function() { $root.selectedNotebook().isHidingCode(! $root.isHidingCode()); }, attr: { 'title': $root.isHidingCode() ? '${ _ko('Show the logic') }' : '${ _ko('Hide the logic') }' }">
+          <i class="fa fa-fw" data-bind="css: { 'fa-expand': $root.isHidingCode(), 'fa-compress': ! $root.isHidingCode() }"></i>
+          <span data-bind="visible: $root.isHidingCode">${ _('Show the code') }</span>
+          <span data-bind="visible: ! $root.isHidingCode()">${ _('Hide the code') }</span>
+        </a>
+      </li>
+      <li>
+        <a class="pointer" data-bind="click: function() { $root.selectedNotebook().clearResults() }">
+          <i class="fa fa-fw fa-eraser"></i> ${ _('Clear results') }
+        </a>
+      </li>
+      <li>
+        <a href="javascript:void(0)" data-bind="click: displayCombinedContent, visible: ! $root.isPresentationMode() ">
+          <i class="fa fa-fw fa-file-text-o"></i> ${ _('Show all content') }
+        </a>
+      </li>
+    </ul>
+    <!-- /ko -->
+  </div>
+</script>
+
+
+<script type="text/html" id="snippet-variables">
+  <div class="variables">
+    <ul data-bind="foreach: variables" class="unstyled inline">
+      <li>
+        <div class="input-prepend margin-top-10">
+          <!-- ko ifnot: path() -->
+          <span class="muted add-on" data-bind="text: name"></span>
+          <!-- /ko -->
+          <!-- ko if: path() -->
+          <a href="javascript:void(0);" data-bind="click: $root.showContextPopover" style="float: left"> <span class="muted add-on" data-bind="text: name"></span></a>
+          <!-- /ko -->
+          <!-- ko if: meta.type() == 'text' -->
+            <!-- ko if: meta.placeholder() -->
+              <input class="input-medium" type="text" data-bind="value: value, attr: { type: type, placeholder: meta.placeholder() || '${ _ko('Variable value') }' }, valueUpdate: 'afterkeydown', event: { 'keydown': $parent.onKeydownInVariable }, autogrowInput: { minWidth: 150, maxWidth: 270, comfortZone: 15 }">
+            <!-- /ko -->
+            <!-- ko ifnot: meta.placeholder() -->
+              <!-- ko if: type() == 'datetime-local' -->
+              <input class="input-medium" type="text" data-bind="value: value, datepicker: { momentFormat: 'YYYY-MM-DD HH:mm:ss.S' }">
+              <!-- /ko -->
+              <!-- ko if: type() == 'date' -->
+              <input class="input-medium" type="text" data-bind="value: value, datepicker: { momentFormat: 'YYYY-MM-DD' }">
+              <!-- /ko -->
+              <!-- ko if: type() == 'checkbox' -->
+              <input class="input-medium" type="checkbox" data-bind="checked: value">
+              <!-- /ko -->
+              <!-- ko ifnot: (type() == 'datetime-local' || type() == 'date' || type() == 'checkbox') -->
+              <input class="input-medium" type="text" value="true" data-bind="value: value, attr: { type: type() || 'text', step: step }, valueUpdate: 'afterkeydown', event: { 'keydown': $parent.onKeydownInVariable }, autogrowInput: { minWidth: 150, maxWidth: 270, comfortZone: 15 }">
+              <!-- /ko -->
+            <!-- /ko -->
+          <!-- /ko -->
+          <!-- ko if: meta.type() == 'select' -->
+          <select data-bind="selectize: sample, optionsText: 'text', optionsValue: 'value', selectizeOptions: { create: function (input) { sampleUser().push({ text: ko.observable(input), value: ko.observable(input) }); return { text: input, value: input }; } }, value: value, event: { 'keydown': $parent.onKeydownInVariable }"/>
+          <!-- /ko -->
+        </div>
+      </li>
+    </ul>
+  </div>
+</script>
+
+
 <script type="text/html" id="snippet-chart-settings${ suffix }">
   <div>
-    <!-- ko if: chartType() != '' && chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART -->
+    <!-- ko if: chartType() != '' && [ko.HUE_CHARTS.TYPES.TIMELINECHART, ko.HUE_CHARTS.TYPES.BARCHART].indexOf(chartType()) >= 0  -->
     <ul class="nav nav-list" style="border: none; background-color: #FFF">
       <li class="nav-header">${_('type')}</li>
     </ul>
@@ -1182,7 +1365,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       <li data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.MAP" class="nav-header">${_('longitude')}</li>
     </ul>
 
-    <div style="overflow-y: auto; max-height: 220px" data-bind="visible: chartType() != '' && ((chartType() == ko.HUE_CHARTS.TYPES.BARCHART && !chartXPivot()) || chartType() == ko.HUE_CHARTS.TYPES.LINECHART || chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART)">
+    <div style="max-height: 220px" data-bind="delayedOverflow, visible: chartType() != '' && ((chartType() == ko.HUE_CHARTS.TYPES.BARCHART && !chartXPivot()) || chartType() == ko.HUE_CHARTS.TYPES.LINECHART || chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART)">
       <ul class="unstyled" data-bind="foreach: result.cleanedNumericMeta" style="margin-bottom: 0">
         <li><label class="checkbox"><input type="checkbox" data-bind="checkedValue: name, checked: $parent.chartYMulti" /> <span data-bind="text: $data.name"></span></label></li>
       </ul>
@@ -1284,8 +1467,8 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 </script>
 
 <script type="text/html" id="snippet-grid-settings${ suffix }">
-  <div class="snippet-grid-settings" style="overflow: auto">
-    <table class="table table-condensed margin-top-10">
+  <div class="snippet-grid-settings" data-bind="delayedOverflow">
+    <table class="table table-condensed margin-top-10 no-border">
       <thead>
         <tr>
           <th width="16">
@@ -1298,14 +1481,26 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           </th>
         </tr>
         <tr data-bind="visible: result.isMetaFilterVisible">
-          <td colspan="3"><input class="meta-filter" type="text" data-bind="blurHide: result.isMetaFilterVisible, clearable: result.metaFilter, valueUpdate:'afterkeydown'" placeholder="${ _('Filter columns...') }" title="${ _('Type column:xxx or type:yyy for specific filters.') }" style="width: 257px" /></td>
+          <td colspan="3" class="context-popover-inline-autocomplete">
+            <!-- ko component: {
+              name: 'inline-autocomplete',
+              params: {
+                placeHolder: '${ _ko('Filter columns...') }',
+                querySpec: result.metaFilter,
+                facets: Object.keys(SQL_COLUMNS_KNOWN_FACET_VALUES),
+                knownFacetValues: SQL_COLUMNS_KNOWN_FACET_VALUES,
+                autocompleteFromEntries: result.autocompleteFromEntries
+              }
+            } --><!-- /ko -->
+            ##<input class="meta-filter" type="text" data-bind="blurHide: result.isMetaFilterVisible, clearable: result.metaFilter, valueUpdate:'afterkeydown'" placeholder="${ _('Filter columns...') }" title="${ _('Type column:xxx or type:yyy for specific filters.') }" style="width: 257px" />
+          </td>
         </tr>
       </thead>
       <tbody class="unstyled filtered-meta" data-bind="foreach: result.filteredMeta">
         <tr data-bind="visible: name != ''">
-          <td><input class="no-margin-top" type="checkbox" data-bind="event: { change: function(){ toggleColumn($element, $data.originalIndex, $parent);} }, checked: $data.checked" /></td>
-          <td><a class="pointer" data-bind="click: function(){ scrollToColumn($element, $data.originalIndex); }, attr: { title: $data.name + ' - ' + $data.type}"><span data-bind="text: $data.name"></span></a></td>
-          <td><span data-bind="text: $data.type" class="muted margin-left-20"></span></td>
+          <td><input class="no-margin-top" type="checkbox" data-bind="event: { change: function(){ toggleColumn($element, originalIndex, $parent);} }, checked: checked" /></td>
+          <td><a class="pointer" data-bind="click: function(){ scrollToColumn($element, $data.originalIndex); }, attr: { title: name + ' - ' + type}"><span data-bind="text: name"></span></a></td>
+          <td><span data-bind="text: type" class="muted margin-left-20"></span></td>
         </tr>
       </tbody>
       <tfoot>
@@ -1347,7 +1542,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <!-- /ko -->
       </div>
 
-      <div class="row-fluid table-results" data-bind="visible: result.type() == 'table'" style="display: none; max-height: 400px; min-height: 260px;">
+      <div class="row-fluid table-results" data-bind="visible: result.type() == 'table'" style="display: none; max-height: 400px; min-height: 290px;">
         <div>
           <div class="column-side" data-bind="visible: isResultSettingsVisible, css:{'span3 result-settings': isResultSettingsVisible, 'hidden': ! isResultSettingsVisible()}" style="position:relative;white-space: nowrap;">
             <!-- ko template: { name: 'snippet-grid-settings${ suffix }', if: showGrid } --><!-- /ko -->
@@ -1355,7 +1550,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             <div class="resize-bar" style="top: 0; right: -10px; cursor: col-resize;"></div>
           </div>
           <div class="grid-side" data-bind="css: {'span9': isResultSettingsVisible, 'span12 nomargin': ! isResultSettingsVisible() }">
-            <div data-bind="visible: showGrid, delayedOverflow, css: resultsKlass" style="display: none;">
+            <div data-bind="visible: showGrid, delayedOverflow: 'slow', css: resultsKlass" style="display: none;">
               <table class="table table-condensed resultTable">
                 <thead>
                 <tr data-bind="foreach: result.meta">
@@ -1376,37 +1571,37 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
               <div data-bind="visible: hasDataForChart">
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.PIECHART -->
                 <div data-bind="attr:{'id': 'pieChart_'+id()}, pieChart: {data: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()}, fqs: ko.observableArray([]),
-                      transformer: pieChartDataTransformer, maxWidth: 350, parentSelector: '.chart-container' }, visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART" class="chart"></div>
+                      transformer: editorPieChartDataTransformer, maxWidth: 350, parentSelector: '.chart-container' }, visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.BARCHART -->
-                <div data-bind="attr:{'id': 'barChart_'+id()}, barChart: {skipWindowResize: true, datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()}, fqs: ko.observableArray([]), hideSelection: true,
-                      transformer: multiSerieDataTransformer, stacked: false, showLegend: true, isPivot: typeof chartXPivot() !== 'undefined'},  stacked: true, showLegend: true, visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART" class="chart"></div>
+                <div data-bind="attr:{'id': 'barChart_'+id()}, barChart: {skipWindowResize: true, datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()}, fqs: ko.observableArray([]), hideSelection: true, enableSelection: false, hideStacked: hideStacked,
+                      transformer: editorMultiSerieDataTransformer, stacked: false, showLegend: true, isPivot: typeof chartXPivot() !== 'undefined', type: chartTimelineType},  stacked: true, showLegend: true, visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.LINECHART -->
                 <div data-bind="attr:{'id': 'lineChart_'+id()}, lineChart: {datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()},
-                      transformer: multiSerieDataTransformer, showControls: false, enableSelection: false }, visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART" class="chart"></div>
+                      transformer: editorMultiSerieDataTransformer, showControls: false, enableSelection: false }, visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART -->
-                <div data-bind="attr:{'id': 'timelineChart_'+id()}, timelineChart: {type: chartTimelineType, skipWindowResize: true, datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()}, fqs: ko.observableArray([]), hideSelection: true,
-                      transformer: timelineChartDataTransformer, stacked: false, showLegend: true}, hideSelection: true, visible: chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART" class="chart"></div>
+                <div data-bind="attr:{'id': 'timelineChart_'+id()}, timelineChart: {type: chartTimelineType, skipWindowResize: true, datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()}, fqs: ko.observableArray([]), hideSelection: true, enableSelection: false, hideStacked: hideStacked,
+                      transformer: editorTimelineChartDataTransformer, stacked: false, showLegend: true}, visible: chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.MAP -->
                 <div data-bind="attr:{'id': 'leafletMapChart_'+id()}, leafletMapChart: {datum: {counts: result.data, sorting: chartSorting(), snippet: $data, limit: chartLimit()},
-                      transformer: leafletMapChartDataTransformer, showControls: false, height: 380, visible: chartType() == ko.HUE_CHARTS.TYPES.MAP, forceRedraw: true}" class="chart"></div>
+                      transformer: editorLeafletMapChartDataTransformer, showControls: false, height: 380, visible: chartType() == ko.HUE_CHARTS.TYPES.MAP, forceRedraw: true}" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.GRADIENTMAP -->
                 <div data-bind="attr:{'id': 'gradientMapChart_'+id()}, mapChart: {data: {counts: result.data, sorting: chartSorting(), snippet: $data, scope: chartScope(), limit: chartLimit()},
-                      transformer: mapChartDataTransformer, isScale: true, showControls: false, height: 380, maxWidth: 750, parentSelector: '.chart-container', visible: chartType() == ko.HUE_CHARTS.TYPES.GRADIENTMAP}" class="chart"></div>
+                      transformer: editorMapChartDataTransformer, isScale: true, showControls: false, height: 380, maxWidth: 750, parentSelector: '.chart-container', visible: chartType() == ko.HUE_CHARTS.TYPES.GRADIENTMAP}" class="chart"></div>
                 <!-- /ko -->
 
                 <!-- ko if: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART -->
                 <div data-bind="attr:{'id': 'scatterChart_'+id()}, scatterChart: {datum: {counts: result.data, snippet: $data, limit: chartLimit()},
-                      transformer: scatterChartDataTransformer, maxWidth: 350, y: chartYSingle(), x: chartX(), size: chartScatterSize(), group: chartScatterGroup() }, visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART" class="chart"></div>
+                      transformer: editorScatterChartDataTransformer, maxWidth: 350, y: chartYSingle(), x: chartX(), size: chartScatterSize(), group: chartScatterGroup() }, visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART" class="chart"></div>
                 <!-- /ko -->
               </div>
             </div>
@@ -1419,12 +1614,12 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
 
 <script type="text/html" id="text-snippet-body${ suffix }">
-  <div data-bind="attr:{'id': 'editor_' + id()}, html: statement_raw, value: statement_raw, medium: {}" data-placeHolder="${ _('Type your text here, select some text to format it') }" class="text-snippet"></div>
+  <div data-bind="attr: {'id': 'editor_' + id()}, html: statement_raw, value: statement_raw, medium: {}" data-placeHolder="${ _('Type your text here, select some text to format it') }" class="text-snippet"></div>
 </script>
 
 
 <script type="text/html" id="markdown-snippet-body${ suffix }">
-  <!-- ko ifnot: $root.isPlayerMode() -->
+  <!-- ko ifnot: $root.isPresentationMode() -->
   <div class="row-fluid">
     <div class="span6" data-bind="clickForAceFocus: ace">
       <div class="ace-editor" data-bind="attr: { id: id() }, aceEditor: {
@@ -1433,11 +1628,11 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       }"></div>
     </div>
     <div class="span6">
-      <div data-bind="html: renderMarkdown(statement_raw(), id()), attr: {'id': 'liveMD'+id()}"></div>
+      <div data-bind="html: renderMarkdown(statement_raw(), id()), attr: {'id': 'liveMD' + id()}"></div>
     </div>
   </div>
   <!-- /ko -->
-  <!-- ko if: $root.isPlayerMode() -->
+  <!-- ko if: $root.isPresentationMode() -->
   <div data-bind="html: renderMarkdown(statement_raw(), id())"></div>
   <!-- /ko -->
 </script>
@@ -1457,6 +1652,12 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <label class="control-label">${_('Destination')}</label>
         <div class="controls">
           <input type="text" class="input-xxlarge filechooser-input" data-bind="value: properties().destination_path, valueUpdate: 'afterkeydown', filechooser: properties().destination_path, filechooserOptions: { linkMarkup: true, skipInitialPathIfEmpty: true, openOnFocus: true }" placeholder="${ _('Destination path, e.g. ${nameNode2}/path/to/output.txt') }"/>
+        </div>
+      </div>
+      <div class="control-group">
+        <label class="control-label">${_('Variables')}</label>
+        <div class="controls">
+          <!-- ko template: { if: typeof properties().distcp_parameters != 'undefined', name: 'property', data: { type: 'csv-hdfs-files', label: '${ _ko("Arguments") }', value: properties().distcp_parameters, title: '${ _ko("Arguments for the script") }', placeholder: '${ _ko("e.g. MAX=10, PATH=$PATH:/user/path") }' } } --><!-- /ko -->
         </div>
       </div>
       <!-- /ko -->
@@ -1541,18 +1742,28 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
 <script type="text/html" id="snippet-execution-status${ suffix }">
   <div class="snippet-execution-status" data-bind="clickForAceFocus: ace">
+    <a class="inactive-action pull-left snippet-logs-btn" href="javascript:void(0)" data-bind="visible: status() === 'running' && errors().length == 0, click: function() { hideFixedHeaders(); $data.showLogs(!$data.showLogs());}, css: {'blue': $data.showLogs}" title="${ _('Toggle Logs') }"><i class="fa fa-fw" data-bind="css: { 'fa-caret-right': !$data.showLogs(), 'fa-caret-down': $data.showLogs() }"></i></a>
     <div class="snippet-progress-container" data-bind="visible: status() != 'canceled' && status() != 'with-optimizer-report'">
       <div class="progress-snippet progress" data-bind="css: {
         'progress-starting': progress() == 0 && status() == 'running',
         'progress-warning': progress() > 0 && progress() < 100,
         'progress-success': progress() == 100,
         'progress-danger': progress() == 0 && errors().length > 0}" style="background-color: #FFF; width: 100%">
-        <div class="bar" data-bind="style: {'width': (errors().length > 0 ? 100 : Math.max(2,progress())) + '%'}"></div>
+        <div class="bar" data-bind="style: {'width': (errors().length > 0 ? 100 : Math.max(2, progress())) + '%'}"></div>
       </div>
     </div>
     <div class="snippet-error-container alert alert-error" style="margin-bottom: 0" data-bind="visible: errors().length > 0">
       <ul class="unstyled" data-bind="foreach: errors">
         <li data-bind="text: message"></li>
+        <!-- ko if: help -->
+        <li><a href="javascript:void(0)" data-bind="click: function() {
+          huePubSub.publish('editor.settings.update', {
+            key: $data.help.setting.name,
+            value: $data.help.setting.value
+          });
+          $parent.settingsVisible(true);
+        }">${ _("Update max_row_size setting.") }</a></li>
+        <!-- /ko -->
       </ul>
     </div>
     <div class="snippet-error-container alert alert-error" style="margin-bottom: 0" data-bind="visible: aceErrors().length > 0">
@@ -1574,7 +1785,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 </script>
 
 <script type="text/html" id="snippet-code-resizer${ suffix }">
-  <div class="snippet-code-resizer" data-bind="aceResizer : { ace: ace, target: '.ace-container-resizable', onStart: hideFixedHeaders, onStop: redrawFixedHeaders }">
+  <div class="snippet-code-resizer" data-bind="aceResizer : { snippet: $data, target: '.ace-container-resizable', onStart: hideFixedHeaders, onStop: redrawFixedHeaders }">
     <i class="fa fa-ellipsis-h"></i>
   </div>
 </script>
@@ -1629,7 +1840,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       </a>
       <!-- /ko -->
       % if ENABLE_BATCH_EXECUTE.get():
-      <!-- ko if: isBatchable() && status() != 'running' && status() != 'loading' -->
+      <!-- ko if: isBatchable() && status() != 'running' && status() != 'loading' && ! $root.isPresentationMode() -->
         <a class="dropdown-toggle snippet-side-btn" style="padding:0" data-toggle="dropdown" href="javascript: void(0)" data-bind="css: {'disabled': ! isReady(), 'blue': currentQueryTab() == 'queryExplain' }">
           <i class="fa fa-caret-down"></i>
         </a>
@@ -1649,7 +1860,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       % endif
     </div>
 
-    <!-- ko if: isSqlDialect -->
+    <!-- ko if: isSqlDialect && ! $root.isPresentationMode() -->
     <div class="inactive-action dropdown hover-actions pointer" data-bind="css: {'disabled': ! isReady() || status() === 'running' || status() === 'loading' }">
       <a class="snippet-side-btn" style="padding-right:0; padding-left: 2px;" href="javascript: void(0)" data-bind="click: explain, css: {'disabled': ! isReady() || status() === 'running' || status() === 'loading', 'blue': currentQueryTab() == 'queryExplain' }" title="${ _('Explain the current SQL query') }">
         <i class="fa fa-fw fa-map-o"></i>
@@ -1682,7 +1893,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             <i class="fa fa-fw fa-random"></i> ${_('Check compatibility')}
           </a>
         </li>
-        % if conf.DJANGO_DEBUG_MODE.get() and user.is_superuser:
+        % if conf.DJANGO_DEBUG_MODE.get() and is_admin(user):
         <li>
           <a href="javascript:void(0)" data-bind="click: function() { huePubSub.publish('editor.upload.history'); }" title="${ _('Load recent queries in order to improve recommendations') }">
             <i class="fa fa-fw fa-cloud-upload"></i> ${_('Upload history')}
@@ -1707,7 +1918,6 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     <div class="dropdown">
       <a class="snippet-side-btn" style="padding-right:0" href="javascript: void(0)" data-bind="css: {'active': $data.showChart }, click: function() { $data.showChart(true); }" >
         <i class="hcha fa-fw hcha-bar-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART" title="${ _('Bars') }"></i>
-        <i class="hcha fa-fw hcha-line-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART" title="${ _('Lines') }"></i>
         <i class="hcha fa-fw hcha-timeline-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.TIMELINECHART" title="${ _('Time') }"></i>
         <i class="hcha fa-fw hcha-pie-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART" title="${ _('Pie') }"></i>
         <i class="fa fa-fw fa-dot-circle-o" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART" title="${ _('Scatter') }"></i>
@@ -1722,11 +1932,6 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         <li>
           <a href="javascript:void(0)" data-bind="css: {'active': chartType() == ko.HUE_CHARTS.TYPES.BARCHART}, click: function(){ $data.showChart(true); chartType(ko.HUE_CHARTS.TYPES.BARCHART); }">
             <i class="hcha hcha-bar-chart"></i> ${_('Bars')}
-          </a>
-        </li>
-        <li>
-          <a href="javascript:void(0)" data-bind="css: {'active': chartType() == ko.HUE_CHARTS.TYPES.LINECHART}, click: function(){ $data.showChart(true); chartType(ko.HUE_CHARTS.TYPES.LINECHART); }">
-            <i class="hcha hcha-line-chart"></i> ${_('Lines')}
           </a>
         </li>
         <li data-bind="visible: result.cleanedDateTimeMeta().length > 0">
@@ -1768,7 +1973,9 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       </a>
     </div>
 
-    <div data-bind="component: { name: 'downloadSnippetResults', params: { snippet: $data, notebook: $parent } }" style="display:inline-block;"></div>
+    % if conf.ENABLE_DOWNLOAD.get() and not IS_EMBEDDED.get():
+    <div data-bind="component: { name: 'downloadSnippetResults', params: { gridSideBtn: false, snippet: $data, notebook: $parent } }" style="display:inline-block;"></div>
+    % endif
   </div>
 </script>
 
@@ -1920,18 +2127,21 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 <%def name="commonJS(is_embeddable=False, bindableElement='editorComponents', suffix='')">
 
 <script type="text/javascript">
+  var HUE_PUB_SUB_EDITOR_ID = (window.location.pathname.indexOf('notebook') > -1) ? 'notebook' : 'editor';
   % if is_embeddable:
   var MAIN_SCROLLABLE = '.page-content';
-  var HUE_PUB_SUB_EDITOR_ID = 'editor' + (window.location.getParameter('type') ? '-' + window.location.getParameter('type') : '');
   % else:
   var MAIN_SCROLLABLE = '.content-panel';
-  var HUE_PUB_SUB_EDITOR_ID = 'editor';
+  var shareViewModel = initSharing("#documentShareModal");
   % endif
 
-
   var isLeftNavOpen = false;
-  huePubSub.subscribe('left.nav.open.toggle', function(val) {
+  huePubSub.subscribe('left.nav.open.toggle', function (val) {
     isLeftNavOpen = val;
+  }, HUE_PUB_SUB_EDITOR_ID);
+
+  huePubSub.subscribe('split.panel.resized', function (val) {
+    huePubSub.publish('recalculate.name.description.width');
   }, HUE_PUB_SUB_EDITOR_ID);
 
   var showHoverMsg = function (e) {
@@ -1960,8 +2170,19 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     return text;
   }
 
+  function prepareShareModal () {
+    var selectedNotebookUuid = this.selectedNotebook() && this.selectedNotebook().uuid();
+    shareViewModel.setDocUuid(this.selectedNotebook().uuid());
+    openShareModal();
+  };
+
   function createHueDatatable(el, snippet, vm) {
     var DATATABLES_MAX_HEIGHT = 330;
+    var invisibleRows = 10;
+    if (snippet.result && snippet.result.data() && snippet.result.data().length) {
+      var cols = snippet.result.data()[0].length;
+      invisibleRows = cols > 200 ? 10 : (cols > 30 ? 50 : 100);
+    }
     var _dt = $(el).hueDataTable({
       i18n: {
         NO_RESULTS: "${_('No results found.')}",
@@ -1984,8 +2205,9 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           }
         }
       },
-      scrollable: vm.editorMode() ? MAIN_SCROLLABLE : '.dataTables_wrapper',
-      contained: !vm.editorMode()
+      scrollable: vm.editorMode() && !vm.isPresentationMode() ? MAIN_SCROLLABLE : '.dataTables_wrapper',
+      contained: !vm.editorMode() || vm.isPresentationMode(),
+      forceInvisible: invisibleRows
     });
 
     window.setTimeout(function () {
@@ -2002,7 +2224,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           % if is_embeddable:
           stickToTopPosition: 48 + bannerTopHeight + ${ conf.CUSTOM.BANNER_TOP_HTML.get() and '0' or '2' },
           % else:
-          stickToTopPosition: function() { return vm.isPlayerMode() ? 1 + bannerTopHeight : 76 + bannerTopHeight },
+          stickToTopPosition: function() { return vm.isPresentationMode() || vm.isResultFullScreenMode() ? 1 + bannerTopHeight : 76 + bannerTopHeight },
           % endif
           parentId: 'snippet_' + snippet.id(),
           clonedContainerPosition: 'fixed',
@@ -2077,7 +2299,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         if (snippetEl.find('.dataTables_wrapper').length > 0 && snippet.showGrid()) {
           window.clearTimeout(resultFollowTimeout);
           resultFollowTimeout = window.setTimeout(function () {
-            var topCoord = vm.isPlayerMode() ? 1 : 73;
+            var topCoord = vm.isPresentationMode() || vm.isResultFullScreenMode() ? 50 : 73;
             var offsetTop = 0;
             if (snippetEl.find('.dataTables_wrapper').length > 0 && snippetEl.find('.dataTables_wrapper').offset()){
               offsetTop = (snippetEl.find('.dataTables_wrapper').offset().top - topCoord) * -1;
@@ -2088,13 +2310,13 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             %endif
             if (snippet.isResultSettingsVisible()) {
               snippetEl.find('.snippet-grid-settings').css({
-                "height": Math.max(100, Math.ceil($(window).height() - Math.max($('#queryResults').offset().top, topCoord)))+ 'px'
+                "height": vm.isPresentationMode() || !vm.editorMode() ? '330px' : Math.max(100, Math.ceil($(window).height() - Math.max($('#queryResults').offset().top, topCoord)))+ 'px'
               });
-              snippetEl.find('.result-settings').animate({
+              snippetEl.find('.result-settings').css({
                 'marginTop': margin
               });
             }
-            snippetEl.find('.snippet-actions').animate({
+            snippetEl.find('.snippet-actions').css({
               'marginTop': margin + 25
             });
           }, 100);
@@ -2158,14 +2380,11 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     var _colSel = $resultTable.find("tr th:nth-child(" + (_col.index() + 1) + ")");
     if (_colSel.length > 0) {
       $resultTable.find("tr td:nth-child(" + (_col.index() + 1) + ")").addClass("columnSelected");
-      $resultTable.parent().animate({
-        scrollLeft: _colSel.position().left + $resultTable.parent().scrollLeft() - $resultTable.parent().offset().left - 30
-      }, 300, function(){
-        $resultTable.data('scrollToCol', _col.index());
-        $resultTable.data('scrollToRow', null);
-        $resultTable.data('scrollAnimate', true);
-        $resultTable.parent().trigger('scroll');
-      });
+      $resultTable.parent().scrollLeft(_colSel.position().left + $resultTable.parent().scrollLeft() - $resultTable.parent().offset().left - 30);
+      $resultTable.data('scrollToCol', _col.index());
+      $resultTable.data('scrollToRow', null);
+      $resultTable.data('scrollAnimate', true);
+      $resultTable.parent().trigger('scroll');
     }
   }
 
@@ -2173,7 +2392,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     return val !== 'NULL' && val !== null;
   }
 
-  function pieChartDataTransformer(rawDatum) {
+  function editorPieChartDataTransformer(rawDatum) {
     var _data = [];
 
     if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle() != null) {
@@ -2216,13 +2435,13 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     }
 
     if (rawDatum.snippet.chartLimit()) {
-      _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
+      _data = _data.slice(0, rawDatum.snippet.chartLimit());
     }
 
     return _data;
   }
 
-  function mapChartDataTransformer(rawDatum) {
+  function editorMapChartDataTransformer(rawDatum) {
     var _data = [];
     if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle() != null) {
       var _idxRegion = -1;
@@ -2248,7 +2467,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     }
 
     if (rawDatum.snippet.chartLimit()) {
-      _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
+      _data = _data.slice(0, rawDatum.snippet.chartLimit());
     }
 
     return _data;
@@ -2260,7 +2479,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
   var MIN_LNG = -180;
   var MAX_LNG = 180;
 
-  function leafletMapChartDataTransformer(rawDatum) {
+  function editorLeafletMapChartDataTransformer(rawDatum) {
     var _data = [];
     if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle() != null) {
       var _idxLat = -1;
@@ -2310,14 +2529,14 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     }
 
     if (rawDatum.snippet.chartLimit()) {
-      _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
+      _data = _data.slice(0, rawDatum.snippet.chartLimit());
     }
 
     return _data;
   }
 
 
-  function timelineChartDataTransformer(rawDatum) {
+  function editorTimelineChartDataTransformer(rawDatum) {
     var _datum = [];
     var _plottedSerie = 0;
 
@@ -2360,7 +2579,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             });
           }
           if (rawDatum.snippet.chartLimit()) {
-            _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
+            _data = _data.slice(0, rawDatum.snippet.chartLimit() );
           }
           _datum.push({
             key: col,
@@ -2374,7 +2593,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     return _datum;
   }
 
-  function multiSerieDataTransformer(rawDatum) {
+  function editorMultiSerieDataTransformer(rawDatum) {
     var _datum = [];
 
     if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYMulti().length > 0) {
@@ -2419,16 +2638,6 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
                   }
                 }
               });
-              if (rawDatum.sorting == "asc") {
-                _data.sort(function (a, b) {
-                  return a.y - b.y
-                });
-              }
-              if (rawDatum.sorting == "desc") {
-                _data.sort(function (a, b) {
-                  return b.y - a.y
-                });
-              }
               _datum.push({
                 key: hueUtils.html2text(val),
                 values: _data
@@ -2436,25 +2645,68 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
             });
           }
         });
+
         // fills in missing values
-        var longestSerie = 0;
+        var longest = 0;
+        var allXValues = [];
         _datum.forEach(function (d) {
-          if (d.values.length > longestSerie) {
-            longestSerie = d.values.length;
-          }
+          d.values.forEach(function (val) {
+            if (allXValues.indexOf(val.x) === -1) {
+              allXValues.push(val.x);
+            }
+          });
         });
+
         _datum.forEach(function (d) {
-          if (d.values.length < longestSerie) {
-            var zeroObj = jQuery.extend({}, d.values[0]);
-            zeroObj.x = '';
-            zeroObj.y = 0;
-            for (var i = d.values.length; i < longestSerie; i++) {
+          allXValues.forEach(function (val) {
+            if (!d.values.some(function (item) {
+                  return item.x === val
+                })) {
+              var zeroObj = jQuery.extend({}, d.values[0]);
+              zeroObj.y = 0;
+              zeroObj.x = val;
               d.values.push(zeroObj)
             }
+          });
+          if (d.values.length > longest) {
+            longest = d.values.length;
           }
         });
+
+
+        // this is to avoid D3 js errors when the data the user is trying to display is bogus
+        if (allXValues.length < longest) {
+          _datum.forEach(function (d) {
+            for (var i = d.values.length; i < longest; i++) {
+              var zeroObj = jQuery.extend({}, d.values[0]);
+              zeroObj.y = 0;
+              zeroObj.x = '';
+              d.values.push(zeroObj)
+            }
+          });
+        }
+
         if (rawDatum.snippet.chartLimit()) {
-          _datum = _datum.slice(1, rawDatum.snippet.chartLimit() + 1);
+          _datum = _datum.slice(0, rawDatum.snippet.chartLimit());
+        }
+
+        if (rawDatum.sorting == "desc") {
+          _datum.forEach(function (d) {
+            d.values.sort(function (a, b) {
+              if (a.x > b.x) return -1;
+              if (a.x < b.x) return 1;
+              return 0;
+            });
+          });
+        }
+        else {
+          _datum.forEach(function (d) {
+            d.values.sort(function (a, b) {
+              if (a.x > b.x) return 1;
+              if (a.x < b.x) return -1;
+              return 0;
+            });
+          });
         }
       }
       else {
@@ -2499,7 +2751,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
                 });
               }
               if (rawDatum.snippet.chartLimit()) {
-                _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
+                _data = _data.slice(0, rawDatum.snippet.chartLimit());
               }
               _datum.push({
                 key: col,
@@ -2514,88 +2766,74 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
     return _datum;
   }
 
-  function scatterChartDataTransformer(rawDatum) {
-    var _datum = [];
+  function editorScatterChartDataTransformer(rawDatum) {
+    var datum = {};
 
     if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle() != null) {
-      function addToDatum(col) {
-        var _idxX = -1;
-        var _idxY = -1;
-        var _idxSize = -1;
-        var _idxGroup = -1;
-        rawDatum.snippet.result.meta().forEach(function (icol, idx) {
-          if (icol.name == rawDatum.snippet.chartX()) {
-            _idxX = idx;
-          }
-          if (icol.name == rawDatum.snippet.chartYSingle()) {
-            _idxY = idx;
-          }
-          if (icol.name == rawDatum.snippet.chartScatterSize()) {
-            _idxSize = idx;
-          }
-          if (icol.name == rawDatum.snippet.chartScatterGroup()) {
-            _idxGroup = idx;
-          }
-        });
+      var idxX = -1;
+      var idxY = -1;
+      var idxSize = -1;
+      var idxGroup = -1;
+      rawDatum.snippet.result.meta().forEach(function (icol, idx) {
+        if (icol.name == rawDatum.snippet.chartX()) {
+          idxX = idx;
+        }
+        if (icol.name == rawDatum.snippet.chartYSingle()) {
+          idxY = idx;
+        }
+        if (icol.name == rawDatum.snippet.chartScatterSize()) {
+          idxSize = idx;
+        }
+        if (icol.name == rawDatum.snippet.chartScatterGroup()) {
+          idxGroup = idx;
+        }
+      });
 
-        if (_idxX > -1 && _idxY > -1) {
-          var _data = [];
+      if (idxX > -1 && idxY > -1) {
+
+        function createAndAddToArray(key, item) {
+          if (!datum[key]) {
+            datum[key] = [];
+          }
+          if (isNotNullForCharts(item[idxX]) && isNotNullForCharts(item[idxY])) {
+            datum[key].push({
+              x: item[idxX],
+              y: item[idxY],
+              shape: 'circle',
+              size: idxSize > -1 ? item[idxSize] : 100,
+              obj: item
+            });
+          }
+        }
+
+        if (idxGroup > -1) {
           $(rawDatum.counts()).each(function (cnt, item) {
-            if (_idxGroup == -1 || item[_idxGroup] == col) {
-              if (isNotNullForCharts(item[_idxX]) && isNotNullForCharts(item[_idxY])) {
-                _data.push({
-                  x: item[_idxX],
-                  y: item[_idxY],
-                  shape: 'circle',
-                  size: _idxSize > -1 ? item[_idxSize] : 100,
-                  obj: item
-                });
-              }
-            }
-          });
-          if (rawDatum.snippet.chartLimit()) {
-            _data = _data.slice(1, rawDatum.snippet.chartLimit() + 1);
-          }
-          _datum.push({
-            key: col,
-            values: _data
+            createAndAddToArray(item[idxGroup], item)
           });
         }
-      }
-
-      if (rawDatum.snippet.chartScatterGroup() != null) {
-        var _idxGroup = -1;
-        rawDatum.snippet.result.meta().forEach(function (icol, idx) {
-          if (icol.name == rawDatum.snippet.chartScatterGroup()) {
-            _idxGroup = idx;
-          }
-        });
-        if (_idxGroup > -1) {
+        else {
           $(rawDatum.counts()).each(function (cnt, item) {
-            addToDatum(hueUtils.html2text(item[_idxGroup]));
+            createAndAddToArray('distro', item)
           });
         }
-      } else {
-        addToDatum('${ _('Distribution') }');
       }
-
     }
-    return _datum;
-  }
 
-  function saveTemporarySnippet($element, value) {
-    if ($element.data('last-active-editor')) {
-      try {
-        if (viewModel.editorType() != 'notebook') {
-          $.totalStorage('hue.notebook.lastWrittenSnippet.${user}.' + viewModel.editorType(), value);
-        }
-      }
-      catch (e){} // storage quota exceeded with enormous editor content
-    }
+    var returndDatum = [];
+    Object.keys(datum).forEach(function (key) {
+      returndDatum.push({
+        key: key,
+        values: rawDatum.snippet.chartLimit() ? datum[key].slice(0, rawDatum.snippet.chartLimit()) : datum[key]
+      });
+    });
+
+    return returndDatum;
   }
 
   (function () {
-    ko.options.deferUpdates = true;
+    if (ko.options) {
+      ko.options.deferUpdates = true;
+    }
 
     var VIEW_MODEL_OPTIONS = $.extend(${ options_json | n,unicode,antixss }, {
       huePubSubId: HUE_PUB_SUB_EDITOR_ID,
@@ -2666,6 +2904,12 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           sqlDialect: true
         },
         solr: {
+          placeHolder: '${ _("Example: SELECT fieldA, FieldB FROM collectionname, or press CTRL + space") }',
+          aceMode: 'ace/mode/mysql',
+          snippetIcon: 'fa-database',
+          sqlDialect: true
+        },
+        kafkasql: {
           placeHolder: '${ _("Example: SELECT fieldA, FieldB FROM collectionname, or press CTRL + space") }',
           aceMode: 'ace/mode/mysql',
           snippetIcon: 'fa-database',
@@ -2815,6 +3059,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       if (app === 'editor') {
         huePubSub.publish('redraw.fixed.headers');
         huePubSub.publish('hue.scrollleft.show');
+        huePubSub.publish('active.snippet.type.changed', viewModel.editorType());
       }
     }, HUE_PUB_SUB_EDITOR_ID);
 
@@ -2826,6 +3071,12 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       if (tab !== 'queryResults') {
         $('.hue-datatable-search').hide();
       }
+      if (tab === 'queryHistory') {
+        hueUtils.waitForRendered($('#queryHistory .history-table'), function(el) { return el.is(':visible') }, function() {
+          viewModel.selectedNotebook().forceHistoryInitialHeight(true);
+          huePubSub.publish('editor.calculate.history.height');
+        });
+      }
     }, HUE_PUB_SUB_EDITOR_ID);
 
     huePubSub.subscribe('detach.scrolls', function (snippet) {
@@ -2835,6 +3086,17 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       }
       if (scrollElement.data('scrollFnDt')) {
         scrollElement.off('scroll', scrollElement.data('scrollFnDt'));
+      }
+    }, HUE_PUB_SUB_EDITOR_ID);
+
+    huePubSub.subscribe('editor.calculate.history.height', function () {
+      if (viewModel.editorMode() && (viewModel.selectedNotebook().historyInitialHeight() === 0 || viewModel.selectedNotebook().forceHistoryInitialHeight())) {
+        var h = $('#queryHistory .history-table').height();
+        if (h === 0) {
+          h = viewModel.selectedNotebook().history().length * 32;
+        }
+        viewModel.selectedNotebook().historyInitialHeight(h + 80); // add pagination too
+        viewModel.selectedNotebook().forceHistoryInitialHeight(false);
       }
     }, HUE_PUB_SUB_EDITOR_ID);
 
@@ -3046,18 +3308,137 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       ko.applyBindings(viewModel, $('#${ bindableElement }')[0]);
       viewModel.init();
 
+      var attachEntryResolver = function (location, sourceType, namespace, compute) {
+        location.resolveCatalogEntry = function(options) {
+          if (!options) {
+            options = {};
+          }
+          if (location.resolvePathPromise && !location.resolvePathPromise.cancelled) {
+            DataCatalog.applyCancellable(location.resolvePathPromise, options);
+            return location.resolvePathPromise;
+          }
+
+          if (!location.identifierChain && !location.colRef && !location.colRef.identifierChain) {
+            if (!location.resolvePathPromise) {
+              location.resolvePathPromise = $.Deferred().reject().promise();
+            }
+            return location.resolvePathPromise;
+          }
+
+          var promise = SqlUtils.resolveCatalogEntry({
+            sourceType: sourceType,
+            namespace: namespace,
+            compute: compute,
+            cancellable: options.cancellable,
+            cachedOnly: options.cachedOnly,
+            identifierChain: location.identifierChain || location.colRef.identifierChain,
+            tables: location.tables || (location.colRef && location.colRef.tables)
+          });
+
+          if (!options.cachedOnly) {
+            location.resolvePathPromise = promise;
+          }
+          return promise;
+        }
+      };
+
+
+      % if not IS_EMBEDDED.get():
+        if (window.Worker) {
+          // It can take a while before the worker is active
+          var whenWorkerIsReady = function (worker, message) {
+            if (!worker.isReady) {
+              window.clearTimeout(worker.pingTimeout);
+              worker.postMessage({ ping: true });
+              worker.pingTimeout = window.setTimeout(function () {
+                whenWorkerIsReady(worker, message);
+              }, 500);
+            } else {
+              worker.postMessage(message);
+            }
+          };
+
+          // For syntax checking
+          var aceSqlSyntaxWorker = new Worker('/desktop/workers/aceSqlSyntaxWorker.js?v=' + HUE_VERSION);
+          aceSqlSyntaxWorker.onmessage = function (e) {
+            if (e.data.ping) {
+              aceSqlSyntaxWorker.isReady = true;
+            } else {
+              huePubSub.publish('ace.sql.syntax.worker.message', e);
+            }
+          };
+
+          huePubSub.subscribe('ace.sql.syntax.worker.post', function (message) {
+            whenWorkerIsReady(aceSqlSyntaxWorker, message);
+          });
+
+          // For location marking
+          var aceSqlLocationWorker = new Worker('/desktop/workers/aceSqlLocationWorker.js?v=' + HUE_VERSION);
+          aceSqlLocationWorker.onmessage = function (e) {
+            if (e.data.ping) {
+              aceSqlLocationWorker.isReady = true;
+            } else {
+              if (e.data.locations) {
+                e.data.locations.forEach(function (location) {
+                  attachEntryResolver(location, e.data.sourceType, e.data.namespace, e.data.compute);
+                })
+              }
+              huePubSub.publish('ace.sql.location.worker.message', e);
+            }
+          };
+
+          huePubSub.subscribe('ace.sql.location.worker.post', function (message) {
+            whenWorkerIsReady(aceSqlLocationWorker, message);
+          });
+        }
+      % else:
+        var iframe = document.createElement("iframe");
+        iframe.src = (typeof adaptHueEmbeddedUrls !== 'undefined' ? adaptHueEmbeddedUrls('/notebook/workers_embedded?v=') : '/notebook/workers_embedded?v=') + HUE_VERSION;
+        iframe.name = "workerFrame";
+        iframe.setAttribute('style', 'display: none;');
+        document.body.appendChild(iframe);
+
+        window.addEventListener("message", function (event) {
+          if (event.data.locationWorkerResponse) {
+            if (event.data.locationWorkerResponse.locations) {
+              event.data.locationWorkerResponse.locations.forEach(function (location) {
+                attachEntryResolver(location, event.data.locationWorkerResponse.sourceType, event.data.locationWorkerResponse.namespace, event.data.locationWorkerResponse.compute);
+              })
+            }
+            huePubSub.publish('ace.sql.location.worker.message', { data: event.data.locationWorkerResponse });
+          }
+          if (event.data.syntaxWorkerResponse) {
+            huePubSub.publish('ace.sql.syntax.worker.message', { data: event.data.syntaxWorkerResponse });
+          }
+        }, false);
+
+        huePubSub.subscribe('ace.sql.location.worker.post', function (message) {
+          iframe.contentWindow.postMessage({ locationWorkerRequest: message }, '*')
+        });
+
+        huePubSub.subscribe('ace.sql.syntax.worker.post', function (message) {
+          iframe.contentWindow.postMessage({ syntaxWorkerRequest: message }, '*')
+        });
+      % endif
+
       if (viewModel.isOptimizerEnabled()) {
-        huePubSub.subscribe('editor.upload.table.stats', function (options) {
-          viewModel.selectedNotebook().snippets()[0].uploadTableStats(options);
-        }, HUE_PUB_SUB_EDITOR_ID);
-
-        huePubSub.subscribe("editor.upload.history", function () {
-          viewModel.selectedNotebook().snippets()[0].uploadQueryHistory(5);
-        }, HUE_PUB_SUB_EDITOR_ID);
-
+        % if OPTIMIZER.AUTO_UPLOAD_QUERIES.get():
         huePubSub.subscribe("editor.upload.query", function (query_id) {
           viewModel.selectedNotebook().snippets()[0].uploadQuery(query_id);
         }, HUE_PUB_SUB_EDITOR_ID);
+        % endif
+
+        % if OPTIMIZER.AUTO_UPLOAD_DDL.get():
+        huePubSub.subscribe('editor.upload.table.stats', function (options) {
+          viewModel.selectedNotebook().snippets()[0].uploadTableStats(options);
+        }, HUE_PUB_SUB_EDITOR_ID);
+        % endif
+
+        % if OPTIMIZER.QUERY_HISTORY_UPLOAD_LIMIT.get() != 0:
+        huePubSub.subscribe("editor.upload.history", function () {
+          viewModel.selectedNotebook().snippets()[0].uploadQueryHistory(5);
+        }, HUE_PUB_SUB_EDITOR_ID);
+        % endif
       }
 
       viewModel.selectedNotebook.subscribe(function (newVal) {
@@ -3068,41 +3449,66 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         huePubSub.publish('set.selected.notebook', viewModel.selectedNotebook());
       }, HUE_PUB_SUB_EDITOR_ID);
 
+      huePubSub.subscribe('left.assist.show', function () {
+        if (!viewModel.isLeftPanelVisible() && viewModel.assistAvailable()) {
+          viewModel.isLeftPanelVisible(true);
+        }
+      }, HUE_PUB_SUB_EDITOR_ID);
 
+      var wasResultFullScreenMode = false;
       var isAssistAvailable = viewModel.assistAvailable();
       var wasLeftPanelVisible = viewModel.isLeftPanelVisible();
       var wasRightPanelVisible = viewModel.isRightPanelVisible();
 
       function exitPlayerMode() {
-        viewModel.isPlayerMode(false);
-        viewModel.isFullscreenMode(false);
+        if (! wasResultFullScreenMode) {
+          viewModel.selectedNotebook().isPresentationMode(false);
+        } else {
+          viewModel.isResultFullScreenMode(false);
+        }
+        wasResultFullScreenMode = false;
       }
 
-      viewModel.isPlayerMode.subscribe(function (value) {
-        if (value){
+      huePubSub.subscribe('editor.presentation.operate.toggle', function (value) {
+        viewModel.isEditing(! viewModel.isEditing());
+        if (value) {
           $(".jHueNotify").remove();
-          huePubSub.publish('side.panels.hide');
+          isAssistAvailable = viewModel.assistAvailable();
+          wasLeftPanelVisible = viewModel.isLeftPanelVisible();
+          wasRightPanelVisible = viewModel.isRightPanelVisible();
+
+          if (wasResultFullScreenMode) {
+            huePubSub.publish('both.assists.hide', true);
+          } else {
+            huePubSub.publish('right.assist.hide', true);
+          }
+
+          viewModel.assistWithoutStorage(true);
           viewModel.assistAvailable(false);
-          viewModel.isLeftPanelVisible(false);
+          viewModel.isLeftPanelVisible(true);
           viewModel.isRightPanelVisible(false);
+          window.setTimeout(function(){
+            viewModel.assistWithoutStorage(false);
+          }, 0);
           $(".navigator").hide();
           $(".add-snippet").hide();
-          if (viewModel.isFullscreenMode()){
-            $(".main-content").css("top", "50px");
-          } else {
-            % if conf.CUSTOM.BANNER_TOP_HTML.get():
+          % if conf.CUSTOM.BANNER_TOP_HTML.get():
             $(".main-content").attr("style", "top: 31px!important");
-            % else:
+          % else:
             $(".main-content").css("top", "1px");
-            % endif
-          }
+          % endif
           redrawFixedHeaders(200);
           $(window).bind("keydown", "esc", exitPlayerMode);
         } else {
-          huePubSub.publish('side.panels.show');
+          hideFixedHeaders();
+          huePubSub.publish('both.assists.show', true);
+          viewModel.assistWithoutStorage(true);
           viewModel.isLeftPanelVisible(wasLeftPanelVisible);
           viewModel.isRightPanelVisible(wasRightPanelVisible);
           viewModel.assistAvailable(isAssistAvailable);
+          window.setTimeout(function(){
+            viewModel.assistWithoutStorage(false);
+          }, 0);
           $(".navigator").show();
           $(".add-snippet").show();
           % if conf.CUSTOM.BANNER_TOP_HTML.get():
@@ -3113,6 +3519,11 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           redrawFixedHeaders(200);
           $(window).unbind("keydown", exitPlayerMode);
         }
+      }, HUE_PUB_SUB_EDITOR_ID);
+
+      viewModel.isResultFullScreenMode.subscribe(function(newValue) {
+        wasResultFullScreenMode = newValue;
+        huePubSub.publish('editor.presentation.operate.toggle', newValue);
       });
 
       huePubSub.subscribe('assist.set.manual.visibility', function () {
@@ -3168,11 +3579,38 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         }
       }
 
-      $(window).bind("keydown", "ctrl+s alt+s meta+s", function (e) {
-        e.preventDefault();
-        saveKeyHandler();
-        return false;
+      huePubSub.subscribe('open.link', function(link) {
+        $(window).unbind("keydown.editor");
+        if (link.indexOf("editor") >= 0) {
+          initKeydownBindings();
+        }
       });
+
+      function initKeydownBindings() {
+        $(window).bind("keydown.editor", "ctrl+s alt+s meta+s", function (e) {
+          e.preventDefault();
+          saveKeyHandler();
+          return false;
+        });
+        $(window).bind("keydown.editor", "ctrl+shift+p alt+shift+p meta+shift+p", function (e) {
+          e.preventDefault();
+          huePubSub.publish('editor.presentation.toggle');
+          return false;
+        });
+        $(window).bind("keydown.editor", "ctrl+e alt+e meta+e", function (e) {
+          e.preventDefault();
+          newKeyHandler();
+          return false;
+        });
+      }
+
+      if (document.location.href.indexOf("editor") >= 0) {
+        initKeydownBindings();
+      }
+
+      huePubSub.subscribe('editor.presentation.toggle', function () {
+        viewModel.selectedNotebook().isPresentationMode(!viewModel.isPresentationMode());
+      }, HUE_PUB_SUB_EDITOR_ID);
 
       huePubSub.subscribe('editor.save', saveKeyHandler, HUE_PUB_SUB_EDITOR_ID);
 
@@ -3199,12 +3637,6 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           viewModel.newNotebook(viewModel.editorType(), null, viewModel.selectedNotebook() ? viewModel.selectedNotebook().snippets()[0].currentQueryTab() : null);
         }
       }
-
-      $(window).bind("keydown", "ctrl+e alt+e meta+e", function (e) {
-        e.preventDefault();
-        newKeyHandler();
-        return false;
-      });
 
       huePubSub.subscribe('editor.create.new', newKeyHandler, HUE_PUB_SUB_EDITOR_ID);
 
@@ -3255,9 +3687,9 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       }
 
       function resetResultsResizer(snippet) {
-        $("#snippet_" + snippet.id()).find('.table-results .column-side').width(BOOTSTRAP_RATIOS.SPAN3() + '%').data('newWidth', BOOTSTRAP_RATIOS.SPAN3());
+        $("#snippet_" + snippet.id()).find('.table-results .column-side').width(hueUtils.bootstrapRatios.span3() + '%').data('newWidth', hueUtils.bootstrapRatios.span3());
         if (snippet.isResultSettingsVisible()){
-          $("#snippet_" + snippet.id()).find('.table-results .grid-side').data('newWidth', BOOTSTRAP_RATIOS.SPAN9()).width(BOOTSTRAP_RATIOS.SPAN9() + '%');
+          $("#snippet_" + snippet.id()).find('.table-results .grid-side').data('newWidth', hueUtils.bootstrapRatios.span9()).width(hueUtils.bootstrapRatios.span9() + '%');
         }
         else {
           $("#snippet_" + snippet.id()).find('.table-results .grid-side').data('newWidth', 100).width('100%');
@@ -3275,7 +3707,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           containment: $("#snippet_" + snippet.id()).find('.table-results'),
           create: function (event, ui) {
             initialPosition = $("#snippet_" + snippet.id()).find('.resize-bar').position().left;
-            $("#snippet_" + snippet.id()).find('.table-results .column-side').data('newWidth', BOOTSTRAP_RATIOS.SPAN3());
+            $("#snippet_" + snippet.id()).find('.table-results .column-side').data('newWidth', hueUtils.bootstrapRatios.span3());
             $("#snippet_" + snippet.id()).find('.meta-filter').width($("#snippet_" + snippet.id()).find('.table-results .column-side').width() - 28)
           },
           drag: function (event, ui) {
@@ -3283,8 +3715,8 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
               initialPosition = $("#snippet_" + snippet.id()).find('.resize-bar').position().left;
             }
             ui.position.left = Math.max(150, ui.position.left);
-            var newSpan3Width = ui.position.left * BOOTSTRAP_RATIOS.SPAN3() / initialPosition;
-            var newSpan9Width = 100 - newSpan3Width - BOOTSTRAP_RATIOS.MARGIN();
+            var newSpan3Width = ui.position.left * hueUtils.bootstrapRatios.span3() / initialPosition;
+            var newSpan9Width = 100 - newSpan3Width - hueUtils.bootstrapRatios.margin();
             $("#snippet_" + snippet.id()).find('.table-results .column-side').width(newSpan3Width + '%').data('newWidth', newSpan3Width);
             $("#snippet_" + snippet.id()).find('.table-results .grid-side').width(newSpan9Width + '%').data('newWidth', newSpan9Width);
             $("#snippet_" + snippet.id()).find('.meta-filter').width($("#snippet_" + snippet.id()).find('.table-results .column-side').width() - 28)
@@ -3299,12 +3731,9 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       $(document).on("toggleResultSettings", function (e, snippet) {
         window.setTimeout(function () {
           $('#snippet_' + snippet.id()).find('.chart').trigger("forceUpdate");
-          $('#snippet_' + snippet.id()).find('.snippet-grid-settings').mCustomScrollbar('update');
-          $('#snippet_' + snippet.id()).find('.snippet-grid-settings').mCustomScrollbar('scrollTo', 'left', {
-            scrollInertia: 0
-          });
+          $('#snippet_' + snippet.id()).find('.snippet-grid-settings').scrollLeft(0);
           if (snippet.isResultSettingsVisible()){
-            $("#snippet_" + snippet.id()).find('.table-results .grid-side').width((100 - $("#snippet_" + snippet.id()).find('.table-results .column-side').data('newWidth') - BOOTSTRAP_RATIOS.MARGIN()) + '%');
+            $("#snippet_" + snippet.id()).find('.table-results .grid-side').width((100 - $("#snippet_" + snippet.id()).find('.table-results .column-side').data('newWidth') - hueUtils.bootstrapRatios.margin()) + '%');
           }
           else {
             $("#snippet_" + snippet.id()).find('.table-results .grid-side').width('100%');
@@ -3351,9 +3780,9 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
         var _dtElement;
         if (snippet.showGrid()) {
           _dtElement = $("#snippet_" + snippet.id()).find(".dataTables_wrapper");
-          var topCoord = viewModel.isPlayerMode() ? ${ conf.CUSTOM.BANNER_TOP_HTML.get() and '31' or '1' } : 73;
+          var topCoord = viewModel.isPresentationMode() || viewModel.isResultFullScreenMode() ? ${ conf.CUSTOM.BANNER_TOP_HTML.get() and '31' or '1' } : 73;
           $("#snippet_" + snippet.id()).find(".snippet-grid-settings").css({
-            "height": Math.ceil($(window).height() - Math.max($('.result-settings').length > 0 ? $('.result-settings').offset().top : 0, topCoord)) + 'px'
+            "height": viewModel.isPresentationMode() || !viewModel.editorMode() ? '330px' : Math.ceil($(window).height() - Math.max($('.result-settings').length > 0 ? $('.result-settings').offset().top : 0, topCoord)) + 'px'
           });
         } else {
           _dtElement = $("#snippet_" + snippet.id()).find(".chart:visible");
@@ -3366,17 +3795,17 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           "line-height": (_dtElement.height() - 30) + "px"
         });
         if (initial) {
-          $('#snippet_' + snippet.id()).find('.result-settings').animate({
+          $('#snippet_' + snippet.id()).find('.result-settings').css({
             'marginTop': 0
           });
-          $('#snippet_' + snippet.id()).find('.snippet-actions').animate({
+          $('#snippet_' + snippet.id()).find('.snippet-actions').css({
             'marginTop': 0
           });
           huePubSub.publish('resize.leaflet.map');
         }
       }
 
-      $(document).on("renderData", function (e, options) {
+      huePubSub.subscribe('editor.render.data', function (options) {
         var _el = $("#snippet_" + options.snippet.id()).find(".resultTable");
         if (options.data.length > 0) {
           window.setTimeout(function () {
@@ -3386,14 +3815,12 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
               $("#snippet_" + options.snippet.id()).find("select").trigger("chosen:updated");
               _dt = createDatatable(_el, options.snippet, viewModel);
               resetResultsResizer(options.snippet);
-            }
-            else {
+            } else {
               _dt = _el.hueDataTable();
             }
             try {
               _dt.fnAddData(options.data);
-            }
-            catch (e) {}
+            } catch (e) {}
             var _dtElement = $("#snippet_" + options.snippet.id()).find(".dataTables_wrapper");
             huePubSub.publish('editor.snippet.result.normal', options.snippet);
             _dtElement.scrollTop(_dtElement.data("scrollPosition"));
@@ -3404,13 +3831,18 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           huePubSub.publish('editor.snippet.result.normal', options.snippet);
         }
         $("#snippet_" + options.snippet.id()).find("select").trigger('chosen:updated');
-        $('#snippet_' + options.snippet.id()).find('.snippet-grid-settings').mCustomScrollbar({axis: 'xy', theme: 'minimal-dark', scrollbarPosition: 'outside', mouseWheel:{ preventDefault: true, deltaFactor: 10 }, scrollInertia: 0});
-        window.setTimeout(function(){
-          $('#snippet_' + options.snippet.id()).find('.snippet-grid-settings').mCustomScrollbar('scrollTo', 'left', {
-            scrollInertia: 0
-          });
-        }, 200)
-      });
+        $('#snippet_' + options.snippet.id()).find('.snippet-grid-settings').scrollLeft(0);
+      }, HUE_PUB_SUB_EDITOR_ID);
+
+      huePubSub.subscribe('editor.redraw.data', function (options) {
+        hueUtils.waitForRendered("#snippet_" + options.snippet.id() + " .resultTable", function (el) {
+          return el.is(':visible')
+        }, function () {
+          var $el = $("#snippet_" + options.snippet.id()).find(".resultTable");
+          var dt = createDatatable($el, options.snippet, viewModel);
+          dt.fnAddData(options.snippet.result.data());
+        });
+      }, HUE_PUB_SUB_EDITOR_ID);
 
       huePubSub.subscribe('editor.snippet.result.gray', function (snippet) {
         var $snippet = $("#snippet_" + snippet.id());
@@ -3454,10 +3886,14 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
       huePubSub.subscribe('submit.popup.return', function (data) {
         viewModel.selectedNotebook().viewSchedulerId(data.job_id);
         $('.submit-modal-editor').modal('hide');
-        huePubSub.publish('show.jobs.panel', data.job_id);
+        huePubSub.publish('show.jobs.panel', {id: data.job_id, interface: 'workflows'});
       }, HUE_PUB_SUB_EDITOR_ID);
 
       huePubSub.subscribe('jobbrowser.data', function (jobs) {
+        var snippet = viewModel.selectedNotebook().snippets()[0];
+        if (!snippet || snippet.type() === 'impala') {
+          return;
+        }
         if (jobs.length > 0) {
           jobs.forEach(function (job) {
             if ($("#" + job.shortId).length > 0) {
@@ -3499,26 +3935,21 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           }
         }
         callback(result);
-      });
+      }, HUE_PUB_SUB_EDITOR_ID);
 
-      $(document).on("gridShown", function (e, snippet) {
-        window.setTimeout(function () {
+      huePubSub.subscribe('editor.grid.shown', function (snippet) {
+        hueUtils.waitForRendered('#snippet_' + snippet.id() + ' .dataTables_wrapper', function (el) {
+          return el.is(':visible')
+        }, function () {
           resizeToggleResultSettings(snippet, true);
           forceChartDraws();
-          $('#snippet_' + snippet.id()).find('.snippet-grid-settings').mCustomScrollbar({axis: 'xy', theme: 'minimal-dark', scrollbarPosition: 'outside', mouseWheel:{ preventDefault: true, deltaFactor: 10 }, scrollInertia: 0});
-          window.setTimeout(function(){
-            $('#snippet_' + snippet.id()).find('.snippet-grid-settings').mCustomScrollbar('scrollTo', 'left', {
-              scrollInertia: 0
-            });
-          }, 200)
-        }, 50);
-      });
+          $('#snippet_' + snippet.id()).find('.snippet-grid-settings').scrollLeft(0);
+        });
+      }, HUE_PUB_SUB_EDITOR_ID);
 
-      $(document).on("chartShown", function (e, snippet) {
-        window.setTimeout(function () {
-          resizeToggleResultSettings(snippet, true);
-        }, 50);
-      });
+      huePubSub.subscribe('editor.chart.shown', function (snippet) {
+        resizeToggleResultSettings(snippet, true);
+      }, HUE_PUB_SUB_EDITOR_ID);
 
       $(document).on("forceChartDraw", function (e, snippet) {
         window.setTimeout(function () {
@@ -3561,9 +3992,19 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
 
       forceChartDraws(true);
 
+      huePubSub.subscribe('recalculate.name.description.width', function () {
+        hueUtils.waitForRendered('.editorComponents .hue-title-bar .query-name', function(el){ return el.is(':visible') }, function(){
+          var cumulativeWidth = 0;
+          $('.editorComponents .hue-title-bar ul li:not(.skip-width-calculation)').each(function(){
+            cumulativeWidth += $(this).outerWidth();
+          });
+          $('.notebook-name-desc').css('max-width', (($('.editorComponents .hue-title-bar').width() - cumulativeWidth - $('.editorComponents .hue-title-bar .pull-right').width() - 120)/2) + 'px');
+        });
+      }, HUE_PUB_SUB_EDITOR_ID);
+
       var _resizeTimeout = -1;
       $(window).on("resize", function () {
-        $('.notebook-name-desc').css('max-width', ($('.snippet-container').width()/4) + 'px');
+        huePubSub.publish('recalculate.name.description.width');
         window.clearTimeout(_resizeTimeout);
         _resizeTimeout = window.setTimeout(function () {
           forceChartDraws();

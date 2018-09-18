@@ -69,6 +69,32 @@
     return result;
   };
 
+  // we override the default html binding to prevent XSS/JS injection
+  var originalHtmlBinding = ko.bindingHandlers.html;
+  ko.bindingHandlers.html = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      var newValueAccessor = function () {
+        return hueUtils.deXSS(ko.unwrap(valueAccessor()));
+      };
+      originalHtmlBinding.init(element, newValueAccessor, allBindings, viewModel, bindingContext);
+    },
+    update: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      var newValueAccessor = function () {
+        return hueUtils.deXSS(ko.unwrap(valueAccessor()));
+      };
+      originalHtmlBinding.update(element, newValueAccessor, allBindings, viewModel, bindingContext);
+    },
+  };
+
+  ko.bindingHandlers.htmlUnsecure = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      originalHtmlBinding.init(element, valueAccessor, allBindings, viewModel, bindingContext);
+    },
+    update: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      originalHtmlBinding.update(element, valueAccessor, allBindings, viewModel, bindingContext);
+    },
+  };
+
   ko.observableDefault = function () {
     var prop = arguments[0], defvalue = arguments[1] || null;
     return ko.observable(typeof prop != "undefined" && prop != null ? prop : defvalue);
@@ -116,12 +142,51 @@
     }
   };
 
+  ko.bindingHandlers.publish = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      ko.bindingHandlers.click.init(element, function () {
+        return function () {
+          var topicDetails = ko.unwrap(valueAccessor());
+          if (typeof topicDetails === 'string') {
+            huePubSub.publish(topicDetails)
+          } else if (typeof topicDetails === 'object') {
+            var keys = Object.keys(topicDetails);
+            if (keys.length === 1) {
+              huePubSub.publish(keys[0], topicDetails[keys[0]]);
+            }
+          }
+        }
+      }, allBindings, viewModel, bindingContext);
+    },
+  };
+
   ko.bindingHandlers.clickToCopy = {
     init: function (element, valueAccessor) {
       $(element).click(function () {
-        var $input = $('<textarea>').css({ opacity: 0 }).val(ko.unwrap(valueAccessor())).appendTo('body').select();
+        var $input = $('<textarea>').css({ opacity: 0 }).val(ko.unwrap(valueAccessor())).appendTo(HUE_CONTAINER).select();
         document.execCommand('copy');
         $input.remove()
+      });
+    }
+  };
+
+  ko.bindingHandlers.fetchMore = {
+    init: function (element, valueAccessor) {
+      var options = valueAccessor();
+      var $element = $(element);
+
+      var throttle = -1;
+      $element.on('scroll.fetchMore', function () {
+        window.clearTimeout(throttle);
+        throttle = window.setTimeout(function () {
+          if ((element.scrollTop + $element.innerHeight() >= element.scrollHeight - 10) && ko.unwrap(options.hasMore) && !ko.unwrap(options.loadingMore)) {
+            options.fetchMore();
+          }
+        }, 100);
+      });
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+        $element.off('scroll.fetchMore');
       });
     }
   };
@@ -208,6 +273,12 @@
                 .appendTo(ul)
                 .data( "ui-autocomplete-item", item );
               ko.applyBindings(item.data, $li[0]);
+            }
+          },
+          _resizeMenu: function () {
+            // This overrides the default behaviour of using dropdown width of the same size as input autocomplete box
+            if (options.limitWidthToInput) {
+              this.menu.element.outerWidth(options.minWidth);
             }
           },
           _renderMenu: function (ul, items) {
@@ -313,8 +384,6 @@
 
       $element.hueAutocomplete(options);
 
-      ko.bindingHandlers.niceScroll.init($element.data('custom-hueAutocomplete').menu.element, function () {});
-
       var enableAutocomplete = function () {
         if ($element.data('custom-hueAutocomplete')) {
           $element.hueAutocomplete("option", "disabled", false);
@@ -403,7 +472,14 @@
         }
       };
 
+      var sizeCheckInterval = -1;
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+        window.clearInterval(sizeCheckInterval);
+      });
+
       var showEdit = function () {
+        window.clearInterval(sizeCheckInterval);
         optionsBeforeEdit = options.setTags().concat();
         options.options = $.map(options.setTags(), function (value) { return { value: value, text: value } });
         currentSelectize = $element.selectize(options)[0].selectize;
@@ -426,7 +502,41 @@
         }, 0);
       };
 
+      var lastKnownOffsetWidth = -1;
+      var lastKnownOffsetHeight = -1;
+
+      var addReadOnlyTagsTillOverflow = function ($readOnlyInner) {
+        $readOnlyInner.empty();
+        var tagElements = [];
+        options.setTags().forEach(function (tag) {
+          tagElements.push($('<div>').text(tag).appendTo($readOnlyInner));
+        });
+
+        if (! options.readOnly && !options.hasErrors()) {
+          $('<i>').addClass('fa fa-pencil selectize-edit pointer').attr('title', HUE_I18n.selectize.editTags).appendTo($readOnlyInner);
+          $readOnlyInner.click(function () {
+            showEdit();
+          });
+        }
+
+        if (!options.overflowEllipsis) {
+          return;
+        }
+
+        if ($readOnlyInner[0].offsetHeight < $readOnlyInner[0].scrollHeight || $readOnlyInner[0].offsetWidth < $readOnlyInner[0].scrollWidth && tagElements.length) {
+          tagElements[tagElements.length - 1].after($('<div>').addClass('hue-tag-overflow').text('...'));
+        }
+
+        while (tagElements.length && ($readOnlyInner[0].offsetHeight < $readOnlyInner[0].scrollHeight || $readOnlyInner[0].offsetWidth < $readOnlyInner[0].scrollWidth)) {
+          tagElements.pop().remove();
+        }
+
+        lastKnownOffsetWidth = $readOnlyInner[0].offsetWidth;
+        lastKnownOffsetHeight = $readOnlyInner[0].offsetHeight;
+      };
+
       var showReadOnly = function () {
+        window.clearInterval(sizeCheckInterval);
         $(document).off('click', saveOnClickOutside);
         $(document).off('keyup', hideOnEscape);
         if (currentSelectize) {
@@ -437,26 +547,214 @@
         $readOnlyContainer.empty();
         var $readOnlyInner = $('<div>').addClass('selectize-input items not-full has-options has-items').appendTo($readOnlyContainer);
         if (options.setTags().length > 0) {
-          options.setTags().forEach(function (tag) {
-            $('<div>').text(tag).appendTo($readOnlyInner);
-          });
-        } else if (options.hasErrors()) {
-          $('<span>').addClass('selectize-no-tags').text(options.errorMessage).appendTo($readOnlyInner);
+          addReadOnlyTagsTillOverflow($readOnlyInner);
+          if (options.overflowEllipsis) {
+            sizeCheckInterval = window.setInterval(function () {
+              if ($readOnlyInner[0].offsetWidth !== lastKnownOffsetWidth || $readOnlyInner[0].offsetHeight !== lastKnownOffsetHeight) {
+                addReadOnlyTagsTillOverflow($readOnlyInner);
+              }
+            }, 500);
+          }
         } else {
-          $('<span>').addClass('selectize-no-tags').text(options.placeholder).appendTo($readOnlyInner);
+          if (options.hasErrors()) {
+            $('<span>').addClass('selectize-no-tags').text(options.errorMessage).appendTo($readOnlyInner);
+          } else {
+            $('<span>').addClass('selectize-no-tags').text(options.emptyPlaceholder).appendTo($readOnlyInner);
+          }
+
+          if (! options.readOnly && !options.hasErrors()) {
+            $('<i>').addClass('fa fa-pencil selectize-edit pointer').attr('title', HUE_I18n.selectize.editTags).appendTo($readOnlyInner);
+            $readOnlyInner.click(function () {
+              showEdit();
+            });
+          }
         }
 
-        if (! options.readOnly && !options.hasErrors()) {
-          $('<i>').addClass('fa fa-edit selectize-edit pointer').appendTo($readOnlyInner);
-          $readOnlyInner.click(function () {
-            showEdit();
-          });
-        }
+        $readOnlyContainer.attr('title', options.setTags().join(', '));
 
         $readOnlyContainer.show();
       };
 
       showReadOnly();
+    }
+  };
+
+  window.MultiLineEllipsisHandler = (function () {
+
+    function MultiLineEllipsisHandler(options) {
+      var self = this;
+
+      self.element = options.element;
+      self.$element = $(options.element);
+      self.overflowHeight = options.overflowHeight;
+      self.expandable = options.expandable;
+      self.expandClass = options.expandClass;
+      self.expandActionClass = options.expandActionClass;
+      self.overflowing = options.overflowing;
+
+      self.onActionRender = options.onActionRender;
+
+      self.lastKnownOffsetHeight;
+      self.lastKnownOffsetWidth;
+      self.isOverflowing;
+
+      self.expanded = options.expanded || ko.observable(false);
+      self.updateOverflowHeight();
+
+      self.contents = options.text;
+      self.element.innerHTML = self.contents;
+
+      var linkRegex = /(?:(?:[a-z]+:\/\/)|www\.)[^\s\/]+(?:[.\/]\S+)*[^\s`!()\[\]{};:'".,<>?«»“”‘’]/ig;
+
+      self.renderContents = function (contents) {
+        if (options.linkify) {
+          return hueUtils.deXSS(contents.replace(linkRegex, function (val) {
+            return '<a href="' + (val.toLowerCase().indexOf('www') === 0 ? 'http://' + val : val) + '" target="_blank">' + val + '</a>';
+          }));
+        }
+        return hueUtils.deXSS(contents);
+      };
+
+      self.delayedResumeTimeout = window.setTimeout(function () {
+        self.resume();
+      }, 0);
+    }
+
+    MultiLineEllipsisHandler.prototype.updateOverflowHeight = function () {
+      var self = this;
+      if (self.overflowHeight) {
+        self.$element.css('max-height', self.expanded() ? '' : self.overflowHeight);
+        self.$element.css('overflow', self.expanded() ? '' : 'hidden');
+      }
+    };
+
+    MultiLineEllipsisHandler.prototype.resume = function () {
+      var self = this;
+      self.refresh();
+      window.clearInterval(self.sizeCheckInterval);
+      self.sizeCheckInterval = window.setInterval(function () {
+        if (self.element.offsetWidth !== self.lastKnownOffsetWidth || self.element.offsetHeight !== self.lastKnownOffsetHeight) {
+          self.refresh();
+        }
+      }, 500);
+    };
+
+    MultiLineEllipsisHandler.prototype.pause = function () {
+      var self = this;
+      window.clearTimeout(self.delayedResumeTimeout);
+      window.clearInterval(self.sizeCheckInterval);
+    };
+
+    MultiLineEllipsisHandler.prototype.dispose = function () {
+      var self = this;
+      self.pause();
+    };
+
+    var checkOverflow = function (element) {
+      return element.offsetHeight < element.scrollHeight || element.offsetWidth < element.scrollWidth
+    };
+
+    MultiLineEllipsisHandler.prototype.refresh = function () {
+      var self = this;
+      self.$element.empty();
+      var textElement = $('<span>').appendTo(self.$element)[0];
+      if (self.expandable) {
+        textElement.innerHTML = self.renderContents ? self.renderContents(self.contents) : self.contents;
+        if (self.expanded() || checkOverflow(self.element)) {
+          self.$element.append('&nbsp;');
+          var $expandLink = $('<a href="javascript:void(0);"><i class="fa fa-fw ' + (self.expanded() ? 'fa-chevron-up' : 'fa-chevron-down') + '"></i></a>');
+          if (self.expandActionClass) {
+            $expandLink.addClass(self.expandActionClass);
+          }
+          $expandLink.appendTo(self.$element);
+          $expandLink.add(textElement).click(function (e) {
+            self.expanded(!self.expanded());
+            self.updateOverflowHeight();
+            if (self.expanded()) {
+              if (self.expandClass) {
+                self.$element.addClass(self.expandClass);
+              }
+              self.refresh();
+              self.pause();
+            } else {
+              if (self.expandClass) {
+                self.$element.removeClass(self.expandClass);
+              }
+              self.resume();
+            }
+          })
+        }
+      } else {
+        textElement.innerHTML = self.renderContents ? self.renderContents(self.contents) : self.contents;
+      }
+
+      if (self.onActionRender) {
+        self.onActionRender(self.$element, checkOverflow(self.element));
+      }
+
+      self.isOverflowing = false;
+
+      if (!self.expanded()) {
+        while (checkOverflow(self.element)) {
+          self.isOverflowing = true;
+          var contents = $(textElement).contents();
+          var lastContent = contents[contents.length - 1];
+          // Check for text node
+          if (lastContent.nodeType === 3 ) {
+            var lastSpaceIndex = lastContent.textContent.regexLastIndexOf(/\s\S+/);
+            if (lastSpaceIndex !== -1) {
+              lastContent.replaceWith(document.createTextNode(lastContent.textContent.substring(0, lastSpaceIndex) + '...'));
+            } else if (contents.length > 1) {
+              textElement.removeChild(lastContent);
+            } else {
+              break;
+            }
+          } else if (contents.length > 1) { // Remove any elements like links
+            textElement.removeChild(lastContent)
+          }
+        }
+      }
+
+      if (ko.isObservable(self.overflowing) && self.overflowing() !== self.isOverflowing) {
+        self.overflowing(self.isOverflowing);
+      }
+      self.lastKnownOffsetHeight = self.element.offsetHeight;
+      self.lastKnownOffsetWidth = self.element.offsetWidth;
+    };
+
+    MultiLineEllipsisHandler.prototype.setText = function (text) {
+      var self = this;
+      self.contents = text;
+      self.refresh();
+    };
+
+    return MultiLineEllipsisHandler;
+  })();
+
+  ko.bindingHandlers.multiLineEllipsis = {
+    after: ['text', 'value'],
+    init: function (element, valueAccessor) { },
+    update: function (element, valueAccessor) {
+      var options = {};
+      if (valueAccessor && ko.isObservable(valueAccessor())) {
+        options.overflowing = valueAccessor();
+      } else if (valueAccessor) {
+        options = valueAccessor() || {};
+      }
+      var multiLineEllipsisHandler = new MultiLineEllipsisHandler({
+        element: element,
+        text: element.textContent,
+        overflowing: options.overflowing,
+        linkify: true,
+        expandable: options.expandable,
+        expanded: options.expanded,
+        expandActionClass: options.expandActionClass,
+        expandClass: options.expandClass
+      });
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+        multiLineEllipsisHandler.dispose();
+      });
     }
   };
 
@@ -507,11 +805,15 @@
     init: function (element, valueAccessor) {
       var $element = $(element);
       var options = valueAccessor();
+      if ((ko.isObservable(options.text) && !options.text()) || !options.text) {
+        return;
+      }
       $element.addClass("draggableText");
 
       var $helper = $("<div>").text(ko.isObservable(options.text) ? options.text() : options.text).css("z-index", "99999");
       var dragStartX = -1;
       var dragStartY = -1;
+      var notifiedOnDragStarted = false;
       $element.draggable({
         helper: function () { return $helper },
         appendTo: "body",
@@ -519,6 +821,17 @@
           dragStartX = event.clientX;
           dragStartY = event.clientY;
           huePubSub.publish('draggable.text.meta', options.meta);
+          notifiedOnDragStarted = false;
+        },
+        drag: function (event) {
+          huePubSub.publish('draggable.text.drag', {
+            event: event,
+            meta: options.meta
+          });
+          if (!notifiedOnDragStarted && Math.sqrt((dragStartX-event.clientX)*(dragStartX-event.clientX) + (dragStartY-event.clientY)*(dragStartY-event.clientY)) >= 10) {
+            huePubSub.publish('draggable.text.started', options.meta);
+            notifiedOnDragStarted = true;
+          }
         },
         stop: function (event) {
           if (Math.sqrt((dragStartX-event.clientX)*(dragStartX-event.clientX) + (dragStartY-event.clientY)*(dragStartY-event.clientY)) < 10) {
@@ -529,7 +842,9 @@
               $(elementAtStop).trigger('click');
             }
           }
-        },
+          notifiedOnDragStarted = false;
+          huePubSub.publish('draggable.text.stopped');
+        }
       });
     }
   };
@@ -550,7 +865,8 @@
         size: 'default',
         center: false,
         overlay: false,
-        inline: false
+        inline: false,
+        blackout: false
       };
 
       var spin = false;
@@ -566,6 +882,9 @@
       if (spin) {
         var $container = $('<div>');
         $container.addClass(options.overlay ? 'hue-spinner-overlay' : ( options.inline ? 'hue-spinner-inline' : 'hue-spinner'));
+        if (options.blackout) {
+          $container.addClass('hue-spinner-blackout');
+        }
         if (!options.overlay) {
           var $spinner = $('<i>');
           $spinner.addClass('fa fa-spinner fa-spin');
@@ -577,6 +896,9 @@
           }
           if (options.center) {
             $spinner.addClass('hue-spinner-center');
+            if (options.inline) {
+              $container.css('width', '100%');
+            }
           }
         }
         $container.append($spinner);
@@ -903,9 +1225,12 @@
           sel.removeAllRanges();
         }
 
+        if (typeof options.beforeOpen === 'function') {
+          options.beforeOpen.bind(viewModel)();
+        }
         var $menu = $('#hueContextMenu_' + options.template);
         if ($menu.length === 0) {
-          $menu = $('<ul id="hueContextMenu_' + options.template  + '" class="hue-context-menu" data-bind="template: { name: \'' + options.template + '\', data: viewModel, afterRender: afterRender }"></ul>').appendTo('body');
+          $menu = $('<ul id="hueContextMenu_' + options.template  + '" class="hue-context-menu" data-bind="template: { name: \'' + options.template + '\', data: viewModel, afterRender: afterRender }"></ul>').appendTo(HUE_CONTAINER);
         } else {
           ko.cleanNode($menu[0]);
         }
@@ -930,13 +1255,15 @@
             $menu.css('left', (event.clientX + menuWidth > $(window).width()) ? $(window).width() - menuWidth : event.clientX);
             $menu.css('top', (event.clientY + menuHeight > $(window).height()) ? $(window).height() - menuHeight : event.clientY);
             $menu.css('opacity', 1);
-            $(options.scrollContainer).one('scroll', hideMenu);
+            if (options.scrollContainer) {
+              $(options.scrollContainer).one('scroll', hideMenu);
+            }
             window.setTimeout(function () {
               $menu.data('active', false);
               $(document).one('click', hideMenu);
             }, 100);
           },
-          viewModel: viewModel
+          viewModel: options.viewModel || viewModel
         }, $menu[0]);
 
         ko.contextFor($menu[0]).$contextSourceElement = element;
@@ -1025,10 +1352,58 @@
         allBindings().logScrollerVisibilityEvent.subscribe(function () {
           window.setTimeout(autoLogScroll, 0);
         });
+      } else {
+        hueUtils.waitForRendered(element, function(el) { return el.is(':visible') }, autoLogScroll, 300);
+        ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+          window.clearTimeout($element.data('waitForRenderTimeout'));
+        });
       }
-
-      hueUtils.waitForRendered(element, function(el){ return el.is(':visible') }, autoLogScroll);
     }
+  };
+
+  ko.bindingHandlers.multiCheckForeachVisible = {
+    init: function (element, valueAccessor, allBindings, clickedEntry, bindingContext) {
+      var $element = $(element);
+      var parentContext = bindingContext.$parentContext;
+
+      var selectedAttr = valueAccessor().selectedAttr;
+      var entries = valueAccessor().entries;
+
+      $element.attr('unselectable', 'on').css('user-select', 'none').on('selectstart', false);
+
+      $element.on('click', function (e) {
+        if (e.shiftKey && parentContext.$multiCheckLastEntry) {
+          var lastEntry = parentContext.$multiCheckLastEntry;
+          var inside = false;
+          entries().every(function (otherEntry) {
+            if (otherEntry === lastEntry || otherEntry === clickedEntry) {
+              if (inside) {
+                return false;
+              }
+              inside = true;
+              return true;
+            }
+            if (inside && otherEntry[selectedAttr]() !== lastEntry[selectedAttr]()) {
+              otherEntry[selectedAttr](lastEntry[selectedAttr]());
+            }
+            return true;
+          });
+          if (clickedEntry[selectedAttr]() !== lastEntry[selectedAttr]()) {
+            clickedEntry[selectedAttr](lastEntry[selectedAttr]());
+          }
+        } else {
+          clickedEntry[selectedAttr](!clickedEntry[selectedAttr]());
+        }
+
+        parentContext.$multiCheckLastEntry = clickedEntry;
+        parentContext.$multiCheckLastChecked = clickedEntry[selectedAttr]();
+      });
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+        $element.off('click');
+      });
+    },
+    update: function () {}
   };
 
   ko.bindingHandlers.multiCheck = {
@@ -1047,7 +1422,7 @@
           var insideGroup = false;
           var allCheckboxes = $container.find(":checkbox");
           if (allCheckboxes.length == 0) {
-            allCheckboxes = $container.find(".hueCheckbox");
+            allCheckboxes = $container.find(".hue-checkbox");
           }
           for (var i = 0; i < allCheckboxes.length; i++) {
             var checkbox = allCheckboxes[i];
@@ -1090,7 +1465,7 @@
       var clickTrigger = options.trigger === 'click';
       var $container = $('#popover-container');
       if (! $container.length) {
-        $container = $('<div>').attr('id', 'popover-container').appendTo('body');
+        $container = $('<div>').attr('id', 'popover-container').appendTo(HUE_CONTAINER);
         $('<div>').addClass('temp-content').hide().appendTo($container);
         $('<div>').addClass('temp-title').hide().appendTo($container);
       }
@@ -1102,18 +1477,23 @@
 
       var $element = $(element);
 
-      var visible = false;
+      var visible = options.visible || ko.observable(false);
+
+      var trackElementInterval = -1;
 
       var hidePopover = function () {
-        $element.popover('hide');
-        visible = false;
-        $(document).off('click', hideOnClickOutside)
+        if (visible()) {
+          window.clearInterval(trackElementInterval);
+          $element.popover('hide');
+          visible(false);
+          $(document).off('click', hideOnClickOutside);
+        }
       };
 
-      huePubSub.subscribe('close.popover', hidePopover);
+      var closeSub = huePubSub.subscribe('close.popover', hidePopover);
 
       var hideOnClickOutside = function (event) {
-        if (visible && $element.data('popover') && ! $.contains($element.data('popover').$tip[0], event.target)) {
+        if (visible() && $element.data('popover') && ! $.contains($element.data('popover').$tip[0], event.target)) {
           hidePopover();
         }
       };
@@ -1122,37 +1502,87 @@
         if (visible && $element.data('popover')) {
           hidePopover();
         }
+        closeSub.remove();
       });
 
-      var showPopover = function () {
+      var afterRender = function () {
+        options.content = $content.html();
+        options.title = $title.html();
+        $element.popover(options);
+        $element.popover('show');
+        var $tip = $element.data('popover').$tip;
+        if (HUE_CONTAINER !== 'body') {
+          $tip.css({ 'position': 'fixed', 'z-index': 2000 });
+          $tip.appendTo(HUE_CONTAINER);
+
+          $tip.offset({
+            left: $element.offset().left + $element.outerWidth(true) + 10,
+            top: $element.offset().top + ($element.outerHeight(true) / 2) - ($tip.outerHeight(true) / 2)
+          });
+        }
+        ko.cleanNode($tip.get(0));
+        ko.applyBindings(viewModel, $tip.get(0));
+        $tip.find(".close-popover").click(function (event) {
+          hidePopover();
+          event.stopPropagation();
+        });
+        if (options.minWidth) {
+          var heightBefore = $tip.height();
+          $tip.css('min-width', options.minWidth);
+          // The width might affect the height in which case we need to reposition the popover
+          var diff = (heightBefore - $tip.height()) / 2;
+          if (diff !== 0) {
+            $tip.css('top', ($tip.position().top + diff) + 'px');
+          }
+        }
+        var lastWidth = $element.outerWidth(true);
+        var lastOffset = $element.offset();
+        var lastHeight = $element.outerHeight(true);
+        trackElementInterval = window.setInterval(function () {
+          var elementWidth = $element.outerWidth(true);
+          var elementHeight = $element.outerHeight(true);
+          var elementOffset = $element.offset();
+          if (lastHeight !== elementHeight || lastWidth !== $element.outerWidth(true) || lastOffset.top !== elementOffset.top || lastOffset.left !== elementOffset.left) {
+            $tip.css({ 'left': elementOffset.left + (elementWidth / 2) - ($tip.outerWidth(true) / 2) , 'top': elementOffset.top + elementHeight + 10 });
+            lastWidth = elementWidth;
+            lastOffset = elementOffset;
+            lastHeight = elementHeight;
+          }
+        }, 50);
+        $content.empty();
+        $title.empty();
+        $(document).on('click', hideOnClickOutside);
+        visible(true);
+      };
+
+      var showPopover = function (preventClose) {
+        if (!preventClose) {
+          huePubSub.publish('close.popover');
+        }
         ko.renderTemplate(options.contentTemplate, viewModel, {
           afterRender: function () {
-            ko.renderTemplate(options.titleTemplate, viewModel, {
-              afterRender: function () {
-                options.content = $content.html();
-                options.title = $title.html();
-                $element.popover(options);
-                $element.popover('show');
-                var $tip = $element.data('popover').$tip;
-                ko.cleanNode($tip.get(0));
-                ko.applyBindings(viewModel, $tip.get(0));
-                $tip.find(".close-popover").click(hidePopover);
-                if (options.minWidth) {
-                  $(".popover:visible").css('min-width', options.minWidth)
+            if (options.titleTemplate) {
+              ko.renderTemplate(options.titleTemplate, viewModel, {
+                afterRender: function () {
+                  afterRender();
                 }
-                $content.empty();
-                $title.empty();
-                $(document).on('click', hideOnClickOutside)
-                visible = true;
-              }
-            }, $title.get(0), 'replaceChildren');
+              }, $title.get(0), 'replaceChildren');
+            } else {
+              afterRender();
+            }
           }
         }, $content.get(0), 'replaceChildren');
       };
 
+      if (visible()) {
+        window.setTimeout(function () {
+          showPopover(true);
+        }, 0);
+      }
+
       if (clickTrigger) {
         $element.click(function (e) {
-          if (visible) {
+          if (visible()) {
             hidePopover();
           } else {
             showPopover();
@@ -1304,7 +1734,7 @@
         }
       });
       _el.on("slideStop", function (e) {
-        viewModel.search();
+        searchViewModel.search();
       });
     },
     update: function (element, valueAccessor) {
@@ -1889,9 +2319,6 @@
             }
           });
         }
-        if ($.fn.niceScroll) {
-          $('.assist-flex-fill').getNiceScroll().resize();
-        }
       };
 
       resizeByRatio();
@@ -1992,31 +2419,197 @@
               panelRatios[panelDefinitions()[idx].type] = $(panel).outerHeight(true) / totalHeightForPanels;
             });
             apiHelper.setInTotalStorage('assist', 'innerPanelRatios', panelRatios);
-            if ($.fn.niceScroll) {
-              $('.assist-flex-fill').getNiceScroll().resize();
-            }
           }
         });
       });
     }
   };
 
+  /**
+   * Show the Context Popover for files (HDFS, S3, ADLS, ...) when the bound element is clicked.
+   *
+   * Parameters:
+   *
+   * {string} path - the path (can include type, i.e. 'hdfs://tmp'
+   * {string} [type] - Optional type, 'hdfs', 's3' etc. Default 'hdfs'.
+   * {string} [orientation] - 'top', 'right', 'bottom', 'left'. Default 'right';
+   * {Object} [offset] - Optional offset from the element
+   * {number} [offset.top] - Offset in pixels
+   * {number} [offset.left] - Offset in pixels
+   *
+   * Examples:
+   *
+   * data-bind="storageContextPopover: { path: '/tmp/banana.csv' }"
+   * data-bind="storageContextPopover: { path: 's3:/tmp/banana.csv', orientation: 'bottom', offset: { top: 5 } }"
+   *
+   * @type {{init: ko.bindingHandlers.storageContextPopover.init}}
+   */
+  ko.bindingHandlers.storageContextPopover = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      ko.bindingHandlers.click.init(element, function () {
+        return function () {
+          var options = valueAccessor();
+          AssistStorageEntry.getEntry(options.path, options.type).done(function (entry) {
+            var $source = $(element);
+            var offset = $source.offset();
+
+            if (options.offset) {
+              offset.top += options.offset.top || 0;
+              offset.left += options.offset.left || 0;
+            }
+
+            entry.open(true);
+            huePubSub.publish('context.popover.show', {
+              data: {
+                type: 'storageEntry',
+                storageEntry: entry
+              },
+              orientation: options.orientation || 'right',
+              source: {
+                element: element,
+                left: offset.left,
+                top: offset.top,
+                right: offset.left + $source.width(),
+                bottom: offset.top + $source.height()
+              }
+            });
+
+          })
+        };
+      }, allBindings, viewModel, bindingContext);
+    }
+  };
+
+  /**
+   * Show the Context Popover for SQL or Solr entities when the bound element is clicked.
+   *
+   * Parameters:
+   *
+   * {string} sourceType - 'impala', 'hive' etc.
+   * {ContextNamespace} namespace
+   * {ContextCompute} compute
+   * {string} path - the path, i.e. 'default.customers' or ['default', 'customers'
+   * {string} [orientation] - 'top', 'right', 'bottom', 'left'. Default 'right'
+   * {Object} [offset] - Optional offset from the element
+   * {number} [offset.top] - Offset in pixels
+   * {number} [offset.left] - Offset in pixels
+   *
+   * Examples:
+   *
+   * data-bind="sqlContextPopover: { sourceType: 'impala', namespace: { id: 'myNamespace' }, compute: { id: 'myCompute' }, path: 'default.customers' }"
+   * data-bind="sqlContextPopover: { sourceType: 'hive', namespace: { id: 'myNamespace' }, compute: { id: 'myCompute' }, path: 'default', orientation: 'bottom', offset: { top: 5 } }"
+   *
+   * @type {{init: ko.bindingHandlers.sqlContextPopover.init}}
+   */
+  ko.bindingHandlers.sqlContextPopover = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      ko.bindingHandlers.click.init(element, function () {
+        return function () {
+          var options = valueAccessor();
+          DataCatalog.getEntry(options).done(function (entry) {
+            var $source = $(element);
+            var offset = $source.offset();
+            if (options.offset) {
+              offset.top += options.offset.top || 0;
+              offset.left += options.offset.left || 0;
+            }
+
+            huePubSub.publish('context.popover.show', {
+              data: {
+                type: 'catalogEntry',
+                catalogEntry: entry
+              },
+              showInAssistEnabled: true,
+              orientation: options.orientation || 'right',
+              source: {
+                element: element,
+                left: offset.left,
+                top: offset.top,
+                right: offset.left + $source.width(),
+                bottom: offset.top + $source.height()
+              }
+            });
+          });
+        }
+      }, allBindings, viewModel, bindingContext);
+    }
+  };
+
+  /**
+   * Show the Context Popover for Documents when the bound element is clicked.
+   *
+   * Parameters:
+   *
+   * {string} uuid - the uuid of the document
+   * {string} [orientation] - 'top', 'right', 'bottom', 'left'. Default 'right'
+   * {Object} [offset] - Optional offset from the element
+   * {number} [offset.top] - Offset in pixels
+   * {number} [offset.left] - Offset in pixels
+   *
+   * Examples:
+   *
+   * data-bind="documentContextPopover: { uuid: 'bana-na12-3456-7890' }"
+   * data-bind="documentContextPopover: { uuid: 'bana-na12-3456-7890', orientation: 'bottom', offset: { top: 5 } }"
+   *
+   * @type {{init: ko.bindingHandlers.documentContextPopover.init}}
+   */
+  ko.bindingHandlers.documentContextPopover = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+      ko.bindingHandlers.click.init(element, function () {
+        return function () {
+          var options = valueAccessor();
+
+          ApiHelper.getInstance().fetchDocument({
+            uuid: options.uuid,
+            fetchContents: true,
+            silenceErrors: true
+          }).done(function (response) {
+            var $source = $(element);
+            var offset = $source.offset();
+            if (options.offset) {
+              offset.top += options.offset.top || 0;
+              offset.left += options.offset.left || 0;
+            }
+
+            huePubSub.publish('context.popover.show', {
+              data: {
+                type: 'hue',
+                definition: response.document
+              },
+              showInAssistEnabled: true,
+              orientation: options.orientation || 'right',
+              source: {
+                element: element,
+                left: offset.left,
+                top: offset.top,
+                right: offset.left + $source.width(),
+                bottom: offset.top + $source.height()
+              }
+            });
+          });
+        }
+      }, allBindings, viewModel, bindingContext);
+    }
+  };
+
   ko.bindingHandlers.aceResizer = {
     init: function (element, valueAccessor) {
       var options = ko.unwrap(valueAccessor());
-      var ace = options.ace;
+      var ace = options.snippet.ace;
       var $target = $(options.target);
       var $resizer = $(element);
       var $contentPanel = $(".content-panel");
       var $execStatus = $resizer.prev('.snippet-execution-status');
+      var $variables = $resizer.siblings('.snippet-row').find('.variables');
 
       var lastEditorSize = $.totalStorage('hue.editor.editor.size') || 131;
       var editorHeight = Math.floor(lastEditorSize / 16);
       $target.height(lastEditorSize);
-      var autoExpand = true;
+      var autoExpand = typeof options.snippet.aceAutoExpand !== 'undefined' ? options.snippet.aceAutoExpand : true;
+      var draggedOnce = false;
 
       function throttleChange() {
-        if (autoExpand) {
+        if (autoExpand && !draggedOnce) {
           var maxAutoLines = Math.floor((($(window).height() - 80) / 2) / 16);
           var resized = false;
           if (ace().session.getLength() > editorHeight) {
@@ -2028,12 +2621,8 @@
             }
             resized = true;
           }
-          else if (ace().session.getLength() > 8) {
-            $target.height((ace().session.getLength()) * 16);
-            resized = true;
-          }
           else {
-            $target.height(8 * 16);
+            $target.height(Math.max(ace().session.getLength() * 16, $.totalStorage('hue.editor.editor.size') || 131));
             resized = true;
           }
           if (ace().session.getLength() == editorHeight) {
@@ -2054,12 +2643,18 @@
         changeTimeout = window.setTimeout(throttleChange, 10)
       });
 
+      var setAutoExpandSubscription = huePubSub.subscribe('ace.set.autoexpand', function (options) {
+        if (ace().container.id === options.snippet.id()) {
+          autoExpand = options.autoExpand;
+        }
+      });
+
       $resizer.draggable({
         axis: "y",
         start: options.onStart ? options.onStart : function(){},
         drag: function (event, ui) {
-          autoExpand = false;
-          var currentHeight = ui.offset.top + $contentPanel.scrollTop() - (125 + $execStatus.outerHeight(true));
+          draggedOnce = true;
+          var currentHeight = ui.offset.top + $contentPanel.scrollTop() - (125 + $execStatus.outerHeight(true) + $variables.outerHeight(true));
           $target.css("height", currentHeight + "px");
           ace().resize();
           ui.offset.top = 0;
@@ -2072,6 +2667,10 @@
           huePubSub.publish('redraw.fixed.headers');
           $(document).trigger("editorSizeChanged");
         }
+      });
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+        setAutoExpandSubscription.remove();
       });
     }
   };
@@ -2158,7 +2757,7 @@
 
       var positionPanels = function () {
         if (options.sidePanelVisible()) {
-          $sidePanel.css('width',  Math.max(sidePanelWidth, 200) + 'px');
+          $sidePanel.css('flex-basis',  Math.max(sidePanelWidth, 200) + 'px');
           onPosition();
         }
       };
@@ -2355,7 +2954,7 @@
       if (_enc.find("style").length > 0) {
         var parser = new less.Parser();
         $(_enc.find("style")).each(function (cnt, item) {
-          var _less = "#result-container {" + $(item).text() + "}";
+          var _less = ".result-container {" + $(item).text() + "}";
           try {
             parser.parse(_less, function (err, tree) {
               $(item).text(tree.toCSS());
@@ -2571,33 +3170,36 @@
   };
 
   ko.bindingHandlers.chosen = {
-      init: function(element, valueAccessor, allBindings, viewModel, bindingContext){
-          var $element = $(element);
-          var options = ko.unwrap(valueAccessor());
+    init: function(element, valueAccessor, allBindings, viewModel, bindingContext){
+      var $element = $(element);
+      var options = ko.unwrap(valueAccessor());
 
-          if (typeof options === 'object')
-              $element.chosen(options);
-          else
-              $element.chosen();
-
-          ['options', 'selectedOptions', 'value'].forEach(function(propName){
-              if (allBindings.has(propName)){
-                  var prop = allBindings.get(propName);
-                  if (ko.isObservable(prop)){
-                      prop.subscribe(function(){
-                          $element.trigger('chosen:updated');
-                      });
-                  }
-              }
-          });
+      if (typeof options === 'object') {
+        $element.chosen(options);
+      } else {
+        $element.chosen();
       }
-  }
+
+      ['options', 'selectedOptions', 'value'].forEach(function(propName){
+        if (allBindings.has(propName)){
+          var prop = allBindings.get(propName);
+          if (ko.isObservable(prop)) {
+            prop.subscribe(function(){
+              $element.trigger('chosen:updated');
+            });
+          }
+        }
+      });
+    }
+  };
 
   ko.bindingHandlers.tooltip = {
     after: ['attr'],
     update: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
-      var local = ko.utils.unwrapObservable(valueAccessor()),
-          options = {};
+      var local = ko.utils.unwrapObservable(valueAccessor());
+      var options = {
+        container: HUE_CONTAINER
+      };
 
       $(element).tooltip("destroy");
 
@@ -2605,7 +3207,9 @@
 
       if (options.title) {
         var title = ko.unwrap(options.title); // Not always an observable
-        options.title = escapeOutput(title);
+        if (typeof title === 'string' && !options.html) {
+          options.title = escapeOutput(title);
+        }
       }
 
       $(element).tooltip(options);
@@ -2987,13 +3591,11 @@
       var complexConfiguration = false;
       if (typeof options === 'function'){
         self.val(options());
-      }
-      else {
+      } else {
         if (options && options.data){
           self.val(options.data);
           complexConfiguration = true;
-        }
-        else {
+        } else {
           self.val(options);
         }
       }
@@ -3006,13 +3608,14 @@
           startingPath: options.database + '.',
           rewriteVal: true,
           onPathChange: options.onChange,
+          namespace: ko.unwrap(options.namespace),
+          compute: ko.unwrap(options.compute),
           searchEverywhere : ko.unwrap(options.searchEverywhere) || false,
           apiHelperUser: ko.unwrap(options.apiHelperUser) || '',
           apiHelperType: ko.unwrap(options.apiHelperType) || '',
           mainScrollable: ko.unwrap(options.mainScrollable) || $(window)
         });
-      }
-      else {
+      } else {
         options = allBindingsAccessor();
         function setPathFromAutocomplete(path) {
           self.val(path);
@@ -3020,7 +3623,9 @@
           self.blur();
         }
         self.on("blur", function () {
-          valueAccessor()(self.val());
+          if (!options.skipInvalids) {
+            valueAccessor()(self.val());
+          }
         });
         if (allBindingsAccessor().valueUpdate != null && allBindingsAccessor().valueUpdate == "afterkeydown") {
           self.on("keyup", function () {
@@ -3032,6 +3637,9 @@
           home: "/",
           skipColumns: ko.unwrap(options.skipColumns) || false,
           skipTables: ko.unwrap(options.skipTables) || false,
+          namespace: ko.unwrap(options.namespace),
+          compute: ko.unwrap(options.compute),
+          pathChangeLevel: ko.unwrap(options.pathChangeLevel) || '',
           apiHelperUser: ko.unwrap(options.apiHelperUser) || '',
           apiHelperType: ko.unwrap(options.apiHelperType) || '',
           mainScrollable: ko.unwrap(options.mainScrollable) || $(window),
@@ -3039,13 +3647,17 @@
             setPathFromAutocomplete(path);
           },
           onEnter: function (el) {
-            setPathFromAutocomplete(el.val());
+            if (!options.skipInvalids) {
+              setPathFromAutocomplete(el.val());
+            }
           },
           onBlur: function () {
             if (self.val().lastIndexOf(".") == self.val().length - 1) {
               self.val(self.val().substr(0, self.val().length - 1));
             }
-            valueAccessor()(self.val());
+            if (!options.skipInvalids) {
+              valueAccessor()(self.val());
+            }
           }
         });
       }
@@ -3072,6 +3684,7 @@
         showOnFocus: true,
         home: "/",
         serverType: "SOLR",
+        skipTables: true, // No notion of DB actually
         onPathChange: function (path) {
           setPathFromAutocomplete(path);
         },
@@ -3178,7 +3791,7 @@
     _btn.click(function (e) {
       e.preventDefault();
       if (!isNestedModal) {
-        $("body").addClass("modal-open");
+        $(HUE_CONTAINER).addClass("modal-open");
       }
       // check if it's a relative path
       callFileChooser();
@@ -3196,7 +3809,7 @@
         }
 
         var supportSelectFolder = !!selectFolder;
-        if (typeof allBindingsAccessor().filechooserOptions !== 'undefined' && typeof allBindingsAccessor().filechooserOptions.selectFolder !== 'undefined') {
+        if (allBindingsAccessor && typeof allBindingsAccessor().filechooserOptions !== 'undefined' && typeof allBindingsAccessor().filechooserOptions.selectFolder !== 'undefined') {
           supportSelectFolder = allBindingsAccessor().filechooserOptions.selectFolder;
         }
 
@@ -3229,10 +3842,19 @@
           filterExtensions: allBindingsAccessor && allBindingsAccessor().filechooserFilter ? allBindingsAccessor().filechooserFilter : "",
           displayOnlyFolders: allBindingsAccessor && allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.displayOnlyFolders
         });
-        $("#chooseFile").modal("show");
+        if (isIE11) {
+          var oldFocus = jQuery().modal.Constructor.prototype.enforceFocus;
+          jQuery().modal.Constructor.prototype.enforceFocus = function() {};
+          $("#chooseFile").modal("show");
+          window.setTimeout(function () {
+            jQuery().modal.Constructor.prototype.enforceFocus = oldFocus;
+          }, 5000);
+        } else {
+          $("#chooseFile").modal("show");
+        }
         if (!isNestedModal) {
           $("#chooseFile").on("hidden", function () {
-            $("body").removeClass("modal-open");
+            $(HUE_CONTAINER).removeClass("modal-open");
             $(".modal-backdrop").remove();
           });
         }
@@ -3289,16 +3911,13 @@
     init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
       var _el = $(element);
       var _options = ko.unwrap(valueAccessor());
-      var disableUTC = _options.disableUTC || false;
       _el.datepicker({
         format: "yyyy-mm-dd"
       }).on("show", function (e) {
         if (_options.momentFormat) {
-          var m = moment(_el.val());
-          if (!disableUTC) {
-            m = m.utc();
-          }
+          var m = moment.utc(_el.val());
           _el.datepicker("setValue", m.format("YYYY-MM-DD"));
+          _el.val(m.format(_options.momentFormat)); // Set value again as datepicker clears the time component
         }
       }).on("changeDate", function (e) {
         setDate(e.date);
@@ -3309,10 +3928,13 @@
       function setDate(d) {
         if (_options.momentFormat) {
           var m = moment(d);
-          if (!disableUTC) {
-            m = m.utc();
-          }
-          _el.val(m.format(_options.momentFormat));
+          // Keep time intact
+          var previous = moment.utc(allBindings().value());
+          previous.date(m.date());
+          previous.month(m.month());
+          previous.year(m.year());
+
+          _el.val(previous.format(_options.momentFormat));
         }
         allBindings().value(_el.val());
       }
@@ -3366,18 +3988,26 @@
 
 
   ko.bindingHandlers.delayedOverflow = {
-    init: function (element) {
+    init: function (element, valueAccessor) {
       var $element = $(element);
+
       $element.css("overflow", "hidden");
 
+      var isTouch = false;
+      $element.on('touchstart', function () {
+        isTouch = true;
+      });
+
       var scrollTimeout = -1;
-      $element.hover(function() {
-        scrollTimeout = window.setTimeout(function() {
+      $element.hover(function () {
+        scrollTimeout = window.setTimeout(function () {
           $element.css("overflow", "auto");
-        }, 500);
-      }, function() {
-        clearTimeout(scrollTimeout);
-        $element.css("overflow", "hidden");
+        }, valueAccessor && valueAccessor() === 'slow' ? 500 : 30);
+      }, function () {
+        if (!isTouch) {
+          clearTimeout(scrollTimeout);
+          $element.css("overflow", "hidden");
+        }
       });
     }
   };
@@ -3403,45 +4033,31 @@
       self.editor = editor;
       self.editorId = editorId;
       self.snippet = snippet;
-      self.aceSqlSyntaxWorker = null;
+      self.sqlSyntaxWorkerSub = null;
 
       self.disposeFunctions = [];
 
-      self.attachCursorLocator();
+      self.databaseIndex = {};
+
       self.attachStatementLocator();
-      if (window.Worker) {
-        self.attachSqlWorker();
-      }
+      self.attachSqlWorker();
       self.attachGutterHandler();
+
+      var updateDatabaseIndex = function (databaseList) {
+        self.databaseIndex = {};
+        databaseList.forEach(function (database) {
+          self.databaseIndex[database.toLowerCase()] = true;
+        })
+      };
+
+      var databaseSub = self.snippet.availableDatabases.subscribe(updateDatabaseIndex);
+
+      self.disposeFunctions.push(function () {
+        databaseSub.dispose();
+      });
+
+      updateDatabaseIndex(self.snippet.availableDatabases());
     }
-
-    AceLocationHandler.prototype.attachCursorLocator = function () {
-      var self = this;
-      var changeCursorThrottle = -1;
-      var changeCursorListener = self.editor.selection.on('changeCursor', function () {
-        window.clearTimeout(changeCursorThrottle);
-        changeCursorThrottle = window.setTimeout(function () {
-          huePubSub.publish('editor.active.cursor.location', {
-            id: self.editorId,
-            position: self.editor.getCursorPosition(),
-            editor: self.editor
-          });
-        }, 150);
-      });
-
-      self.disposeFunctions.push(function () {
-        window.clearTimeout(changeCursorThrottle);
-        self.editor.selection.off('changeCursor', changeCursorListener);
-      });
-
-      var cursorLocationSub = huePubSub.subscribe('get.active.editor.cursor.location', function () {
-        huePubSub.publish('editor.active.cursor.location', { id: self.editorId, position: self.editor.getCursorPosition(), editor: self.editor });
-      });
-
-      self.disposeFunctions.push(function () {
-        cursorLocationSub.remove();
-      });
-    };
 
     AceLocationHandler.prototype.attachGutterHandler = function () {
       var self = this;
@@ -3461,11 +4077,11 @@
         }
 
         while(lastMarkedGutterLines.length) {
-          self.editor.session.removeGutterDecoration(lastMarkedGutterLines.shift(), 'ace-active-gutter-decoration');
+          self.editor.getSession().removeGutterDecoration(lastMarkedGutterLines.shift(), 'ace-active-gutter-decoration');
         }
         for (var line = statementDetails.activeStatement.location.first_line - 1 + leadingEmptyLineCount; line < statementDetails.activeStatement.location.last_line; line++) {
           lastMarkedGutterLines.push(line);
-          self.editor.session.addGutterDecoration(line, 'ace-active-gutter-decoration');
+          self.editor.getSession().addGutterDecoration(line, 'ace-active-gutter-decoration');
         }
       });
 
@@ -3476,23 +4092,47 @@
 
     AceLocationHandler.prototype.attachStatementLocator = function () {
       var self = this;
-
-      var isPointInside = function (parseLocation, acePosition) {
-        var row = acePosition.row + 1; // ace positioning has 0 based rows while the parser has 1
-        var column = acePosition.column;
-        return (parseLocation.first_line < row && row < parseLocation.last_line) ||
-          (parseLocation.first_line === row && row === parseLocation.last_line && parseLocation.first_column <= column && column <= parseLocation.last_column) ||
-          (parseLocation.first_line === row && row < parseLocation.last_line && column >= parseLocation.first_column) ||
-          (parseLocation.first_line < row && row === parseLocation.last_line && column <= parseLocation.last_column);
-      };
-
       var lastKnownStatements = [];
       var activeStatement;
+
+      var isPointInside = function (parseLocation, editorPosition) {
+        var row = editorPosition.row + 1; // ace positioning has 0 based rows while the parser has 1
+        var column = editorPosition.column;
+        return (parseLocation.first_line < row && row < parseLocation.last_line) ||
+          (parseLocation.first_line === row && row === parseLocation.last_line && parseLocation.first_column <= column && column < parseLocation.last_column) ||
+          (parseLocation.first_line === row && row < parseLocation.last_line && column >= parseLocation.first_column) ||
+          (parseLocation.first_line < row && row === parseLocation.last_line && column < parseLocation.last_column);
+      };
+
+      var lastExecutingStatement = null;
       var updateActiveStatement = function (cursorChange) {
-        var cursorPosition = self.editor.getCursorPosition();
+        if (!self.snippet.isSqlDialect()) {
+          return;
+        }
+        var selectionRange = self.editor.getSelectionRange();
+        var editorLocation = selectionRange.start;
+        if (selectionRange.start.row !== selectionRange.end.row || selectionRange.start.column !== selectionRange.end.column) {
+          if (!cursorChange && self.snippet.result && self.snippet.result.statement_range()) {
+            var executingStatement = self.snippet.result.statement_range();
+            // Row and col are 0 for both start and end on execute, so if the selection hasn't changed we'll use last known executed statement
+            if (executingStatement.start.row === 0 && executingStatement.start.column === 0 && executingStatement.end.row === 0 && executingStatement.end.column === 0 && lastExecutingStatement) {
+              executingStatement = lastExecutingStatement;
+            }
+            if (executingStatement.start.row === 0) {
+              editorLocation.column += executingStatement.start.column;
+            } else if (executingStatement.start.row !== 0 || executingStatement.start.column !== 0) {
+              editorLocation.row += executingStatement.start.row;
+              editorLocation.column = executingStatement.start.column;
+            }
+            lastExecutingStatement = executingStatement;
+          } else  {
+            lastExecutingStatement = null;
+          }
+        }
+
         if (cursorChange && activeStatement) {
           // Don't update when cursor stays in the same statement
-          if (isPointInside(activeStatement.location, cursorPosition)) {
+          if (isPointInside(activeStatement.location, editorLocation)) {
             return;
           }
         }
@@ -3502,24 +4142,35 @@
 
         var found = false;
         var statementIndex = 0;
-        lastKnownStatements.forEach(function (statement) {
-          if (isPointInside(statement.location, cursorPosition)) {
-            statementIndex++;
-            found = true;
-            activeStatement = statement;
-          } else if (!found) {
-            statementIndex++;
-            if (precedingStatements.length === STATEMENT_COUNT_AROUND_ACTIVE) {
-              precedingStatements.shift();
+        if (lastKnownStatements.length === 1) {
+          activeStatement = lastKnownStatements[0];
+        } else {
+          lastKnownStatements.forEach(function (statement) {
+            if (isPointInside(statement.location, editorLocation)) {
+              statementIndex++;
+              found = true;
+              activeStatement = statement;
+            } else if (!found) {
+              statementIndex++;
+              if (precedingStatements.length === STATEMENT_COUNT_AROUND_ACTIVE) {
+                precedingStatements.shift();
+              }
+              precedingStatements.push(statement);
+            } else if (found && followingStatements.length < STATEMENT_COUNT_AROUND_ACTIVE) {
+              followingStatements.push(statement);
             }
-            precedingStatements.push(statement);
-          } else if (found && followingStatements.length < STATEMENT_COUNT_AROUND_ACTIVE) {
-            followingStatements.push(statement);
+          });
+
+          // Can happen if multiple statements and the cursor is after the last one
+          if (!found) {
+            precedingStatements.pop();
+            activeStatement = lastKnownStatements[lastKnownStatements.length - 1];
           }
-        });
+        }
 
         huePubSub.publish('editor.active.statement.changed', {
           id: self.editorId,
+          editorChangeTime: lastKnownStatements.editorChangeTime,
           activeStatementIndex: statementIndex,
           totalStatementCount: lastKnownStatements.length,
           precedingStatements: precedingStatements,
@@ -3528,371 +4179,574 @@
         });
 
         if (activeStatement) {
-          self.checkForSyntaxErrors(activeStatement.location, cursorPosition);
+          self.checkForSyntaxErrors(activeStatement.location, editorLocation);
         }
       };
 
       var parseForStatements = function () {
-        try {
-          lastKnownStatements = sqlStatementsParser.parse(self.editor.getValue());
-          if (typeof hueDebug !== 'undefined' && hueDebug.logStatementLocations) {
-            console.log(lastKnownStatements);
+        if (self.snippet.isSqlDialect()) {
+          try {
+            var lastChangeTime = self.editor.lastChangeTime;
+            lastKnownStatements = sqlStatementsParser.parse(self.editor.getValue());
+            lastKnownStatements.editorChangeTime = lastChangeTime;
+
+            if (typeof hueDebug !== 'undefined' && hueDebug.logStatementLocations) {
+              console.log(lastKnownStatements);
+            }
+          } catch (error) {
+            console.warn('Could not parse statements!');
+            console.warn(error);
           }
-        } catch (error) {
-          console.warn('Could not parse statements!');
-          console.warn(error);
         }
       };
 
-      var changeThrottle = -1;
-      var updateThrottle = -1;
-
+      var changeThrottle = window.setTimeout(parseForStatements, 0);
+      var updateThrottle = window.setTimeout(updateActiveStatement, 0);
       var cursorChangePaused = false; // On change the cursor is also moved, this limits the calls while typing
-      var cursorSubscription = huePubSub.subscribe('editor.active.cursor.location', function (locationDetails) {
+
+      var lastStart;
+      var lastCursorPosition;
+      var changeSelectionListener = self.editor.on('changeSelection', function () {
         if (cursorChangePaused) {
           return;
         }
-        if (self.editorId === locationDetails.id) {
-          window.clearTimeout(updateThrottle);
-          updateThrottle = window.setTimeout(function () {
+        window.clearTimeout(changeThrottle);
+        changeThrottle = window.setTimeout(function () {
+          var newCursorPosition = self.editor.getCursorPosition();
+          if (!lastCursorPosition || lastCursorPosition.row !== newCursorPosition.row || lastCursorPosition.column !== newCursorPosition.column) {
+            self.snippet.aceCursorPosition(newCursorPosition);
+            lastCursorPosition = newCursorPosition;
+          }
+
+          // The active statement is initially the top one in the selection, batch execution updates this.
+          var newStart = self.editor.getSelectionRange().start;
+          if (self.snippet.isSqlDialect() && (!lastStart || lastStart.row !== newStart.row || lastStart.column !== newStart.column)) {
+            window.clearTimeout(updateThrottle);
             updateActiveStatement(true);
-          }, 100);
-        }
+            lastStart = newStart;
+          }
+        }, 100);
       });
 
-      changeThrottle = window.setTimeout(parseForStatements, 0);
-      updateThrottle = window.setTimeout(updateActiveStatement, 0);
-
-      var changeListener = self.editor.on("change", function () {
-        window.clearTimeout(changeThrottle);
-        cursorChangePaused = true;
-        changeThrottle = window.setTimeout(function () {
-          parseForStatements();
-          updateActiveStatement();
-          cursorChangePaused = false;
-        }, 500);
+      var changeListener = self.editor.on('change', function () {
+        if (self.snippet.isSqlDialect()) {
+          window.clearTimeout(changeThrottle);
+          cursorChangePaused = true;
+          changeThrottle = window.setTimeout(function () {
+            window.clearTimeout(updateThrottle);
+            parseForStatements();
+            updateActiveStatement();
+            cursorChangePaused = false;
+          }, 500);
+          self.editor.lastChangeTime = Date.now();
+        }
       });
 
       var locateSubscription = huePubSub.subscribe('editor.refresh.statement.locations', function (snippet) {
         if (snippet === self.snippet) {
+          cursorChangePaused = true;
           window.clearTimeout(changeThrottle);
           window.clearTimeout(updateThrottle);
           parseForStatements();
           updateActiveStatement();
+          cursorChangePaused = false;
         }
       });
 
       self.disposeFunctions.push(function () {
         window.clearTimeout(changeThrottle);
         window.clearTimeout(updateThrottle);
-        self.editor.off("change", changeListener);
+        self.editor.off('changeSelection', changeSelectionListener);
+        self.editor.off('change', changeListener);
         locateSubscription.remove();
-        cursorSubscription.remove();
       });
     };
 
-    AceLocationHandler.prototype.clearMarkedErrors = function () {
+    AceLocationHandler.prototype.clearMarkedErrors = function (type) {
       var self = this;
-      for (var marker in self.editor.session.$backMarkers) {
-        if (self.editor.session.$backMarkers[marker].clazz.indexOf('hue-ace-syntax-') === 0) {
-          var token = self.editor.session.$backMarkers[marker].token;
-          delete token.syntaxError;
-          self.editor.session.removeMarker(self.editor.session.$backMarkers[marker].id);
+      for (var marker in self.editor.getSession().$backMarkers) {
+        if (self.editor.getSession().$backMarkers[marker].clazz.indexOf('hue-ace-syntax-' + (type || '')) === 0) {
+          self.editor.getSession().$backMarkers[marker].dispose()
         }
       }
     };
 
     AceLocationHandler.prototype.checkForSyntaxErrors = function (statementLocation, cursorPosition) {
       var self = this;
-      if (self.aceSqlSyntaxWorker !== null) {
-        self.clearMarkedErrors();
+      if (self.sqlSyntaxWorkerSub !== null && (self.snippet.type() === 'impala' || self.snippet.type() === 'hive'))  {
         var AceRange = ace.require('ace/range').Range;
-        var beforeCursor = self.editor.session.getTextRange(new AceRange(statementLocation.first_line - 1, statementLocation.first_column, cursorPosition.row, cursorPosition.column));
-        var afterCursor = self.editor.session.getTextRange(new AceRange(cursorPosition.row, cursorPosition.column, statementLocation.last_line - 1, statementLocation.last_column));
-        self.aceSqlSyntaxWorker.postMessage({ beforeCursor: beforeCursor, afterCursor: afterCursor, statementLocation: statementLocation, type: self.snippet.type() });
+        var editorChangeTime = self.editor.lastChangeTime;
+        var beforeCursor = self.editor.getSession().getTextRange(new AceRange(statementLocation.first_line - 1, statementLocation.first_column, cursorPosition.row, cursorPosition.column));
+        var afterCursor = self.editor.getSession().getTextRange(new AceRange(cursorPosition.row, cursorPosition.column, statementLocation.last_line - 1, statementLocation.last_column));
+        huePubSub.publish('ace.sql.syntax.worker.post', {
+          id: self.snippet.id(),
+          editorChangeTime: editorChangeTime,
+          beforeCursor: beforeCursor,
+          afterCursor: afterCursor,
+          statementLocation: statementLocation,
+          type: self.snippet.type()
+        });
+      }
+    };
+
+    AceLocationHandler.prototype.addAnchoredMarker = function (range, token, clazz) {
+      var self = this;
+      range.start = self.editor.getSession().doc.createAnchor(range.start);
+      range.end = self.editor.getSession().doc.createAnchor(range.end);
+      var markerId = self.editor.getSession().addMarker(range, clazz);
+      var marker = self.editor.getSession().$backMarkers[markerId];
+      marker.token = token;
+      marker.dispose = function () {
+        range.start.detach();
+        range.end.detach();
+        delete marker.token.syntaxError;
+        delete marker.token.notFound;
+        self.editor.getSession().removeMarker(markerId);
       }
     };
 
     AceLocationHandler.prototype.attachSqlSyntaxWorker = function () {
       var self = this;
-      if (window.Worker) {
-        self.aceSqlSyntaxWorker = new Worker('/desktop/workers/aceSqlSyntaxWorker.js?bust=' + Math.random());
 
-        self.aceSqlSyntaxWorker.onmessage = function(e) {
-          var suppressedRules = ApiHelper.getInstance().getFromTotalStorage('hue.syntax.checker', 'suppressedRules', {});
+      if (self.sqlSyntaxWorkerSub !== null) {
+        return;
+      }
 
-          if (e.data.syntaxError && !suppressedRules[self.snippet.id() + e.data.syntaxError.ruleId]) {
-            if (hueDebug.showSyntaxParseResult) {
-              console.log(e.data.syntaxError);
-            }
-            var token = self.editor.session.getTokenAt(e.data.syntaxError.loc.first_line - 1, e.data.syntaxError.loc.first_column + 1);
-            if (token) {
-              token.syntaxError = e.data.syntaxError;
-              var AceRange = ace.require('ace/range').Range;
-              var range = new AceRange(e.data.syntaxError.loc.first_line - 1, e.data.syntaxError.loc.first_column, e.data.syntaxError.loc.last_line - 1, e.data.syntaxError.loc.first_column + e.data.syntaxError.text.length);
-              var markerId = self.editor.session.addMarker(range, 'hue-ace-syntax-error');
-              self.editor.session.$backMarkers[markerId].token = token;
-            } else {
-              console.warn("couldn't find a token at line: " + (e.data.syntaxError.loc.first_line - 1) + ", column: " + (e.data.syntaxError.loc.first_column + 1));
+      self.sqlSyntaxWorkerSub = huePubSub.subscribe('ace.sql.syntax.worker.message', function (e) {
+        if (e.data.id !== self.snippet.id() || e.data.editorChangeTime !== self.editor.lastChangeTime) {
+          return;
+        }
+        self.clearMarkedErrors('error');
+
+        if (!e.data.syntaxError || !e.data.syntaxError.expected || e.data.syntaxError.expected.length === 0) {
+          // Only show errors that we have suggestions for
+          return;
+        }
+
+        var suppressedRules = ApiHelper.getInstance().getFromTotalStorage('hue.syntax.checker', 'suppressedRules', {});
+        if (e.data.syntaxError && e.data.syntaxError.ruleId && !suppressedRules[e.data.syntaxError.ruleId.toString() + e.data.syntaxError.text.toLowerCase()]) {
+          if (self.snippet.positionStatement() && SqlUtils.locationEquals(e.data.statementLocation, self.snippet.positionStatement().location)) {
+            self.snippet.positionStatement().syntaxError = true;
+          }
+          if (hueDebug.showSyntaxParseResult) {
+            console.log(e.data.syntaxError);
+          }
+
+          var token = self.editor.getSession().getTokenAt(e.data.syntaxError.loc.first_line - 1, e.data.syntaxError.loc.first_column + 1);
+
+          // Don't mark the current edited word as an error if the cursor is at the end of the word
+          // For now [a-z] is fine as we only check syntax for keywords
+          if (/[a-z]$/i.test(self.editor.getTextBeforeCursor()) && !/^[a-z]/i.test(self.editor.getTextAfterCursor())) {
+            var cursorPos = self.editor.getCursorPosition();
+            var cursorToken = self.editor.getSession().getTokenAt(cursorPos.row, cursorPos.column);
+            if (cursorToken === token) {
+              return;
             }
           }
-        };
-        huePubSub.publish('editor.refresh.statement.locations', self.snippet);
-      }
+
+          // If no token is found it likely means that the parser response came back after the text was changed,
+          // at which point it will trigger another parse so we can ignore this.
+          if (token) {
+            token.syntaxError = e.data.syntaxError;
+            var AceRange = ace.require('ace/range').Range;
+            var range = new AceRange(e.data.syntaxError.loc.first_line - 1, e.data.syntaxError.loc.first_column, e.data.syntaxError.loc.last_line - 1, e.data.syntaxError.loc.first_column + e.data.syntaxError.text.length);
+            self.addAnchoredMarker(range,  token, 'hue-ace-syntax-error');
+          }
+        }
+      });
+
+      huePubSub.publish('editor.refresh.statement.locations', self.snippet);
     };
 
     AceLocationHandler.prototype.detachSqlSyntaxWorker = function () {
       var self = this;
-      if (self.aceSqlSyntaxWorker) {
-        self.aceSqlSyntaxWorker.terminate();
-        self.aceSqlSyntaxWorker = null;
+      if (self.sqlSyntaxWorkerSub !== null) {
+        self.sqlSyntaxWorkerSub.remove();
+        self.sqlSyntaxWorkerSub = null;
       }
       self.clearMarkedErrors();
     };
 
-    AceLocationHandler.prototype.fetchAutocompleteDeferred = function (identifierChain) {
+    AceLocationHandler.prototype.fetchChildren = function (identifierChain) {
       var self = this;
-      var promise = $.Deferred();
-      ApiHelper.getInstance().fetchAutocomplete({
+      var deferred = $.Deferred();
+      DataCatalog.getChildren({
         sourceType: self.snippet.type(),
-        identifierChain: identifierChain,
-        defaultDatabase: self.snippet.database(),
+        namespace: self.snippet.namespace(),
+        compute: self.snippet.compute(),
+        path: $.map(identifierChain, function (identifier) { return identifier.name }),
         silenceErrors: true,
-        errorCallback: function (data) {
-          promise.reject([]);
-        },
-        successCallback: function (data) {
-          promise.resolve(data.extended_columns || data.tables_meta || []);
-        }
+        cachedOnly: true
+      }).done(deferred.resolve).fail(function () {
+        deferred.reject([]);
       });
-      return promise;
+      return deferred;
     };
 
     AceLocationHandler.prototype.fetchPossibleValues = function (token) {
       var self = this;
       var promise = $.Deferred();
       if (token.parseLocation.tables && token.parseLocation.tables.length > 0) {
-        var tablePromisses = [];
+        var tablePromises = [];
         token.parseLocation.tables.forEach(function (table) {
-          tablePromisses.push(self.fetchAutocompleteDeferred(table.identifierChain));
+          if (table.identifierChain) {
+            tablePromises.push(self.fetchChildren(table.identifierChain));
+          }
         });
-        $.when.apply($, tablePromisses).always(function () {
+        $.when.apply($, tablePromises).done(function () {
           var joined = [];
           for (var i = 0; i < arguments.length; i++) {
             joined = joined.concat(arguments[i]);
           }
           promise.resolve(joined);
-        });
+        }).fail(promise.reject);
       } else if (token.parseLocation.identifierChain && token.parseLocation.identifierChain.length > 0) {
         // fetch the parent
-        // TODO: Fetch the parents parent first to see if it actually exists to prevent a bunch of failing calls when
-        // typing, i.e. SELECT * FROM c| -> SELECT * FROM cu| -> SELECT * FROM cus|
-        // Better yet, don't check tables next to cursor
-        return self.fetchAutocompleteDeferred(token.parseLocation.identifierChain.slice(0, token.parseLocation.identifierChain.length - 1));
+        return self.fetchChildren(token.parseLocation.identifierChain.slice(0, token.parseLocation.identifierChain.length - 1));
       } else {
         promise.reject([]);
       }
       return promise;
     };
 
-    AceLocationHandler.prototype.verifyExists = function (token, allLocations) {
+    var VERIFY_LIMIT = 50;
+    var VERIFY_DELAY = 50;
+
+    var verifyThrottle = -1;
+
+    AceLocationHandler.prototype.verifyExists = function (tokens, allLocations) {
       var self = this;
-      delete token.notFound;
-      delete token.syntaxError;
+      window.clearInterval(verifyThrottle);
+      self.clearMarkedErrors('warning');
 
-      if (self.aceSqlSyntaxWorker && token.parseLocation && (token.parseLocation.type === 'table' || token.parseLocation.type === 'column') && (token.parseLocation.identifierChain || token.parseLocation.tables)) {
-        var knownTableAliases = [];
+      if (self.sqlSyntaxWorkerSub === null) {
+        return;
+      }
 
-        self.fetchPossibleValues(token).done(function (possibleValues) {
-          // Append table aliases
-          for (var i = 0; i < allLocations.length; i++) {
-            var location = allLocations[i];
-            if (location.type === 'alias' && (location.source === 'table' || location.source === 'subquery')) {
-              possibleValues.push({ name: location.alias.toLowerCase() });
+      var cursorPos = self.editor.getCursorPosition();
+
+      var tokensToVerify = tokens.filter(function (token) {
+        return token && token.parseLocation
+          && (token.parseLocation.type === 'table' || token.parseLocation.type === 'column')
+          && (token.parseLocation.identifierChain || token.parseLocation.tables)
+          && !(cursorPos.row + 1 === token.parseLocation.location.last_line && cursorPos.column + 1 === token.parseLocation.location.first_column + token.value.length)
+      }).slice(0, VERIFY_LIMIT);
+
+      if (tokensToVerify.length === 0) {
+        return;
+      }
+
+      var aliasIndex = {};
+      var aliases = [];
+
+      allLocations.forEach(function (location) {
+        if (location.type === 'alias' && (location.source === 'column' || location.source === 'table' || location.source === 'subquery' || location.source === 'cte')) {
+          aliasIndex[location.alias.toLowerCase()] = location;
+          aliases.push({ name: location.alias.toLowerCase() })
+        }
+      });
+
+      var resolvePathFromTables = function (location) {
+        var promise = $.Deferred();
+        if (location.type === 'column' && typeof location.tables !== 'undefined' && location.identifierChain.length === 1) {
+          var findIdentifierChainInTable = function (tablesToGo) {
+            var nextTable = tablesToGo.shift();
+            if (typeof nextTable.subQuery === 'undefined') {
+              DataCatalog.getChildren({
+                sourceType: self.snippet.type(),
+                namespace: self.snippet.namespace(),
+                compute: self.snippet.compute(),
+                path: $.map(nextTable.identifierChain, function (identifier) { return identifier.name }),
+                cachedOnly: true,
+                silenceErrors: true
+              }).done(function (entries) {
+                var containsColumn = entries.some(function (entry) {
+                  return SqlUtils.identifierEquals(entry.name, location.identifierChain[0].name);
+                });
+
+                if (containsColumn) {
+                  location.identifierChain = nextTable.identifierChain.concat(location.identifierChain);
+                  delete location.tables;
+                  promise.resolve();
+                } else if (tablesToGo.length > 0) {
+                  findIdentifierChainInTable(tablesToGo);
+                } else {
+                  promise.resolve();
+                }
+              }).fail(promise.resolve);
+            } else if (tablesToGo.length > 0) {
+              findIdentifierChainInTable(tablesToGo);
+            } else {
+              promise.resolve();
             }
+          };
+          if (location.tables.length > 1) {
+            findIdentifierChainInTable(location.tables.concat());
+          } else if (location.tables.length === 1 && location.tables[0].identifierChain) {
+            location.identifierChain = location.tables[0].identifierChain.concat(location.identifierChain);
+            delete location.tables;
+            promise.resolve();
           }
+        } else {
+          promise.resolve();
+        }
+        return promise;
+      };
 
-          var tokenValLower = token.value.toLowerCase();
-          // Break if found
-          for (var i = 0; i < possibleValues.length; i++) {
-            if (possibleValues[i].name.toLowerCase() === tokenValLower) {
+      var verify = function () {
+        if (tokensToVerify.length === 0) {
+          return;
+        }
+        var token = tokensToVerify.shift();
+        var location = token.parseLocation;
+
+        // TODO: Verify columns in subqueries, i.e. 'code' in 'select code from (select * from web_logs) wl, customers c;'
+        if ((location.type === 'column' || location.type === 'complex') && location.tables) {
+          var hasSubQueries = location.tables.some(function (table) {
+            return typeof table.subQuery !== 'undefined';
+          });
+          if (hasSubQueries) {
+            verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+            return;
+          }
+        }
+
+        resolvePathFromTables(location).done(function () {
+          if (location.type === 'column') {
+            var possibleAlias;
+            if (!location.tables && location.identifierChain && location.identifierChain.length > 1) {
+              possibleAlias = aliasIndex[token.parseLocation.identifierChain[0].name.toLowerCase()];
+            } else if (location.tables) {
+              location.tables.some(function (table) {
+                if (table.identifierChain && table.identifierChain.length === 1 && table.identifierChain[0].name) {
+                  possibleAlias = aliasIndex[table.identifierChain[0].name.toLowerCase()];
+                  return possibleAlias;
+                }
+                return false;
+              });
+            }
+            if (possibleAlias && possibleAlias.source === 'cte') {
+              // We currently don't discover the columns from a CTE so we can't say if a column exists or not
+              verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
               return;
             }
           }
 
-          var uniqueIndex = {};
-          possibleValues = possibleValues.filter(function (value) {
-            if (uniqueIndex[value.name.toLowerCase()]) {
-              return false;
+          self.fetchPossibleValues(token).done(function (possibleValues) {
+            // Tokens might change while making api calls
+            if (!token.parseLocation) {
+              verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+              return;
             }
-            uniqueIndex[value.name.toLowerCase()] = true;
-            return true;
-          });
 
-          var isLowerCase = tokenValLower === token.value;
-
-          var weightedExpected = $.map(possibleValues, function (val) {
-            return {
-              text: isLowerCase ? val.name : val.name.toUpperCase(),
-              distance: SqlParseSupport.stringDistance(token.value, val.name)
+            // Append aliases unless qualified i.e.for 'b' in SELECT a.b we shouldn't suggest aliases
+            if ((token.parseLocation.type !== 'column' && token.parseLocation.type !== 'complex') || !token.parseLocation.qualified) {
+              possibleValues = possibleValues.concat(aliases);
             }
-          });
-          weightedExpected.sort(function (a, b) {
-            if (a.distance === b.distance) {
-              return a.text.localeCompare(b.text);
-            }
-            return a.distance - b.distance
-          });
-          token.syntaxError = {
-            expected: weightedExpected
-          };
-          token.notFound = true;
 
-          if (token.parseLocation.type === 'table') {
-            ApiHelper.getInstance().identifierChainToPath({
-              identifierChain: token.parseLocation.identifierChain,
-              sourceType: self.snippet.type(),
-              defaultDatabase: self.snippet.database()
-            }, function (path) {
+            var tokenValLower = token.actualValue.toLowerCase();
+            var uniqueIndex = {};
+            var uniqueValues = [];
+            for (var i = 0; i < possibleValues.length; i++) {
+              possibleValues[i].name = SqlUtils.backTickIfNeeded(self.snippet.type(), possibleValues[i].name);
+              var nameLower = possibleValues[i].name.toLowerCase();
+              if ((nameLower === tokenValLower) || (tokenValLower.indexOf('`') === 0 && tokenValLower.replace(/`/g, '') === nameLower)) {
+                // Break if found
+                verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+                return;
+              }
+              if (!uniqueIndex[nameLower]) {
+                uniqueValues.push(possibleValues[i]);
+                uniqueIndex[nameLower] = true;
+              }
+            }
+            possibleValues = uniqueValues;
+
+            var isLowerCase = tokenValLower === token.value;
+
+            var weightedExpected = $.map(possibleValues, function (val) {
+              return {
+                text: isLowerCase ? val.name.toLowerCase() : val.name,
+                distance: SqlParseSupport.stringDistance(token.value, val.name)
+              }
+            });
+            weightedExpected.sort(function (a, b) {
+              if (a.distance === b.distance) {
+                return a.text.localeCompare(b.text);
+              }
+              return a.distance - b.distance
+            });
+            token.syntaxError = {
+              expected: weightedExpected.slice(0, 50)
+            };
+            token.notFound = true;
+
+            if (token.parseLocation && token.parseLocation.type === 'table') {
+              var path = $.map(token.parseLocation.identifierChain, function (identifier) { return identifier.name; });
               token.qualifiedIdentifier = path.join('.');
-            })
-          }
+            }
 
-          var AceRange = ace.require('ace/range').Range;
-          var range = new AceRange(token.parseLocation.location.first_line - 1, token.parseLocation.location.first_column - 1, token.parseLocation.location.last_line - 1, token.parseLocation.location.last_column - 1);
-          var markerId = self.editor.session.addMarker(range, 'hue-ace-syntax-warning');
-          self.editor.session.$backMarkers[markerId].token = token;
-
+            if (token.parseLocation && weightedExpected.length > 0) {
+              var AceRange = ace.require('ace/range').Range;
+              var range = new AceRange(token.parseLocation.location.first_line - 1, token.parseLocation.location.first_column - 1, token.parseLocation.location.last_line - 1, token.parseLocation.location.last_column - 1);
+              self.addAnchoredMarker(range,  token, 'hue-ace-syntax-warning');
+            }
+            verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+          }).fail(function () {
+            // Can happen when tables aren't cached etc.
+            verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+          });
+        }).fail(function () {
+          // Can happen when tables aren't cached etc.
+          verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
         });
+      };
+
+      verifyThrottle = window.setTimeout(verify, VERIFY_DELAY);
+    };
+
+    AceLocationHandler.prototype.isDatabase = function (databaseIdentifier) {
+      var self = this;
+      if (!databaseIdentifier) {
+        return false;
       }
+      var cleanIdentifier = databaseIdentifier.replace(/^\s*`/, '').replace(/`\s*$/, '').toLowerCase();
+      return self.databaseIndex[cleanIdentifier];
     };
 
     AceLocationHandler.prototype.attachSqlWorker = function () {
       var self = this;
 
-      var apiHelper = ApiHelper.getInstance();
       var activeTokens = [];
-      var aceSqlWorker = new Worker('/desktop/workers/aceSqlLocationWorker.js?bust=' + Math.random());
-      var workerIsReady = false;
-
-      self.disposeFunctions.push(function () {
-        aceSqlWorker.terminate();
-      });
 
       var lastKnownLocations = {};
 
-      var locationsSub = huePubSub.subscribe('get.active.editor.locations', function () {
-        huePubSub.publish('set.active.editor.locations', lastKnownLocations);
+      var getLocationsSub = huePubSub.subscribe('get.active.editor.locations', function (callback, snippet) {
+        if (self.snippet === snippet || self.snippet.inFocus() || self.snippet.editorMode()) {
+          callback(lastKnownLocations);
+        }
       });
 
       self.disposeFunctions.push(function () {
-        locationsSub.remove();
+        getLocationsSub.remove();
       });
 
-      aceSqlWorker.onmessage = function(e) {
-        workerIsReady = true;
-        if (e.data.ping) {
+      var locationWorkerSub = huePubSub.subscribe('ace.sql.location.worker.message', function (e) {
+        if (e.data.id !== self.snippet.id() || e.data.editorChangeTime !== self.editor.lastChangeTime || !self.snippet.isSqlDialect()) {
           return;
         }
 
         lastKnownLocations = {
           id: self.editorId,
           type: self.snippet.type(),
+          namespace: self.snippet.namespace(),
+          compute: self.snippet.compute(),
           defaultDatabase: self.snippet.database(),
           locations: e.data.locations,
+          editorChangeTime: e.data.editorChangeTime,
           activeStatementLocations: e.data.activeStatementLocations,
           totalStatementCount: e.data.totalStatementCount,
           activeStatementIndex: e.data.activeStatementIndex
         };
 
         // Clear out old parse locations to prevent them from being shown when there's a syntax error in the statement
-        while(activeTokens.length > 0) {
+        while (activeTokens.length > 0) {
           delete activeTokens.pop().parseLocation;
         }
 
+        var tokensToVerify = [];
+
         e.data.locations.forEach(function (location) {
-          if (location.type === 'statement' || ((location.type === 'table' || location.type === 'column') && typeof location.identifierChain === 'undefined')) {
+          if (['statement', 'selectList', 'whereClause', 'limitClause'].indexOf(location.type) !== -1
+            || ((location.type === 'table' || location.type === 'column') && typeof location.identifierChain === 'undefined')) {
             return;
           }
-          if ((location.type === 'table' && location.identifierChain.length > 1) || (location.type === 'column' && location.identifierChain.length > 2)) {
-            var clonedChain = location.identifierChain.concat();
-            var dbFound = false;
-            if (apiHelper.containsDatabase(self.snippet.type(), clonedChain[0].name)) {
-              clonedChain.shift();
-              dbFound = true;
-            }
-            if (dbFound && clonedChain.length > 1) {
+
+          if (location.identifierChain && location.identifierChain.length && location.identifierChain[0].name) {
+            // The parser isn't aware of the DDL so sometimes it marks complex columns as tables
+            // I.e. "Impala SELECT a FROM b.c" Is 'b' a database or a table? If table then 'c' is complex
+            if (self.snippet.type() === 'impala' &&
+              location.identifierChain.length > 2 &&
+              (location.type === 'table' || location.type === 'column') &&
+              self.isDatabase(location.identifierChain[0].name)) {
               location.type = 'complex';
             }
           }
 
-          var token = self.editor.session.getTokenAt(location.location.first_line - 1, location.location.first_column);
+          var token = self.editor.getSession().getTokenAt(location.location.first_line - 1, location.location.first_column);
+
+          // Find open UDFs and prevent them from being marked as missing columns, i.e. cos in "SELECT * FROM foo where cos(a|"
+          var rowTokens = self.editor.getSession().getTokens(location.location.first_line - 1);
+          if (location.type === 'column' && token && rowTokens) {
+            var tokenFound = false;
+            var isFunction = false;
+            rowTokens.some(function (rowToken) {
+              if (tokenFound && /\s+/.test(rowToken.value)) {
+                return false;
+              }
+              if (tokenFound) {
+                isFunction = rowToken.value === '(';
+                return true;
+              }
+              if (rowToken === token) {
+                tokenFound = true;
+              }
+            });
+            if (isFunction) {
+              location.type = 'function';
+              delete location.identifierChain;
+              location.function = token.value;
+              token = null;
+            }
+          }
+
           if (token && token.value && /`$/.test(token.value)) {
             // Ace getTokenAt() thinks the first ` is a token, column +1 will include the first and last.
-            token = self.editor.session.getTokenAt(location.location.first_line - 1, location.location.first_column + 1);
+            token = self.editor.getSession().getTokenAt(location.location.first_line - 1, location.location.first_column + 1);
           }
+          if (token && token.value && /^\s*\$\{\s*$/.test(token.value)) {
+            token = null;
+          }
+          if (token && token.value) {
+            var AceRange = ace.require('ace/range').Range;
+            // The Ace tokenizer also splits on '{', '(' etc. hence the actual value;
+            token.actualValue = self.editor.getSession().getTextRange(new AceRange(location.location.first_line - 1, location.location.first_column - 1, location.location.last_line - 1, location.location.last_column - 1));
+          }
+
           if (token !== null) {
             token.parseLocation = location;
             activeTokens.push(token);
-            if (location.type === 'column' && typeof location.tables !== 'undefined' && location.identifierChain.length === 1) {
-              var findIdentifierChainInTable = function (tablesToGo) {
-                var nextTable = tablesToGo.shift();
-                if (typeof nextTable.subQuery === 'undefined') {
-                  apiHelper.fetchAutocomplete({
-                    sourceType: self.snippet.type(),
-                    defaultDatabase: self.snippet.database(),
-                    identifierChain: nextTable.identifierChain,
-                    silenceErrors: true,
-                    successCallback: function (data) {
-                      if (typeof data.columns !== 'undefined' && data.columns.indexOf(location.identifierChain[0].name.toLowerCase()) !== -1) {
-                        location.identifierChain = nextTable.identifierChain.concat(location.identifierChain);
-                        delete location.tables;
-                        self.verifyExists(token, e.data.locations);
-                      } else if (tablesToGo.length > 0) {
-                        findIdentifierChainInTable(tablesToGo);
-                      } else {
-                        self.verifyExists(token, e.data.locations);
-                      }
-                    }
-                  })
-                } else if (tablesToGo.length > 0) {
-                  findIdentifierChainInTable(tablesToGo);
-                } else {
-                  self.verifyExists(token, e.data.locations);
-                }
-              };
-              if (location.tables.length > 1) {
-                findIdentifierChainInTable(location.tables.concat());
-              } else if (location.tables.length == 1 && location.tables[0].identifierChain) {
-                location.identifierChain = location.tables[0].identifierChain.concat(location.identifierChain);
-                delete location.tables;
-                self.verifyExists(token, e.data.locations);
-              }
-            } else {
-              self.verifyExists(token, e.data.locations);
+            delete token.notFound;
+            delete token.syntaxError;
+            if (location.active) {
+              tokensToVerify.push(token);
             }
           }
         });
 
-        huePubSub.publish('editor.active.locations', lastKnownLocations);
-      };
-
-      var whenWorkerIsReady = function (callback) {
-        if (!workerIsReady) {
-          aceSqlWorker.postMessage({ ping: true });
-          window.setTimeout(function () {
-            whenWorkerIsReady(callback);
-          }, 500);
-        } else {
-          callback();
+        if (self.snippet.type() === 'impala' || self.snippet.type() === 'hive') {
+          self.verifyExists(tokensToVerify, e.data.activeStatementLocations);
         }
-      };
+        huePubSub.publish('editor.active.locations', lastKnownLocations);
 
+      });
+
+      self.disposeFunctions.push(function () {
+        locationWorkerSub.remove();
+      });
 
       var statementSubscription = huePubSub.subscribe('editor.active.statement.changed', function (statementDetails) {
+        if (statementDetails.id !== self.editorId) {
+          return;
+        }
         if (self.snippet.type() === 'hive' || self.snippet.type() === 'impala') {
-          whenWorkerIsReady(function () {
-            aceSqlWorker.postMessage({ statementDetails: statementDetails, type: self.snippet.type() });
+          huePubSub.publish('ace.sql.location.worker.post', {
+            id: self.snippet.id(),
+            statementDetails: statementDetails,
+            type: self.snippet.type(),
+            namespace: self.snippet.namespace(),
+            compute: self.snippet.compute(),
+            defaultDatabase: self.snippet.database()
           });
         }
       });
@@ -3904,7 +4758,11 @@
 
     AceLocationHandler.prototype.dispose = function () {
       var self = this;
-      self.detachSqlSyntaxWorker();
+      if (self.sqlSyntaxWorkerSub !== null) {
+        self.sqlSyntaxWorkerSub.remove();
+        self.sqlSyntaxWorkerSub = null;
+      }
+
       self.disposeFunctions.forEach(function (dispose) {
         dispose();
       })
@@ -3934,7 +4792,6 @@
       $el.text(snippet.statement_raw());
 
       var editor = ace.edit($el.attr("id"));
-
       var Tooltip = ace.require("ace/tooltip").Tooltip;
       var AceRange = ace.require('ace/range').Range;
 
@@ -3966,22 +4823,16 @@
       function processErrorsAndWarnings(type, list) {
         editor.clearErrorsAndWarnings(type);
         var offset = 0;
-        if (snippet.isSqlDialect()) {
-          if (editor.getSelectedText()) {
-            var selectionRange = editor.getSelectionRange();
-            offset = Math.min(selectionRange.start.row, selectionRange.end.row);
-          }
-          if (snippet.result && snippet.result.statements_count() > 1) {
-            offset = snippet.result.statement_range().start.row;
-          }
+        if (snippet.isSqlDialect() && editor.getSelectedText()) {
+          var selectionRange = editor.getSelectionRange();
+          offset = Math.min(selectionRange.start.row, selectionRange.end.row);
         }
         if (list.length > 0) {
           list.forEach(function (item, cnt) {
             if (item.line !== null) {
               if (type === 'error') {
                 editor.addError(item.message, item.line + offset);
-              }
-              else {
+              } else {
                 editor.addWarning(item.message, item.line + offset);
               }
               if (cnt == 0) {
@@ -3999,7 +4850,6 @@
       var errorsSub = snippet.errors.subscribe(function (newErrors) {
         processErrorsAndWarnings('error', newErrors);
       });
-
 
       var aceWarningsSub = snippet.aceWarnings.subscribe(function (newWarnings) {
         processErrorsAndWarnings('warning', newWarnings);
@@ -4091,6 +4941,14 @@
         editor.customMenuOptions.getErrorHighlighting = function () {
           return errorHighlightingEnabled;
         };
+        editor.customMenuOptions.setClearIgnoredSyntaxChecks = function (flag) {
+          ApiHelper.getInstance().setInTotalStorage('hue.syntax.checker', 'suppressedRules', {});
+          $('#setClearIgnoredSyntaxChecks').hide();
+          $('#setClearIgnoredSyntaxChecks').before('<div style="margin-top:5px;float:right;">done</div>');
+        };
+        editor.customMenuOptions.getClearIgnoredSyntaxChecks = function () {
+          return false;
+        }
       }
 
       $.extend(editorOptions, aceOptions);
@@ -4132,8 +4990,9 @@
 
       initAutocompleters();
 
+      var UNICODES_TO_REMOVE = /[\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u200B\u202F\u205F\u3000\uFEFF]/ig;  //taken from https://www.cs.tut.fi/~jkorpela/chars/spaces.html
+
       var removeUnicodes = function (value) {
-        var UNICODES_TO_REMOVE = /[\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u200B\u202F\u205F\u3000\uFEFF]/ig;  //taken from https://www.cs.tut.fi/~jkorpela/chars/spaces.html
         return value.replace(UNICODES_TO_REMOVE, ' ');
       };
 
@@ -4151,19 +5010,8 @@
         }
       }
 
-      var lastEditorValue = null;
-      var checkEditorValueInterval = -1;
       var pasteListener = editor.on('paste', function (e) {
-        window.clearInterval(checkEditorValueInterval);
-        checkEditorValueInterval = window.setInterval(function () {
-          if (lastEditorValue !== editor.getValue()) {
-            var lastKnownPosition = editor.getCursorPosition();
-            window.clearInterval(checkEditorValueInterval);
-            lastEditorValue = editor.getValue();
-            editor.setValue(removeUnicodes(lastEditorValue), 1);
-            editor.moveCursorToPosition(lastKnownPosition);
-          }
-        }, 10);
+        e.text = removeUnicodes(e.text);
       });
 
       disposeFunctions.push(function () {
@@ -4188,6 +5036,13 @@
       disposeFunctions.push(function () {
         editor.off('input', inputListener);
       });
+
+      if (snippet.aceCursorPosition()) {
+        editor.moveCursorToPosition(snippet.aceCursorPosition());
+        window.setTimeout(function () {
+          editor.centerSelection();
+        }, 0);
+      }
 
       var focusListener = editor.on('focus', function () {
         initAutocompleters();
@@ -4294,12 +5149,43 @@
                     var endCoordinates = editor.renderer.textToScreenCoordinates(pointerPosition.row, token.start);
 
                     var tooltipText = token.parseLocation.type === 'asterisk' ? options.expandStar : options.contextTooltip;
+                    var colType;
+                    if (token.parseLocation.type === 'column') {
+                      var tableChain = token.parseLocation.identifierChain.concat();
+                      var lastIdentifier = tableChain.pop();
+                      if (tableChain.length > 0 && lastIdentifier && lastIdentifier.name) {
+                        var colName = lastIdentifier.name.toLowerCase();
+                        // Note, as cachedOnly is set to true it will call the successCallback right away (or not at all)
+                        DataCatalog.getEntry({
+                          sourceType: snippet.type(),
+                          namespace: snippet.namespace(),
+                          compute: snippet.compute(),
+                          path: $.map(tableChain, function (identifier) { return identifier.name })
+                        }).done(function (entry) {
+                          entry.getSourceMeta({ cachedOnly: true, silenceErrors: true }).done(function (sourceMeta) {
+                            if (sourceMeta && sourceMeta.extended_columns) {
+                              sourceMeta.extended_columns.every(function (col) {
+                                if (col.name.toLowerCase() === colName) {
+                                  colType = col.type.match(/^[^<]*/g)[0];
+                                  return false;
+                                }
+                                return true;
+                              })
+                            }
+                          });
+                        });
+                      }
+                    }
                     if (token.parseLocation.identifierChain) {
-                      tooltipText += ' (' + $.map(token.parseLocation.identifierChain, function (identifier) {
+                      var sqlIdentifier = $.map(token.parseLocation.identifierChain, function (identifier) {
                           return identifier.name
-                        }).join('.') + ')';
+                        }).join('.');
+                      if (colType) {
+                        sqlIdentifier += ' (' + colType + ')';
+                      }
+                      tooltipText = sqlIdentifier + ' - ' + tooltipText;
                     } else if (token.parseLocation.function) {
-                      tooltipText += ' (' + token.parseLocation.function + ')';
+                      tooltipText = token.parseLocation.function + ' - ' + tooltipText;
                     }
                     contextTooltip.show(tooltipText, endCoordinates.pageX, endCoordinates.pageY + editor.renderer.lineHeight + 3);
                   }
@@ -4307,12 +5193,12 @@
               } else if (token !== null && token.notFound) {
                 tooltipTimeout = window.setTimeout(function () {
                   // TODO: i18n
-                  if (token.notFound) {
+                  if (token.notFound && token.syntaxError) {
                     var tooltipText;
                     if (token.syntaxError.expected.length > 0) {
-                      tooltipText = SyntaxCheckerGlobals.i18n.didYouMean + ' "' + token.syntaxError.expected[0].text + '"?';
+                      tooltipText = HUE_I18n.syntaxChecker.didYouMean + ' "' + token.syntaxError.expected[0].text + '"?';
                     } else {
-                      tooltipText = SyntaxCheckerGlobals.i18n.couldNotFind + ' "' + (token.qualifiedIdentifier || token.value) + '"';
+                      tooltipText = HUE_I18n.syntaxChecker.couldNotFind + ' "' + (token.qualifiedIdentifier || token.value) + '"';
                     }
                     var endCoordinates = editor.renderer.textToScreenCoordinates(pointerPosition.row, token.start);
                     contextTooltip.show(tooltipText, endCoordinates.pageX, endCoordinates.pageY + editor.renderer.lineHeight + 3);
@@ -4324,9 +5210,9 @@
                   if (token.syntaxError) {
                     var tooltipText;
                     if (token.syntaxError.expected.length > 0) {
-                      tooltipText = SyntaxCheckerGlobals.i18n.didYouMean + ' "' + token.syntaxError.expected[0].text + '"?';
+                      tooltipText = HUE_I18n.syntaxChecker.didYouMean + ' "' + token.syntaxError.expected[0].text + '"?';
                     } else if (token.syntaxError.expectedStatementEnd) {
-                      tooltipText = SyntaxCheckerGlobals.i18n.expectedStatementEnd;
+                      tooltipText = HUE_I18n.syntaxChecker.expectedStatementEnd;
                     }
                     if (tooltipText) {
                       var endCoordinates = editor.renderer.textToScreenCoordinates(pointerPosition.row, token.start);
@@ -4339,7 +5225,7 @@
               }
               if (lastHoveredToken !== token) {
                 clearActiveMarkers();
-                if (token !== null && !token.notFound && token.parseLocation && ['alias', 'whereClause', 'limitClause'].indexOf(token.parseLocation.type) === -1) {
+                if (token !== null && !token.notFound && token.parseLocation && ['alias', 'whereClause', 'limitClause', 'selectList'].indexOf(token.parseLocation.type) === -1) {
                   markLocation(token.parseLocation);
                 }
                 lastHoveredToken = token;
@@ -4361,7 +5247,7 @@
         });
 
         disposeFunctions.push(function () {
-          editor.off('input', mousemoveListener);
+          editor.off('input', inputListener);
         });
 
         var mouseoutListener = function (e) {
@@ -4384,7 +5270,7 @@
           if (selectionRange.isEmpty()) {
             var pointerPosition = editor.renderer.screenToTextCoordinates(e.clientX + 5, e.clientY);
             var token = editor.session.getTokenAt(pointerPosition.row, pointerPosition.column);
-            if (token && ((token.parseLocation && ['alias', 'whereClause', 'limitClause'].indexOf(token.parseLocation.type) === -1) || token.syntaxError)) {
+            if (token && ((token.parseLocation && ['alias', 'whereClause', 'limitClause', 'selectList'].indexOf(token.parseLocation.type) === -1) || token.syntaxError)) {
               var range = token.parseLocation ? markLocation(token.parseLocation) : new AceRange(token.syntaxError.loc.first_line - 1, token.syntaxError.loc.first_column, token.syntaxError.loc.last_line - 1, token.syntaxError.loc.first_column + token.syntaxError.text.length);
               var startCoordinates = editor.renderer.textToScreenCoordinates(range.start.row, range.start.column);
               var endCoordinates = editor.renderer.textToScreenCoordinates(range.end.row, range.end.column);
@@ -4396,14 +5282,45 @@
                 bottom: endCoordinates.pageY + editor.renderer.lineHeight
               };
 
-              if (token.parseLocation && !token.notFound) {
-                huePubSub.publish('context.popover.show', {
-                  data: token.parseLocation,
-                  sourceType: snippet.type(),
-                  defaultDatabase: snippet.database(),
-                  pinEnabled: true,
-                  source: source
+              if (token.parseLocation && token.parseLocation.identifierChain && !token.notFound) {
+                token.parseLocation.resolveCatalogEntry().done(function (entry) {
+                  huePubSub.publish('context.popover.show', {
+                    data: {
+                      type: 'catalogEntry',
+                      catalogEntry: entry
+                    },
+                    pinEnabled: true,
+                    source: source
+                  });
+                }).fail(function () {
+                  token.notFound = true;
                 });
+              } else if (token.parseLocation && !token.notFound) {
+                // Asterisk, function etc.
+                if (token.parseLocation.type === 'file') {
+                  AssistStorageEntry.getEntry(token.parseLocation.path).done(function (entry) {
+                    entry.open(true);
+                    huePubSub.publish('context.popover.show', {
+                      data: {
+                        type: 'storageEntry',
+                        storageEntry: entry,
+                        editorLocation: token.parseLocation.location
+                      },
+                      pinEnabled: true,
+                      source: source
+                    });
+                  });
+                } else {
+                  huePubSub.publish('context.popover.show', {
+                    data: token.parseLocation,
+                    sourceType: snippet.type(),
+                    namespace: snippet.namespace(),
+                    compute: snippet.compute(),
+                    defaultDatabase: snippet.database(),
+                    pinEnabled: true,
+                    source: source
+                  });
+                }
               } else if (token.syntaxError) {
                 huePubSub.publish('sql.syntax.dropdown.show', {
                   snippet: snippet,
@@ -4534,6 +5451,14 @@
         }
       });
 
+      editor.commands.addCommand({
+        name: "esc",
+        bindKey: {win: "Ctrl-Shift-p", mac: "Ctrl-Shift-p|Command-Shift-p"},
+        exec: function () {
+          huePubSub.publish('editor.presentation.toggle');
+        }
+      });
+
       editor.commands.bindKey("Ctrl-P", "golineup");
 
       editor.commands.addCommand({
@@ -4568,13 +5493,30 @@
         return /^\s*$/.test(editor.getValue()) || /^.*;\s*$/.test(editor.getTextBeforeCursor());
       };
 
+      var insertSqlAtCursor = function (text, cursorEndAdjust, menu) {
+        var before = editor.getTextBeforeCursor();
+        if (/\S+$/.test(before)) {
+          text = " " + text;
+        }
+        if (menu) {
+          menu.hide();
+        }
+        editor.session.insert(editor.getCursorPosition(), text);
+        if (cursorEndAdjust !== 0) {
+          var cursor = editor.getCursorPosition();
+          editor.moveCursorToPosition({ row: cursor.row, column: cursor.column + cursorEndAdjust });
+        }
+        editor.clearSelection();
+        editor.focus();
+      };
+
       var insertTableAtCursorSub = huePubSub.subscribe('editor.insert.table.at.cursor', function(details) {
         if ($el.data('last-active-editor')) {
           var qualifiedName = snippet.database() == details.database ? details.name : details.database + '.' + details.name;
           if (isNewStatement()) {
-            editor.session.insert(editor.getCursorPosition(), 'SELECT * FROM ' + qualifiedName + ' LIMIT 100;');
+            insertSqlAtCursor('SELECT * FROM ' + qualifiedName + ' LIMIT 100;', -1);
           } else {
-            editor.session.insert(editor.getCursorPosition(), ' ' + qualifiedName + ' ');
+            insertSqlAtCursor(qualifiedName + ' ', 0);
           }
         }
       });
@@ -4583,16 +5525,16 @@
         if ($el.data('last-active-editor')) {
           if (isNewStatement()) {
             var qualifiedFromName = snippet.database() == details.database ? details.table : details.database + '.' + details.table;
-            editor.session.insert(editor.getCursorPosition(), 'SELECT '  + details.name + ' FROM ' + qualifiedFromName + ' LIMIT 100;');
+            insertSqlAtCursor('SELECT '  + details.name + ' FROM ' + qualifiedFromName + ' LIMIT 100;', -1);
           } else {
-            editor.session.insert(editor.getCursorPosition(), ' ' + details.name + ' ');
+            insertSqlAtCursor(details.name + ' ', 0);
           }
         }
       });
 
       var insertAtCursorSub = huePubSub.subscribe('editor.insert.at.cursor', function(text) {
         if ($el.data('last-active-editor')) {
-          editor.session.insert(editor.getCursorPosition(), ' ' + text + ' ');
+          insertSqlAtCursor(text + ' ', 0);
         }
       });
 
@@ -4611,6 +5553,16 @@
 
       disposeFunctions.push(function () {
         dblClickHdfsItemSub.remove();
+      });
+
+      var dblClickAdlsItemSub = huePubSub.subscribe("assist.dblClickAdlsItem", function(assistHdfsEntry) {
+        if ($el.data("last-active-editor")) {
+          editor.session.insert(editor.getCursorPosition(), "adl:/" + assistHdfsEntry.path + "'");
+        }
+      });
+
+      disposeFunctions.push(function () {
+        dblClickAdlsItemSub.remove();
       });
 
 
@@ -4635,9 +5587,9 @@
       });
 
       var sampleErrorInsertSub = huePubSub.subscribe('sample.error.insert.click', function(popoverEntry) {
-          var table = popoverEntry.identifierChain[popoverEntry.identifierChain.length - 1]['name'];
-          var text = "SELECT * FROM " + table + " LIMIT 100";
-          editor.session.insert(editor.getCursorPosition(), text);
+        var table = popoverEntry.identifierChain[popoverEntry.identifierChain.length - 1]['name'];
+        var text = "SELECT * FROM " + table + " LIMIT 100;";
+        insertSqlAtCursor(text, -1);
       });
 
       disposeFunctions.push(function () {
@@ -4671,6 +5623,17 @@
       var lastMeta = {};
       var draggableTextSub = huePubSub.subscribe('draggable.text.meta', function (meta) {
         lastMeta = meta;
+        if (meta.isView) {
+          $tableDropMenu.find('.editor-drop-update').hide();
+          $tableDropMenu.find('.editor-drop-insert').hide();
+          $tableDropMenu.find('.editor-drop-drop').hide();
+          $tableDropMenu.find('.editor-drop-view').show();
+        } else {
+          $tableDropMenu.find('.editor-drop-update').show();
+          $tableDropMenu.find('.editor-drop-insert').show();
+          $tableDropMenu.find('.editor-drop-drop').show();
+          $tableDropMenu.find('.editor-drop-view').hide();
+        }
         if (typeof meta !== 'undefined' && typeof meta.database !== 'undefined' && typeof meta.table !== 'undefined') {
           $identifierDropMenu.text(meta.database + '.' + meta.table)
         }
@@ -4682,35 +5645,29 @@
 
       var menu = ko.bindingHandlers.contextMenu.initContextMenu($tableDropMenu, $('.content-panel'));
 
-      var setFromDropMenu = function (text) {
-        var before = editor.getTextBeforeCursor();
-        if (/\S+$/.test(before)) {
-          text = " " + text;
-        }
-        editor.session.insert(editor.getCursorPosition(), text);
-        menu.hide();
-        editor.focus();
-      };
-
       $tableDropMenu.find('.editor-drop-value').click(function () {
-        setFromDropMenu(lastMeta.database + '.' + lastMeta.table);
+        insertSqlAtCursor(SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ' ', 0, menu);
       });
 
       $tableDropMenu.find('.editor-drop-select').click(function () {
-        setFromDropMenu('SELECT * FROM ' + lastMeta.database + '.' + lastMeta.table + ' LIMIT 100;');
+        insertSqlAtCursor('SELECT * FROM ' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ' LIMIT 100;', -1, menu);
         $tableDropMenu.hide();
       });
 
       $tableDropMenu.find('.editor-drop-insert').click(function () {
-        setFromDropMenu('INSERT INTO ' + lastMeta.database + '.' + lastMeta.table + ' VALUES ();');
+        insertSqlAtCursor('INSERT INTO ' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ' VALUES ();', -2, menu);
       });
 
       $tableDropMenu.find('.editor-drop-update').click(function () {
-        setFromDropMenu('UPDATE ' + lastMeta.database + '.' + lastMeta.table + ' SET ');
+        insertSqlAtCursor('UPDATE ' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ' SET ', 0, menu);
+      });
+
+      $tableDropMenu.find('.editor-drop-view').click(function () {
+        insertSqlAtCursor('DROP VIEW ' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ';', -1, menu);
       });
 
       $tableDropMenu.find('.editor-drop-drop').click(function () {
-        setFromDropMenu('DROP TABLE ' + lastMeta.database + '.' + lastMeta.table + ';');
+        insertSqlAtCursor('DROP TABLE ' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.database) + '.' + SqlUtils.backTickIfNeeded(lastMeta.type, lastMeta.table) + ';', -1, menu);
       });
 
       $el.droppable({
@@ -4718,7 +5675,7 @@
         drop: function (e, ui) {
           var position = editor.renderer.screenToTextCoordinates(e.clientX, e.clientY);
           var text = ui.helper.text();
-          if (lastMeta.type === 's3' || lastMeta.type === 'hdfs'){
+          if (lastMeta.type === 's3' || lastMeta.type === 'hdfs' || lastMeta.type === 'adls'){
             text = "'" + lastMeta.definition.path + "'";
           }
           editor.moveCursorToPosition(position);
@@ -4856,12 +5813,15 @@
             }
           }
           if (!conflictingWithErrorMarkers) {
-            editor.session.addMarker(new AceRange(range.start.row, range.start.column, range.end.row, range.end.column), 'highlighted', 'line');
-            ace.require('ace/lib/dom').importCssString('.highlighted {\
-                background-color: #E3F7FF;\
-                position: absolute;\
-            }');
-            editor.scrollToLine(range.start.row, true, true, function () {});
+            var lineOffset = snippet.lastAceSelectionRowOffset();
+            window.setTimeout(function () {
+              editor.session.addMarker(new AceRange(range.start.row + lineOffset, range.start.column, range.end.row + lineOffset, range.end.column), 'highlighted', 'line');
+              ace.require('ace/lib/dom').importCssString('.highlighted {\
+                  background-color: #E3F7FF;\
+                  position: absolute;\
+              }');
+              editor.scrollToLine(range.start.row + lineOffset, true, true, function () {});
+            }, 0);
           }
         }
         try {
@@ -4921,6 +5881,10 @@
     init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
       var selectedValues = valueAccessor();
 
+      if (allBindings().checkedValue) {
+        viewModel = ko.unwrap(allBindings().checkedValue);
+      }
+
       var updateCheckedState = function () {
         ko.utils.toggleDomNodeCssClass(element, 'fa-check', selectedValues.indexOf(viewModel) > -1);
       };
@@ -4943,7 +5907,7 @@
     after: ['value', 'attr'],
     init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
       var value = valueAccessor();
-      $(element).addClass('hueCheckbox fa');
+      $(element).addClass('hue-checkbox fa');
 
       var updateCheckedState = function () {
         ko.utils.toggleDomNodeCssClass(element, 'fa-check', value());
@@ -5107,36 +6071,61 @@
 
       var huePubSubs = [];
 
-      var scrollToIndex = function (idx, offset, entry) {
+      var scrollToIndex = function (idx, offset, instant, callback) {
         var lastKnownHeights = $parentFVOwnerElement.data('lastKnownHeights');
-        if (! lastKnownHeights) {
+        if (! lastKnownHeights || lastKnownHeights.length <= idx) {
           return;
         }
         var top = 0;
         for (var i = 0; i < idx; i++) {
           top += lastKnownHeights[i];
         }
+        var bottom = top + lastKnownHeights[idx];
         window.setTimeout(function () {
-          $('.assist-db-scrollable').stop().animate({ scrollTop: top + offset }, '500', 'swing', function () {
-            huePubSub.publish('assist.db.scrollToComplete', entry);
-          });
+          var newScrollTop = top + offset;
+          if (instant) {
+            if (newScrollTop >= $container.height() + $container.scrollTop()) {
+              $container.scrollTop(bottom - $container.height());
+            } else if (newScrollTop <= $container.scrollTop()) {
+              $container.scrollTop(newScrollTop);
+            }
+          } else {
+            $container.stop().animate({ scrollTop: newScrollTop }, '500', 'swing', function () {
+              if (callback) {
+                callback();
+              }
+            });
+          }
         }, 0);
 
       };
 
-      huePubSubs.push(huePubSub.subscribe('assist.db.scrollTo', function (targetEntry) {
-        var foundIndex = -1;
-        $.each(allEntries, function (idx, entry) {
-          if (targetEntry === entry) {
-            foundIndex = idx;
-            return false;
+      if (!options.skipScrollEvent) {
+        huePubSubs.push(huePubSub.subscribe('assist.db.scrollTo', function (targetEntry) {
+          var foundIndex = -1;
+          $.each(allEntries, function (idx, entry) {
+            if (targetEntry === entry) {
+              foundIndex = idx;
+              return false;
+            }
+          });
+          if (foundIndex !== -1) {
+            var offset = depth > 0 ? $parentFVOwnerElement.position().top : 0;
+            scrollToIndex(foundIndex, offset, false, function () {
+              huePubSub.publish('assist.db.scrollToComplete', targetEntry);
+            });
           }
-        });
-        if (foundIndex !== -1) {
-          var offset = depth > 0 ? $parentFVOwnerElement.position().top : 0;
-          scrollToIndex(foundIndex, offset, targetEntry);
-        }
-      }));
+        }));
+      }
+
+      if (ko.isObservable(viewModel.foreachVisible)) {
+        viewModel.foreachVisible({
+          scrollToIndex: function (index) {
+            var offset = depth > 0 ? $parentFVOwnerElement.position().top : 0;
+            scrollToIndex(index, offset, true);
+          }
+        })
+      }
 
       var childBindingContext = bindingContext.createChildContext(
           bindingContext.$rawData,
@@ -5152,31 +6141,21 @@
             });
           });
 
-      var withNiceScroll = !options.disableNiceScroll;
       var $wrapper = $element.parent();
       if (!$wrapper.hasClass('foreach-wrapper')) {
         $wrapper = $('<div>').css({
           'position': 'relative',
           'width': '100%'
         }).addClass('foreach-wrapper').insertBefore($element);
+        if (options.usePreloadBackground) {
+          $wrapper.addClass('assist-preloader-wrapper');
+          $element.addClass('assist-preloader');
+        }
         $element.css({
           'position': 'absolute',
           'top': 0,
           'width': '100%'
         }).appendTo($wrapper);
-
-        if ($.fn.niceScroll && withNiceScroll) {
-          hueUtils.initNiceScroll($container, {
-            horizrailenabled: false,
-            nativeparentscrolling: false
-          });
-        }
-      } else {
-        window.setTimeout(function(){
-          if ($.fn.niceScroll && withNiceScroll) {
-            $container.getNiceScroll().resize();
-          }
-        }, 200);
       }
 
       // This is kept up to date with the currently rendered elements, it's used to keep track of any
@@ -5201,9 +6180,6 @@
           totalHeight += height;
         });
         $wrapper.height(totalHeight + 'px');
-        if ($.fn.niceScroll) {
-          $container.getNiceScroll().resize();
-        }
       };
       resizeWrapper();
 
@@ -5364,6 +6340,7 @@
       };
 
       var renderThrottle = -1;
+      var preloadGhostThrottle = -1;
       var lastScrollTop = -1;
       var onScroll = function () {
         if (startIndex > incrementLimit && Math.abs(lastScrollTop - $container.scrollTop()) < (incrementLimit * options.minHeight)) {
@@ -5372,6 +6349,15 @@
         lastScrollTop = $container.scrollTop();
 
         setStartAndEndFromScrollTop();
+
+        // adds a preload ghost image just on scroll and removes it 200ms after the scroll stops
+        if (options.usePreloadBackground) {
+          $wrapper.addClass('assist-preloader-ghost');
+          clearTimeout(preloadGhostThrottle);
+          preloadGhostThrottle = setTimeout(function () {
+            $wrapper.removeClass('assist-preloader-ghost');
+          }, 200);
+        }
 
         clearTimeout(renderThrottle);
         var startDiff = Math.abs($parentFVOwnerElement.data('startIndex') - startIndex);
@@ -5563,23 +6549,6 @@
     }
   };
 
-  ko.bindingHandlers.niceScroll = {
-    init: function (element, valueAccessor, allBindings) {
-      var options = valueAccessor() || {};
-      if ((typeof options.enable === 'undefined' || options.enable) && $.fn.niceScroll) {
-        hueUtils.initNiceScroll($(element), options);
-        $(element).addClass('nicescrollified');
-        huePubSub.subscribe('nicescroll.resize', function () {
-          $(element).getNiceScroll().resize();
-        });
-        ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
-          $(element).getNiceScroll().remove();
-        });
-      }
-    }
-  };
-
-
   ko.bindingHandlers.plotly = {
     init: function (element, valueAccessor, allBindings) {
       var options = valueAccessor() || {};
@@ -5593,12 +6562,13 @@
     init: function (element, valueAccessor, allBindings) {
       var options = valueAccessor() || {};
       var scrollable = options.scrollable ? options.scrollable : window;
-
+      var triggerAdjust = options.triggerAdjust || 0;
+      var zIndex = options.zIndex || 1000;
       $(element).addClass('dockable');
 
       var initialTopPosition = -1;
       var initialSize = {
-        w: $(element).width(),
+        w: $(element).width() - hueUtils.scrollbarWidth(),
         h: $(element).outerHeight() + (options.jumpCorrection || 0)
       };
 
@@ -5607,13 +6577,10 @@
       function dock() {
         if (initialTopPosition == -1) {
           initialTopPosition = $(element).position().top;
+          ghost.height($(element).outerHeight() + (options.jumpCorrection || 0));
         }
-        if ($(scrollable).scrollTop() > initialTopPosition) {
-          $(element).css({
-            'position': 'fixed',
-            'top': options.topSnap,
-            'width': initialSize.w + 'px'
-          });
+        if ($(scrollable).scrollTop() + triggerAdjust > initialTopPosition) {
+          $(element).attr('style', 'position: fixed!important; top: ' + options.topSnap + '; width: ' + initialSize.w + 'px!important; z-index: ' + zIndex);
           ghost.show();
         }
         else {
@@ -5622,23 +6589,30 @@
         }
       }
 
-      if (options.nicescroll) {
-        var checkForNicescrollInit = -1;
-        checkForNicescrollInit = window.setInterval(function () {
-          if ($(scrollable).hasClass('nicescrollified')) {
-            window.clearTimeout(checkForNicescrollInit);
-            $(scrollable).on('scroll', dock);
-          }
-        }, 200);
-      }
-      else {
-        $(scrollable).on('scroll', dock);
-      }
+      $(scrollable).on('scroll', dock);
 
-      huePubSub.subscribe('scrollable.scroll.off', function (scrollElement) {
+      var scrollOffSubscription = huePubSub.subscribe('scrollable.scroll.off', function (scrollElement) {
         if (scrollElement === scrollable) {
           $(scrollable).on('scroll', dock);
         }
+      });
+
+
+      function resetInitialStyle() {
+        $(element).removeAttr('style');
+        initialSize = {
+          w: $(element).width() - hueUtils.scrollbarWidth(),
+          h: $(element).outerHeight() + (options.jumpCorrection || 0)
+        };
+        dock();
+      }
+
+      $(window).on('resize', resetInitialStyle);
+
+      ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+        $(window).off('resize', resetInitialStyle);
+        $(scrollable).off('scroll', dock);
+        scrollOffSubscription.remove();
       });
 
     }
@@ -5684,7 +6658,7 @@
     }
   };
 
-  ko.bindingHandlers.readonlyXML = {
+  ko.bindingHandlers.readOnlyAce = {
     init: function (element, valueAccessor, allBindingsAccessor) {
       $(element).css({
         'min-height': '250px'
@@ -5695,12 +6669,12 @@
         maxLines: Infinity
       });
       editor.setTheme($.totalStorage("hue.ace.theme") || "ace/theme/hue");
-      editor.getSession().setMode("ace/mode/xml");
       $(element).data('aceEditor', editor);
     },
     update: function (element, valueAccessor, allBindingsAccessor) {
       var value = ko.unwrap(valueAccessor());
       var options = ko.unwrap(allBindingsAccessor());
+      $(element).data('aceEditor').getSession().setMode("ace/mode/" + options.type || 'xml'); // e.g. xml, json...
       if (typeof value !== 'undefined' && value !== '') { // allows highlighting static code
         if (options.path) {
           value = value[options.path];
@@ -5792,6 +6766,7 @@
           });
 
           element.innerHTML = '<div class="ace_editor ace-hue"><div class="ace_layer" style="position: static;">' + res.join('') + '</div></div>';
+          $(element).find('.ace_invisible_space').remove();
         });
       }
 
@@ -5900,12 +6875,19 @@
       var value = typeof options.data === 'function' ? options.data() : options.data;
 
       function render() {
-        if (options.format) {
-          $element.text(moment(value).format(options.format));
+        var fMoment = moment(value);
+        var text;
+        if (!fMoment.isValid()) {
+          text = value;
+        } else {
+          if (options.format) {
+            text = fMoment.format(options.format);
+          }
+          else {
+            text = fMoment.format();
+          }
         }
-        else {
-          $element.text(moment(value));
-        }
+        $element.text(text);
       }
       render();
     }
@@ -5929,6 +6911,7 @@
       $element.jHueHdfsTree({
         home: '',
         isS3: !!options.isS3,
+        root: options.root,
         initialPath: options.path,
         withTopPadding: false,
         onPathChange: function (path) {
@@ -5950,6 +6933,7 @@
         'pig': 'query-pig',
         'sqoop': 'query-sqoop1',
         'distcp-doc': 'query-distcp',
+        'shell-doc': 'query-shell',
         'mapreduce-doc': 'query-mapreduce',
         'hive-document-widget': 'query-hive',
         'impala-document-widget': 'query-impala',
@@ -5963,7 +6947,7 @@
       }
       var type = 'query-hive';
       if (options.type) {
-        var tempType = options.type();
+        var tempType = ko.unwrap(options.type);
         if (tempType === 'function') {
           tempType = tempType();
         }
@@ -5990,20 +6974,13 @@
           if (query === '' && options.value && !firstLoad){
             firstLoad = true;
           }
-          $.ajax({
-            url: '/desktop/api2/docs/',
-            data: {
-              type: type,
-              text: query,
-              include_trashed: false,
-              limit: 100
-            },
-            type: 'GET',
-            error: function () {
-              callback();
-            },
-            success: function (res) {
-              callback(res.documents);
+          ApiHelper.getInstance().searchDocuments({
+            type: type,
+            text: query,
+            include_trashed: false,
+            limit: 100,
+            successCallback: function(data){
+              callback(data.documents)
             }
           });
         },
@@ -6070,13 +7047,13 @@
 
   ko.bindingHandlers.parseArguments = {
     init: function (element, valueAccessor, allBindingsAccessor) {
-      $el = $(element);
+      var $el = $(element);
 
       function splitStrings(str) {
         var bits = [];
         var isInQuotes = false;
         var tempStr = '';
-        str.split('').forEach(function (char) {
+        str.replace(/<\/?arg>|<\/?command>/gi, ' ').replace(/\r?\n|\r/g, '').replace(/\s\s+/g, ' ').split('').forEach(function (char) {
           if (char == '"' || char == "'") {
             isInQuotes = !isInQuotes;
           }
@@ -6101,7 +7078,7 @@
           var newList = [];
           args.forEach(function (arg) {
             var obj = {};
-            obj[valueAccessor().objectKey] = arg;
+            obj[valueAccessor().objectKey] = $.trim(arg);
             newList.push(obj);
           });
           valueAccessor().list(ko.mapping.fromJS(newList)());
@@ -6189,7 +7166,9 @@
   ko.bindingHandlers.dropzone = {
     init: function (element, valueAccessor) {
       var value = ko.unwrap(valueAccessor());
-
+      if (value.disabled) {
+        return;
+      }
       var options = {
         autoDiscover: false,
         maxFilesize: 5000000,
@@ -6198,18 +7177,17 @@
         '<span class="break-word" data-dz-name></span>' +
         '<div class="pull-right">' +
         '<span class="muted" data-dz-size></span>&nbsp;&nbsp;' +
-        '<span data-dz-remove><a href="javascript:undefined;" title="' + DropzoneGlobals.i18n.cancelUpload + '"><i class="fa fa-fw fa-times"></i></a></span>' +
+        '<span data-dz-remove><a href="javascript:undefined;" title="' + HUE_I18n.dropzone.cancelUpload + '"><i class="fa fa-fw fa-times"></i></a></span>' +
           '<span style="display: none" data-dz-uploaded><i class="fa fa-fw fa-check muted"></i></span>' +
         '</div>' +
         '<div class="progress-row-bar" data-dz-uploadprogress></div>' +
         '</div>',
-        drop: function (e) {
+        sending: function (e) {
           $('.hoverMsg').addClass('hide');
-          if (e.dataTransfer.files.length > 0) {
-            $('#progressStatus').removeClass('hide');
-            $('#progressStatusBar').removeClass('hide');
-            $('#progressStatusBar div').css('width', '0');
-          }
+          $('#progressStatus').removeClass('hide');
+          $('#progressStatusBar').removeClass('hide');
+          $('#progressStatus .progress-row').remove();
+          $('#progressStatusBar div').css('width', '0');
         },
         uploadprogress: function (file, progress) {
           $('[data-dz-name]').each(function (cnt, item) {
@@ -6226,7 +7204,7 @@
           $('#progressStatusBar div').width(progress.toFixed() + "%");
         },
         canceled: function () {
-          $.jHueNotify.info(DropzoneGlobals.i18n.uploadCanceled);
+          $.jHueNotify.info(HUE_I18n.dropzone.uploadCanceled);
         },
         complete: function (file) {
           if (file.xhr.response != '') {
@@ -6239,7 +7217,7 @@
                 }
               }
               else {
-                $(document).trigger('info', response.path + ' ' + DropzoneGlobals.i18n.uploadSucceeded);
+                $(document).trigger('info', response.path + ' ' + HUE_I18n.dropzone.uploadSucceeded);
                 if (value.onComplete) {
                   value.onComplete(response.path);
                 }
@@ -6260,6 +7238,11 @@
       $.extend(options, value);
 
       $(element).addClass('dropzone');
+      
+      $(element).on('click', function (e) {
+        e.stopPropagation();
+      });
+
       new Dropzone(element, options);
     }
   };
@@ -6268,6 +7251,105 @@
     init: function (element, valueAccessor) {
       $(element).jHueRowSelector();
     }
-  }
+  };
+
+  //https://stackoverflow.com/questions/19865364/knockoutjs-linking-value-from-a-input-to-a-datalist-value
+  ko.bindingHandlers.datalist = (function () {
+    function getVal(rawItem, prop) {
+      var item = ko.unwrap(rawItem);
+      return item && prop ? ko.unwrap(item[prop]) : item;
+    }
+
+    function findItem(options, prop, ref) {
+      return ko.utils.arrayFirst(options, function (item) {
+        return ref === getVal(item, prop);
+      });
+    }
+    return {
+      init: function (element, valueAccessor, allBindingsAccessor) {
+        var setup = valueAccessor(),
+          textProperty = ko.unwrap(setup.optionsText),
+          valueProperty = ko.unwrap(setup.optionsValue),
+          dataItems = ko.unwrap(setup.options),
+          myValue = setup.value,
+          koValue = allBindingsAccessor().value,
+          datalist = document.createElement("DATALIST");
+
+        // create an associated <datalist> element
+        datalist.id = element.getAttribute("list");
+        document.body.appendChild(datalist);
+
+        // when the value is changed, write to the associated myValue observable
+        function onNewValue(newVal) {
+          var setup = valueAccessor(),
+            dataItems = ko.unwrap(setup.options),
+            selectedItem = findItem(dataItems, textProperty, newVal),
+            newValue = selectedItem ? getVal(selectedItem, valueProperty) : newVal;
+
+          if (ko.isWriteableObservable(myValue)) {
+            myValue(newValue);
+          }
+        }
+
+        // listen for value changes
+        // - either via KO's value binding (preferred) or the change event
+        if (ko.isSubscribable(koValue)) {
+          var onNewValueSubscription = koValue.subscribe(onNewValue);
+          ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+            onNewValueSubscription.remove();
+          });
+        } else {
+          var event = allBindingsAccessor().valueUpdate === "afterkeydown" ? "input" : "change";
+          ko.utils.registerEventHandler(element, event, function () {
+            onNewValue(this.value);
+          });
+        }
+
+        // init the element's value
+        // - either via the myValue observable (preferred) or KO's value binding
+        if (ko.isObservable(myValue) && myValue()) {
+          var selectedItem = findItem(dataItems, valueProperty, myValue());
+          element.value = selectedItem ? getVal(selectedItem, textProperty) : myValue();
+        } else if (ko.isObservable(koValue) && koValue()) {
+          onNewValue(koValue());
+        }
+      },
+      update: function (element, valueAccessor) {
+        var setup = valueAccessor(),
+          datalist = element.list,
+          dataItems = ko.unwrap(setup.options),
+          textProperty = ko.unwrap(setup.optionsText);
+
+        // rebuild list of options when an underlying observable changes
+        datalist.innerHTML = "";
+        ko.utils.arrayForEach(dataItems, function (item) {
+          var option = document.createElement("OPTION");
+          option.value = getVal(item, textProperty);
+          datalist.appendChild(option);
+        });
+        ko.utils.triggerEvent(element, "change");
+      }
+    };
+  })();
+
+  ko.bindingHandlers.impalaDagre = (function () {
+    return {
+      init: function (element, valueAccessor, allBindingsAccessor) {
+        var id = $(element).attr("id");
+        this._impalaDagre = impalaDagre(id);
+      },
+      update: function (element, valueAccessor) {
+        var props = ko.unwrap(valueAccessor());
+        this._impalaDagre.update(props.value);
+        this._impalaDagre.height(props.height);
+      }
+    };
+  })();
+
+  ko.bindingHandlers.dropdown = {
+    init: function (element, valueAccessor) {
+        $(element).dropdown();
+    }
+  };
 
 })();

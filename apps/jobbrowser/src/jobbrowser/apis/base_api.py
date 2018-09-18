@@ -31,13 +31,17 @@ LOG = logging.getLogger(__name__)
 def get_api(user, interface):
   from jobbrowser.apis.bundle_api import BundleApi
   from jobbrowser.apis.data_eng_api import DataEngClusterApi, DataEngJobApi
+  from jobbrowser.apis.data_warehouse import DataWarehouseClusterApi
   from jobbrowser.apis.livy_api import LivySessionsApi, LivyJobApi
   from jobbrowser.apis.job_api import JobApi
+  from jobbrowser.apis.query_api import QueryApi
   from jobbrowser.apis.schedule_api import ScheduleApi
   from jobbrowser.apis.workflow_api import WorkflowApi
 
   if interface == 'jobs':
     return JobApi(user)
+  elif interface == 'queries':
+    return QueryApi(user)
   elif interface == 'workflows':
     return WorkflowApi(user)
   elif interface == 'schedules':
@@ -46,6 +50,8 @@ def get_api(user, interface):
     return BundleApi(user)
   elif interface == 'dataeng-clusters':
     return DataEngClusterApi(user)
+  elif interface == 'dataware-clusters':
+    return DataWarehouseClusterApi(user)
   elif interface == 'dataeng-jobs':
     return DataEngJobApi(user)
   elif interface == 'livy-sessions':
@@ -70,7 +76,7 @@ class Api(object):
 
   def action(self, app_ids, operation): return {}
 
-  def logs(self, appid, app_type, log_name): return {'progress': 0, 'logs': ''}
+  def logs(self, appid, app_type, log_name, is_embeddable=False): return {'progress': 0, 'logs': ''}
 
   def profile(self, appid, app_type, app_property, app_filters): return {} # Tasks, XML, counters...
 

@@ -44,6 +44,9 @@ class BundleApi(Api):
     oozie_api = get_oozie(self.user)
 
     kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
+
+    filters.pop('time')
+
     _filter_oozie_jobs(self.user, filters, kwargs)
 
     jobs = oozie_api.get_bundles(**kwargs)
@@ -95,7 +98,7 @@ class BundleApi(Api):
     return _manage_oozie_job(self.user, action, app_ids)
 
 
-  def logs(self, appid, app_type, log_name=None):
+  def logs(self, appid, app_type, log_name=None, is_embeddable=False):
     request = MockDjangoRequest(self.user)
     data = get_oozie_job_log(request, job_id=appid)
 

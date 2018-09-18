@@ -24,14 +24,9 @@ from django.utils.translation import ugettext_lazy as _t
 
 
 from desktop import appmanager
-from desktop.conf import is_hue4
+from desktop.conf import is_oozie_enabled
 from desktop.lib.conf import Config, UnspecifiedConfigSection, ConfigSection,\
   coerce_json_dict, coerce_bool, coerce_csv
-
-
-def is_oozie_enabled():
-  """Oozie needs to be available as it is the backend."""
-  return len([app for app in appmanager.DESKTOP_MODULES if app.name == 'oozie']) > 0 and is_hue4()
 
 
 SHOW_NOTEBOOKS = Config(
@@ -44,6 +39,14 @@ SHOW_NOTEBOOKS = Config(
 def _remove_duplications(a_list):
   return list(OrderedDict.fromkeys(a_list))
 
+def check_permissions(user, interpreter):
+  user_apps = appmanager.get_apps_dict(user)
+  return (interpreter == 'hive' and 'beeswax' not in user_apps) or \
+         (interpreter == 'impala' and 'impala' not in user_apps) or \
+         (interpreter == 'pig' and 'pig' not in user_apps) or \
+         (interpreter == 'solr' and 'search' not in user_apps) or \
+         (interpreter in ('spark', 'pyspark', 'r', 'jar', 'py') and 'spark' not in user_apps) or \
+         (interpreter in ('java', 'spark2', 'mapreduce', 'shell', 'sqoop1', 'distcp') and 'oozie' not in user_apps)
 
 def get_ordered_interpreters(user=None):
   if not INTERPRETERS.get():
@@ -52,11 +55,18 @@ def get_ordered_interpreters(user=None):
   interpreters = INTERPRETERS.get()
   interpreters_shown_on_wheel = _remove_duplications(INTERPRETERS_SHOWN_ON_WHEEL.get())
 
-  unknown_interpreters = set(interpreters_shown_on_wheel) - set(interpreters)
-  if unknown_interpreters:
-      raise ValueError("Interpreters from interpreters_shown_on_wheel is not in the list of Interpreters %s" % unknown_interpreters)
+  user_interpreters = []
+  for interpreter in interpreters:
+    if (check_permissions(user, interpreter)):
+      pass # Not allowed
+    else:
+      user_interpreters.append(interpreter)
 
-  reordered_interpreters = interpreters_shown_on_wheel + [i for i in interpreters if i not in interpreters_shown_on_wheel]
+  unknown_interpreters = set(interpreters_shown_on_wheel) - set(user_interpreters)
+  if unknown_interpreters:
+    raise ValueError("Interpreters from interpreters_shown_on_wheel is not in the list of Interpreters %s" % unknown_interpreters)
+
+  reordered_interpreters = interpreters_shown_on_wheel + [i for i in user_interpreters if i not in interpreters_shown_on_wheel]
 
   return [{
       "name": interpreters[i].NAME.get(),
@@ -64,7 +74,7 @@ def get_ordered_interpreters(user=None):
       "interface": interpreters[i].INTERFACE.get(),
       "options": interpreters[i].OPTIONS.get(),
       "permission": interpreters[i].PERMISSION.get(),
-      "is_sql" : interpreters[i].INTERFACE.get() in ["hiveserver2", "rdbms", "jdbc", "solr"]
+      "is_sql" : interpreters[i].INTERFACE.get() in ["hiveserver2", "rdbms", "jdbc", "solr", "sqlalchemy"]
     }
     for i in reordered_interpreters
   ]
@@ -161,6 +171,14 @@ ENABLE_SQL_INDEXER = Config(
   type=bool,
   default=False
 )
+
+ENABLE_PRESENTATION = Config(
+  key="enable_presentation",
+  help=_t("Flag to turn on the Presentation mode of the editor."),
+  type=bool,
+  default=True
+)
+
 
 def _default_interpreters(user):
   interpreters = []

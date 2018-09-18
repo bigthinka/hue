@@ -35,7 +35,7 @@ LOG = logging.getLogger(__name__)
 
 
 def collections(request, is_redirect=False):
-  if not request.user.has_hue_permission(action="access", app='search'):
+  if not request.user.has_hue_permission(action="access", app='indexer'):
     raise PopupException(_('Missing permission.'), error_code=403)
 
   return render('collections.mako', request, {
@@ -44,7 +44,7 @@ def collections(request, is_redirect=False):
 
 
 def indexes(request, index=''):
-  if not request.user.has_hue_permission(action="access", app='search'):
+  if not request.user.has_hue_permission(action="access", app='indexer'):
     raise PopupException(_('Missing permission.'), error_code=403)
 
   return render('indexes.mako', request, {
@@ -53,8 +53,18 @@ def indexes(request, index=''):
   })
 
 
-def indexer(request):
+def topics(request, index=''):
   if not request.user.has_hue_permission(action="access", app='search'):
+    raise PopupException(_('Missing permission.'), error_code=403)
+
+  return render('topics.mako', request, {
+    'is_embeddable': request.GET.get('is_embeddable', False),
+    'index': index
+  })
+
+
+def indexer(request):
+  if not request.user.has_hue_permission(action="access", app='indexer'):
     raise PopupException(_('Missing permission.'), error_code=403)
 
   searcher = SolrClient(request.user)
@@ -100,15 +110,15 @@ def importer_prefill(request, source_type, target_type, target_path=None):
 
 
 def _importer(request, prefill):
-  source_type = get_cluster_config(request.user)['default_sql_interpreter']
+  source_type = request.GET.get('sourceType') or get_cluster_config(request.user)['default_sql_interpreter']
 
   return render('importer.mako', request, {
       'is_embeddable': request.GET.get('is_embeddable', False),
-      'fields_json' : json.dumps({'solr': [field.name for field in FIELD_TYPES], 'hive': HIVE_TYPES, 'hivePrimitive': HIVE_PRIMITIVE_TYPES}),
-      'operators_json' : json.dumps([operator.to_dict() for operator in OPERATORS]),
-      'file_types_json' : json.dumps([format_.format_info() for format_ in get_file_indexable_format_types()]),
-      'default_field_type' : json.dumps(Field().to_dict()),
-      'prefill' : json.dumps(prefill),
+      'fields_json': json.dumps({'solr': [field.name for field in FIELD_TYPES], 'hive': HIVE_TYPES, 'hivePrimitive': HIVE_PRIMITIVE_TYPES}),
+      'operators_json': json.dumps([operator.to_dict() for operator in OPERATORS]),
+      'file_types_json': json.dumps([format_.format_info() for format_ in get_file_indexable_format_types()]),
+      'default_field_type': json.dumps(Field().to_dict()),
+      'prefill': json.dumps(prefill),
       'source_type': source_type
   })
 
@@ -120,7 +130,8 @@ def install_examples(request, is_redirect=False):
     result['message'] = _('A POST request is required.')
   else:
     try:
-      indexer_setup.Command().handle_noargs()
+      data = request.POST.get('data')
+      indexer_setup.Command().handle(data=data)
       result['status'] = 0
     except Exception, e:
       LOG.exception(e)

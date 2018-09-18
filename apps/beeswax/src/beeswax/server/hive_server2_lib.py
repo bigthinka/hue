@@ -43,8 +43,7 @@ from beeswax import hive_site
 from beeswax.hive_site import hiveserver2_use_ssl
 from beeswax.conf import CONFIG_WHITELIST, LIST_PARTITIONS_LIMIT
 from beeswax.models import Session, HiveServerQueryHandle, HiveServerQueryHistory, QueryHistory
-from beeswax.server.dbms import Table, NoSuchObjectException, DataTable,\
-                                QueryServerException
+from beeswax.server.dbms import Table, DataTable, QueryServerException
 
 
 LOG = logging.getLogger(__name__)
@@ -61,11 +60,11 @@ class HiveServerTable(Table):
   def __init__(self, table_results, table_schema, desc_results, desc_schema):
     if beeswax_conf.THRIFT_VERSION.get() >= 7:
       if not table_results.columns:
-        raise NoSuchObjectException()
+        raise QueryServerException('No table columns')
       self.table = table_results.columns
     else: # Deprecated. To remove in Hue 4.
       if not table_results.rows:
-        raise NoSuchObjectException()
+        raise QueryServerException('No table rows')
       self.table = table_results.rows and table_results.rows[0] or ''
 
     self.table_schema = table_schema
@@ -483,6 +482,7 @@ class HiveServerClient:
   def __init__(self, query_server, user):
     self.query_server = query_server
     self.user = user
+    self.coordinator_host = ''
 
     use_sasl, mechanism, kerberos_principal_short_name, impersonation_enabled, auth_username, auth_password = self.get_security()
     LOG.info(
@@ -523,23 +523,26 @@ class HiveServerClient:
       from ImpalaService import ImpalaHiveServer2Service
       thrift_class = ImpalaHiveServer2Service
 
-    self._client = thrift_util.get_client(thrift_class.Client,
-                                          query_server['server_host'],
-                                          query_server['server_port'],
-                                          service_name=query_server['server_name'],
-                                          kerberos_principal=kerberos_principal_short_name,
-                                          use_sasl=use_sasl,
-                                          mechanism=mechanism,
-                                          username=username,
-                                          password=password,
-                                          timeout_seconds=timeout,
-                                          use_ssl=ssl_enabled,
-                                          ca_certs=ca_certs,
-                                          keyfile=keyfile,
-                                          certfile=certfile,
-                                          validate=validate,
-                                          transport_mode=query_server.get('transport_mode', 'socket'),
-                                          http_url=query_server.get('http_url', ''))
+    self._client = thrift_util.get_client(
+        thrift_class.Client,
+        query_server['server_host'],
+        query_server['server_port'],
+        service_name=query_server['server_name'],
+        kerberos_principal=kerberos_principal_short_name,
+        use_sasl=use_sasl,
+        mechanism=mechanism,
+        username=username,
+        password=password,
+        timeout_seconds=timeout,
+        use_ssl=ssl_enabled,
+        ca_certs=ca_certs,
+        keyfile=keyfile,
+        certfile=certfile,
+        validate=validate,
+        transport_mode=query_server.get('transport_mode', 'socket'),
+        http_url=query_server.get('http_url', ''),
+        coordinator_host=self.coordinator_host
+    )
 
 
   def get_security(self):
@@ -601,6 +604,7 @@ class HiveServerClient:
 
     req = TOpenSessionReq(**kwargs)
     res = self._client.OpenSession(req)
+    self.coordinator_host = self._client.get_coordinator_host()
 
     if res.status is not None and res.status.statusCode not in (TStatusCode.SUCCESS_STATUS,):
       if hasattr(res.status, 'errorMessage') and res.status.errorMessage:
@@ -962,7 +966,6 @@ class HiveServerClient:
     req = TGetOperationStatusReq(operationHandle=operation_handle)
     return self.call(self._client.GetOperationStatus, req)
 
-
   def explain(self, query):
     query_statement = query.get_query_statement(0)
     configuration = self._get_query_configuration(query)
@@ -974,10 +977,15 @@ class HiveServerClient:
       req = TGetLogReq(operationHandle=operation_handle)
       res = self.call(self._client.GetLog, req)
       return res.log
-    except:
-      LOG.exception('server does not support GetLog')
+    except Exception, e:
+      if 'Invalid query handle' in str(e):
+        message = 'Invalid query handle'
+        LOG.error('%s: %s' % (message, e))
+      else:
+        message = 'Error when fetching the logs of the operation.'
+        LOG.exception(message)
 
-      return 'Server does not support GetLog()'
+      return message
 
 
   def get_partitions(self, database, table_name, partition_spec=None, max_parts=None, reverse_sort=True):
@@ -1013,7 +1021,7 @@ class HiveServerClient:
           partitions_formatted.append(['/'.join(['%s=%s' % (str(part[0]), str(part[1])) for part in zipped_parts if all(part)])])
 
         partitions = [PartitionValueCompatible(partition, table) for partition in partitions_formatted]
-      except Exception, e:
+      except Exception:
         raise ValueError(_('Failed to determine partition keys for Impala table: `%s`.`%s`') % (database, table_name))
     else:
       partitions = [PartitionValueCompatible(partition, table) for partition in partition_table.rows()]
@@ -1059,7 +1067,7 @@ class HiveServerTableCompatible(HiveServerTable):
 
     self.describe = HiveServerTTableSchema(self.desc_results, self.desc_schema).cols()
     self._details = None
-    self.is_impala_only = False
+    self.is_impala_only = 'org.apache.kudu.mapreduce.KuduTableOutputFormat' in str(hive_table.properties)
 
   @property
   def cols(self):

@@ -17,6 +17,8 @@
 <%!
 from django.utils.translation import ugettext as _
 from desktop.views import commonheader, commonfooter
+from indexer.conf import ENABLE_NEW_INDEXER
+from desktop.auth.backend import is_admin
 %>
 
 <%namespace name="macros" file="macros.mako" />
@@ -44,10 +46,14 @@ ${ commonheader(_('Dashboard'), "dashboard", user, request, "120px") | n,unicode
 
       <i class="fa fa-search waiting"></i>
       <h1>${ _('It seems there is nothing to search on ...') }</h1>
-      % if user.is_superuser:
+      % if is_admin(user):
       <h1>
         ${ _('What about creating a') }
-        <a href="${ url('indexer:collections') }">${ _('new index') }</a> ?
+        % if ENABLE_NEW_INDEXER.get():
+          <a href="${ url('indexer:indexes') }">${ _('new index') }</a> ?
+        % else:
+          <a href="${ url('indexer:collections')  }">${ _('new index') }</a> ?
+        % endif
       </h1>
       % endif
     </div>

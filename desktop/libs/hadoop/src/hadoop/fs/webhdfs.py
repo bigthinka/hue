@@ -26,14 +26,14 @@ import stat
 import threading
 import time
 
+from urlparse import urlparse
 from django.utils.encoding import smart_str
 from django.utils.translation import ugettext as _
 from desktop.lib.rest import http_client, resource
-from hadoop.fs import normpath, SEEK_SET, SEEK_CUR, SEEK_END
+from hadoop.fs import normpath as fs_normpath, SEEK_SET, SEEK_CUR, SEEK_END
 from hadoop.fs.hadoopfs import Hdfs
 from hadoop.fs.exceptions import WebHdfsException
 from hadoop.fs.webhdfs_types import WebHdfsStat, WebHdfsContentSummary
-from hadoop.conf import UPLOAD_CHUNK_SIZE
 from hadoop.hdfs_site import get_nn_sentry_prefixes, get_umask_mode, get_supergroup
 
 
@@ -73,6 +73,10 @@ class WebHdfs(Hdfs):
     self._fs_defaultfs = fs_defaultfs
     self._logical_name = logical_name
     self._supergroup = hdfs_supergroup
+    self._scheme = ""
+    self._netloc = "";
+    self._is_remote = False
+    self._has_trash_support = True
 
     self._client = self._make_client(url, security_enabled, ssl_cert_ca_verify)
     self._root = resource.Resource(self._client)
@@ -145,13 +149,16 @@ class WebHdfs(Hdfs):
   @property
   def superuser(self):
     if self._superuser is None:
-      try:
-        # The owner of '/' is usually the superuser
-        sb = self.stats('/')
-        self._superuser = sb.user
-      except Exception, ex:
-        LOG.exception('Failed to determine superuser of %s: %s' % (self, ex))
+      if DEFAULT_HDFS_SUPERUSER != desktop.conf.DEFAULT_HDFS_SUPERUSER.config.default_value:
         self._superuser = DEFAULT_HDFS_SUPERUSER
+      else:
+        try:
+          # The owner of '/' is usually the superuser
+          sb = self.stats('/')
+          self._superuser = sb.user
+        except Exception, ex:
+          LOG.exception('Failed to determine superuser of %s: %s' % (self, ex))
+          self._superuser = DEFAULT_HDFS_SUPERUSER
 
     return self._superuser
 
@@ -163,23 +170,27 @@ class WebHdfs(Hdfs):
       return WebHdfs.DEFAULT_USER
 
   def trash_path(self, path=None):
-    trash_path = self.join(self.get_home_dir(), '.Trash')
+    home_dir = self.get_home_dir()
+    trash_path = self.join(home_dir, '.Trash')
     try:
       if not path:
-        path = self.get_home_dir()
+        path = home_dir
       params = self._getparams()
       params['op'] = 'GETTRASHROOT'
-      json = self._root.get(path, params)
+      headers = self._getheaders()
+
+      json = self._root.get(path, params, headers)
       trash_path = json['Path']
     except WebHdfsException, e:
-      if 'IllegalArgumentException' in e.message:
+      exceptions = ['IllegalArgumentException', 'UnsupportedOperationException']
+      if any(x in e.message for x in exceptions):
         LOG.warn('WebHDFS operation GETTRASHROOT is not implemented, returning default trash path: %s' % trash_path)
       else:
         raise e
     return trash_path
 
-  def current_trash_path(self, path):
-    return self.join(self.trash_path(path), self.TRASH_CURRENT)
+  def current_trash_path(self, trash_path):
+    return self.join(trash_path, self.TRASH_CURRENT)
 
   def _getparams(self):
     return {
@@ -187,11 +198,44 @@ class WebHdfs(Hdfs):
       "doas" : self.user
     }
 
+  def _getheaders(self):
+    return None
+
   def setuser(self, user):
     """Set a new user. Return the current user."""
     curr = self.user
     self._thread_local.user = user
     return curr
+
+  def is_absolute(self, path):
+    length = len(self._scheme)
+    return path.startswith(self._scheme) if self._scheme else path == '/'
+
+  def strip_normpath(self, path):
+    split = urlparse(path)
+    path = split._replace(scheme="", netloc="").geturl()
+    return Hdfs.normpath(path)
+
+  def normpath(self, path):
+    """
+    Return normalized path but ignore leading scheme prefix if it exists
+    """
+    path = fs_normpath(path)
+    #fs_normpath clears scheme:/ to scheme: which doesn't make sense
+    split = urlparse(path)
+    if not split.path:
+        path = split._replace(path="/").geturl()
+    return path
+
+  def netnormpath(self, path):
+    path = self.normpath(path)
+    if not self._is_remote:
+      return path
+  
+    split = urlparse(path)
+    if not split.netloc:
+      path = split._replace(netloc=self._netloc).geturl()
+    return path
 
   def listdir_stats(self, path, glob=None):
     """
@@ -199,12 +243,13 @@ class WebHdfs(Hdfs):
 
     Get directory listing with stats.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     if glob is not None:
       params['filter'] = glob
     params['op'] = 'LISTSTATUS'
-    json = self._root.get(path, params)
+    headers = self._getheaders()
+    json = self._root.get(path, params, headers)
     filestatus_list = json['FileStatuses']['FileStatus']
     return [ WebHdfsStat(st, path) for st in filestatus_list ]
 
@@ -221,20 +266,22 @@ class WebHdfs(Hdfs):
     """
     get_content_summary(path) -> WebHdfsContentSummary
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'GETCONTENTSUMMARY'
-    json = self._root.get(path, params)
+    headers = self._getheaders()
+    json = self._root.get(path, params, headers)
     return WebHdfsContentSummary(json['ContentSummary'])
 
 
   def _stats(self, path):
     """This version of stats returns None if the entry is not found"""
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'GETFILESTATUS'
+    headers = self._getheaders()
     try:
-      json = self._root.get(path, params)
+      json = self._root.get(path, params, headers)
       return WebHdfsStat(json['FileStatus'], path)
     except WebHdfsException, ex:
       if ex.server_exc == 'FileNotFoundException' or ex.code == 404:
@@ -266,13 +313,13 @@ class WebHdfs(Hdfs):
     return not sb.isDir
 
   def isroot(self, path):
-    return path == '/'
+    return urlparse(path).path == '/'
 
   def _ensure_current_trash_directory(self, path):
     """Create trash directory for a user if it doesn't exist."""
-    if not self.exists(self.current_trash_path(path)):
-      self.mkdir(self.current_trash_path(path))
-    return self.current_trash_path(path)
+    trash_path = self.current_trash_path(path)
+    self.mkdir(trash_path)
+    return trash_path
 
   def _trash(self, path, recursive=False):
     """
@@ -283,17 +330,19 @@ class WebHdfs(Hdfs):
 
     Trash must be enabled for this to work.
     """
+    path = self.strip_normpath(path)
     if not self.exists(path):
       raise IOError(errno.ENOENT, _("File %s not found") % path)
 
     if not recursive and self.isdir(path):
       raise IOError(errno.EISDIR, _("File %s is a directory") % path)
 
-    if path.startswith(self.trash_path(path)):
+    trash_path = self.trash_path(path)
+    if path.startswith(trash_path):
       raise IOError(errno.EPERM, _("File %s is already trashed") % path)
 
     # Make path (with timestamp suffix if necessary)
-    base_trash_path = self.join(self._ensure_current_trash_directory(path), path[1:])
+    base_trash_path = self.join(self._ensure_current_trash_directory(trash_path), path[1:])
     trash_path = base_trash_path
     while self.exists(trash_path):
       trash_path = base_trash_path + str(time.time())
@@ -309,11 +358,12 @@ class WebHdfs(Hdfs):
 
     Delete a file or directory.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'DELETE'
     params['recursive'] = recursive and 'true' or 'false'
-    result = self._root.delete(path, params)
+    headers = self._getheaders()
+    result = self._root.delete(path, params, headers)
     # This part of the API is nonsense.
     # The lack of exception should indicate success.
     if not result['boolean']:
@@ -321,7 +371,7 @@ class WebHdfs(Hdfs):
 
   def remove(self, path, skip_trash=False):
     """Delete a file."""
-    if skip_trash:
+    if skip_trash or self._has_trash_support is False:
       self._delete(path, recursive=False)
     else:
       self._trash(path, recursive=False)
@@ -332,7 +382,7 @@ class WebHdfs(Hdfs):
 
   def rmtree(self, path, skip_trash=False):
     """Delete a tree recursively."""
-    if skip_trash:
+    if skip_trash or self._has_trash_support is False:
       self._delete(path, recursive=True)
     else:
       self._trash(path, recursive=True)
@@ -378,29 +428,30 @@ class WebHdfs(Hdfs):
 
     Creates a directory and any parent directory if necessary.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'MKDIRS'
-
+    headers = self._getheaders()
     if mode is None:
       mode = self.getDefaultDirPerms()
     params['permission'] = safe_octal(mode)
 
-    success = self._root.put(path, params)
+    success = self._root.put(path, params, headers=headers)
     if not success:
       raise IOError(_("Mkdir failed: %s") % path)
 
   def rename(self, old, new):
     """rename(old, new)"""
-    old = Hdfs.normpath(old)
-    if not new.startswith('/'):
+    old = self.strip_normpath(old)
+    if not self.is_absolute(new):
       new = Hdfs.join(Hdfs.dirname(old), new)
-    new = Hdfs.normpath(new)
+    new = self.strip_normpath(new)
     params = self._getparams()
     params['op'] = 'RENAME'
     # Encode `new' because it's in the params
     params['destination'] = smart_str(new)
-    result = self._root.put(old, params)
+    headers = self._getheaders()
+    result = self._root.put(old, params, headers=headers)
     if not result['boolean']:
       raise IOError(_("Rename failed: %s -> %s") %
                     (str(smart_str(old)), str(smart_str(new))))
@@ -422,23 +473,25 @@ class WebHdfs(Hdfs):
     params = self._getparams()
     params['op'] = 'SETREPLICATION'
     params['replication'] = repl_factor
-    result = self._root.put(filename, params)
+    headers = self._getheaders()
+    result = self._root.put(filename, params, headers=headers)
     return result['boolean']
 
   def chown(self, path, user=None, group=None, recursive=False):
     """chown(path, user=None, group=None, recursive=False)"""
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'SETOWNER'
     if user is not None:
       params['owner'] = user
     if group is not None:
       params['group'] = group
+    headers = self._getheaders()
     if recursive:
       for xpath in self.listdir_recursive(path):
-        self._root.put(xpath, params)
+        self._root.put(xpath, params, headers=headers)
     else:
-      self._root.put(path, params)
+      self._root.put(path, params, headers=headers)
 
 
   def chmod(self, path, mode, recursive=False):
@@ -447,23 +500,27 @@ class WebHdfs(Hdfs):
 
     `mode' should be an octal integer or string.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'SETPERMISSION'
     params['permission'] = safe_octal(mode)
+    headers = self._getheaders()
     if recursive:
       for xpath in self.listdir_recursive(path):
-        self._root.put(xpath, params)
+        self._root.put(xpath, params, headers=headers)
     else:
-      self._root.put(path, params)
+      self._root.put(path, params, headers=headers)
 
 
   def get_home_dir(self):
     """get_home_dir() -> Home directory for the current user"""
     params = self._getparams()
     params['op'] = 'GETHOMEDIRECTORY'
-    res = self._root.get(params=params)
-    return res['Path']
+    headers = self._getheaders()
+    res = self._root.get(params=params, headers=headers)
+    for key, value in res.iteritems():
+      if key.lower() == "path":
+        return self.normpath(value)
 
 
   def read(self, path, offset, length, bufsize=None):
@@ -472,15 +529,16 @@ class WebHdfs(Hdfs):
 
     Read data from a file.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'OPEN'
     params['offset'] = long(offset)
     params['length'] = long(length)
     if bufsize is not None:
       params['bufsize'] = bufsize
+    headers = self._getheaders()
     try:
-      return self._root.get(path, params)
+      return self._root.get(path, params, headers)
     except WebHdfsException, ex:
       if "out of the range" in ex.message:
         return ""
@@ -499,11 +557,11 @@ class WebHdfs(Hdfs):
 
 
   def getDefaultFilePerms(self):
-    return 0666 & (01777 ^ self.umask)
+    return 0666 & (01777 ^ self._umask)
 
 
   def getDefaultDirPerms(self):
-    return 01777 & (01777 ^ self.umask)
+    return 01777 & (01777 ^ self._umask)
 
 
   def create(self, path, overwrite=False, blocksize=None, replication=None, permission=None, data=None):
@@ -513,7 +571,7 @@ class WebHdfs(Hdfs):
     Creates a file with the specified parameters.
     `permission' should be an octal integer or string.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'CREATE'
     params['overwrite'] = overwrite and 'true' or 'false'
@@ -524,8 +582,8 @@ class WebHdfs(Hdfs):
     if permission is None:
       permission = self.getDefaultFilePerms()
     params['permission'] = safe_octal(permission)
-
-    self._invoke_with_redirect('PUT', path, params, data)
+    headers = self._getheaders()
+    self._invoke_with_redirect('PUT', path, params, data, headers)
 
 
   def append(self, path, data):
@@ -534,66 +592,73 @@ class WebHdfs(Hdfs):
 
     Append data to a given file.
     """
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'APPEND'
-    self._invoke_with_redirect('POST', path, params, data)
+    headers = self._getheaders()
+    self._invoke_with_redirect('POST', path, params, data, headers)
 
 
   # e.g. ACLSPEC = user:joe:rwx,user::rw-
   def modify_acl_entries(self, path, aclspec):
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'MODIFYACLENTRIES'
     params['aclspec'] = aclspec
-    return self._root.put(path, params)
+    headers = self._getheaders()
+    return self._root.put(path, params, headers=headers)
 
 
   def remove_acl_entries(self, path, aclspec):
-      path = Hdfs.normpath(path)
+      path = self.strip_normpath(path)
       params = self._getparams()
       params['op'] = 'REMOVEACLENTRIES'
       params['aclspec'] = aclspec
-      return self._root.put(path, params)
+      headers = self._getheaders()
+      return self._root.put(path, params, headers=headers)
 
 
   def remove_default_acl(self, path):
-      path = Hdfs.normpath(path)
+      path = self.strip_normpath(path)
       params = self._getparams()
       params['op'] = 'REMOVEDEFAULTACL'
-      return self._root.put(path, params)
+      headers = self._getheaders()
+      return self._root.put(path, params, headers=headers)
 
 
   def remove_acl(self, path):
-      path = Hdfs.normpath(path)
+      path = self.strip_normpath(path)
       params = self._getparams()
       params['op'] = 'REMOVEACL'
-      return self._root.put(path, params)
+      headers = self._getheaders()
+      return self._root.put(path, params, headers=headers)
 
 
   def set_acl(self, path, aclspec):
-      path = Hdfs.normpath(path)
+      path = self.strip_normpath(path)
       params = self._getparams()
       params['op'] = 'SETACL'
       params['aclspec'] = aclspec
-      return self._root.put(path, params)
+      headers = self._getheaders()
+      return self._root.put(path, params, headers=headers)
 
 
   def get_acl_status(self, path):
-      path = Hdfs.normpath(path)
+      path = self.strip_normpath(path)
       params = self._getparams()
       params['op'] = 'GETACLSTATUS'
-      return self._root.get(path, params)
+      headers = self._getheaders()
+      return self._root.get(path, params, headers=headers)
 
 
   def check_access(self, path, aclspec='rw-'):
-    path = Hdfs.normpath(path)
+    path = self.strip_normpath(path)
     params = self._getparams()
     params['op'] = 'CHECKACCESS'
     params['fsaction'] = aclspec
-
+    headers = self._getheaders()
     try:
-      return self._root.get(path, params)
+      return self._root.get(path, params, headers)
     except WebHdfsException, ex:
       if ex.code == 500 or ex.code == 400:
         LOG.warn('Failed to check access to path %s, CHECKACCESS operation may not be supported.' % path)
@@ -601,6 +666,8 @@ class WebHdfs(Hdfs):
       else:
         raise ex
 
+  def get_upload_chuck_size(self):
+    return hadoop.conf.UPLOAD_CHUNK_SIZE.get()
 
   def copyfile(self, src, dst, skip_header=False):
     sb = self._stats(src)
@@ -614,7 +681,7 @@ class WebHdfs(Hdfs):
     offset = 0
 
     while True:
-      data = self.read(src, offset, UPLOAD_CHUNK_SIZE.get())
+      data = self.read(src, offset, self.get_upload_chuck_size())
 
       if skip_header:
         data = '\n'.join(data.splitlines())
@@ -635,7 +702,7 @@ class WebHdfs(Hdfs):
       else:
         self.append(dst, data)
 
-      if cnt < UPLOAD_CHUNK_SIZE.get():
+      if cnt < self.get_upload_chuck_size():
         break
 
       offset += cnt
@@ -686,8 +753,8 @@ class WebHdfs(Hdfs):
       sb = self._stats(src)
       dir_mode=oct(stat.S_IMODE(sb.mode))
 
-    src = self.abspath(src)
-    dest = self.abspath(dest)
+    src = self.strip_normpath(src)
+    dest = self.strip_normpath(dest)
 
     if not self.exists(src):
       raise IOError(errno.ENOENT, _("File not found: %s") % src)
@@ -731,7 +798,7 @@ class WebHdfs(Hdfs):
     return posixpath.join(self.fs_defaultfs, path.lstrip('/'))
 
 
-  def _invoke_with_redirect(self, method, path, params=None, data=None):
+  def _invoke_with_redirect(self, method, path, params=None, data=None, headers=None):
     """
     Issue a request, and expect a redirect, and then submit the data to
     the redirected location. This is used for create, write, etc.
@@ -741,7 +808,7 @@ class WebHdfs(Hdfs):
     next_url = None
     try:
       # Do not pass data in the first leg.
-      self._root.invoke(method, path, params)
+      self._root.invoke(method, path, params, headers=headers)
     except WebHdfsException, ex:
       # This is expected. We get a 307 redirect.
       # The following call may throw.
@@ -755,8 +822,9 @@ class WebHdfs(Hdfs):
 
     # Make sure to reuse the session in order to preserve the Kerberos cookies.
     client._session = self._client._session
-
-    headers = {'Content-Type': 'application/octet-stream'}
+    if headers is None:
+      headers = {}
+    headers["Content-Type"] = 'application/octet-stream'
     return resource.Resource(client).invoke(method, data=data, headers=headers)
 
 
@@ -785,7 +853,8 @@ class WebHdfs(Hdfs):
     params = self._getparams()
     params['op'] = 'GETDELEGATIONTOKEN'
     params['renewer'] = renewer
-    res = self._root.get(params=params)
+    headers = self._getheaders()
+    res = self._root.get(params=params, headers=headers)
     return res['Token']['urlString']
 
 
@@ -821,6 +890,9 @@ class WebHdfs(Hdfs):
 
     self.do_as_user(username, self.rename, tmp_file, dst)
 
+  def filebrowser_action(self):
+    return None
+
 
 class File(object):
   """
@@ -831,7 +903,7 @@ class File(object):
   """
   def __init__(self, fs, path, mode='r'):
     self._fs = fs
-    self._path = normpath(path)
+    self._path = fs_normpath(path)
     self._pos = 0
     self._mode = mode
 
@@ -946,7 +1018,7 @@ def test_fs_configuration(fs_config):
               'is owned by the cluster superuser "%s".') % DEFAULT_HDFS_SUPERUSER]
   finally:
     try:
-      fs.remove(tmpname)
+      fs.remove(tmpname, skip_trash=True)
     except Exception, ex:
       LOG.error("Failed to remove '%s': %s" % (tmpname, ex))
       return [(fs_config.WEBHDFS_URL, _('Failed to remove temporary file "%s"') % tmpname)]

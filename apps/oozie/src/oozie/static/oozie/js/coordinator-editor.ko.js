@@ -84,10 +84,14 @@ var CoordinatorEditorViewModel = (function () {
     }
 
     self.refreshParameters = function() {
+      if (!self.properties.workflow()) { return; }
+
       $.get("/oozie/editor/workflow/parameters/", {
         "uuid": self.properties.workflow(),
         "document": self.properties.document(),
       }, function (data) {
+        if (data.status < 0) { return; }
+
         self.workflowParameters(data.parameters);
 
         // Remove Uncommon params
@@ -248,6 +252,8 @@ var CoordinatorEditorViewModel = (function () {
             }
             if (window.location.search.indexOf("coordinator") == -1 && !IS_HUE_4) {
               window.location.hash = '#coordinator=' + data.id;
+            } else if (IS_HUE_4 && ! cb) { // cb from integrated scheduler
+              hueUtils.changeURL('/hue/oozie/editor/coordinator/edit/?coordinator=' + data.id);
             }
           }
           else {

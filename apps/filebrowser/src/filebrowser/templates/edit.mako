@@ -36,7 +36,7 @@ ${ fb_components.menubar() }
 %endif
 
 
-<div class="container-fluid">
+<div class="container-fluid" style="padding: 0">
   <div class="row-fluid">
     <div class="span12">
       <div class="card card-small">
@@ -45,7 +45,7 @@ ${ fb_components.menubar() }
       %endif
         <div class="card-body">
           <p>
-            <form id="saveForm" class="form-stacked" method="post" action="${url('filebrowser.views.save_file')}">
+            <form id="saveForm" class="form-stacked" method="post" action="${url('filebrowser_views_save_file')}">
               ${ csrf_token(request) | n,unicode }
               % if form.errors:
               <div class="alert-message">
@@ -58,7 +58,7 @@ ${ fb_components.menubar() }
               % endif
               ${edit.render_field(form["path"], hidden=True, notitle=True)}
               ${edit.render_field(form["encoding"], hidden=True, notitle=True)}
-              <div style="width: 98%; height: 100%;">${edit.render_field(form["contents"], tag="textarea", nolabel=True, notitle=True, attrs=dict(
+              <div style="width: 98%; height: 100%;">${edit.render_field(form["contents"], tag="textarea", nolabel=True, notitle=True, klass="monospace file-editor", attrs=dict(
                 style="width:100%; height:400px; resize:none")) | n}</div>
               <input class="btn btn-primary" type="submit" name="save" value="${_('Save')}">
               <a id="saveAsBtn" class="btn">${_('Save as')}</a>
@@ -71,8 +71,8 @@ ${ fb_components.menubar() }
 </div>
 
 
-<div id="saveAsModal" class="modal hide fade" style="width: 574px; margin-left: -287px">
-    <form id="saveAsForm" action="${url('filebrowser.views.save_file')}" method="POST" class="form-stacked form-padding-fix">
+<div id="saveAsModal" class="modal hide fade">
+    <form id="saveAsForm" action="${url('filebrowser_views_save_file')}" method="POST" class="form-stacked form-padding-fix">
     ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <button type="button" class="close" data-dismiss="modal" aria-label="${ _('Close') }"><span aria-hidden="true">&times;</span></button>
@@ -80,9 +80,9 @@ ${ fb_components.menubar() }
     </div>
     <div class="modal-body" style="max-height: 430px">
         <span class="help-block">${_("Enter the location where you would like to save the file.")}</span>
-        ${ edit.render_field(form["path"], notitle=True, nolabel=True, klass="pathChooser input-xxlarge", attrs={ 'style': 'margin-bottom: 0' }) }
+        ${ edit.render_field(form["path"], notitle=True, nolabel=True, klass="pathChooser input-xxlarge", attrs={ 'style': 'margin-bottom: 0; width: 510px' }) }
         <br/>
-        <div id="fileChooserSaveModal" class="hide margin-top-10"></div>
+        <div id="fileChooserSaveModal" class="hide margin-top-20"></div>
     </div>
     <div class="modal-footer">
         <div id="saveAsNameRequiredAlert" class="alert-message error hide" style="position: absolute; left: 10;">

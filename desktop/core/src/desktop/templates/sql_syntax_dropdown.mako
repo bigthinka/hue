@@ -49,22 +49,25 @@ from django.utils.translation import ugettext as _
         var expected = $.map(params.data.expected, function (expected) {
           return expected.text;
         });
-        if (expected.length > 0) {
+
+        // TODO: Allow suppression of unknown columns etc.
+        if (params.data.ruleId) {
+          if (expected.length > 0) {
+            expected.push({
+              divider: true
+            });
+          }
           expected.push({
-            divider: true
+            label: HUE_I18n.syntaxChecker.suppressError,
+            suppressRule: params.data.ruleId.toString() + params.data.text.toLowerCase()
           });
         }
-        expected.push({
-          label: SyntaxCheckerGlobals.i18n.suppressError,
-          suppressRule: params.data.ruleId
-        });
         self.expected = ko.observableArray(expected);
 
         var selectedSub = self.selected.subscribe(function (newValue) {
           if (typeof newValue.suppressRule !== 'undefined') {
             var suppressedRules = ApiHelper.getInstance().getFromTotalStorage('hue.syntax.checker', 'suppressedRules', {});
-            // TODO: Suppress on statement level instead of snippet once we have statement awareness in the snippet
-            suppressedRules[params.snippet.id() + newValue.suppressRule] = true;
+            suppressedRules[newValue.suppressRule] = true;
             ApiHelper.getInstance().setInTotalStorage('hue.syntax.checker', 'suppressedRules', suppressedRules);
             huePubSub.publish('editor.refresh.statement.locations', params.snippet);
           } else {
@@ -117,7 +120,7 @@ from django.utils.translation import ugettext as _
       huePubSub.subscribe('sql.syntax.dropdown.show', function (details) {
         hideSyntaxDropdown();
         var $sqlSyntaxDropdown = $('<div id="sqlSyntaxDropdown" data-bind="component: { name: \'sql-syntax-dropdown\', params: $data }" />');
-        $('body').append($sqlSyntaxDropdown);
+        $(HUE_CONTAINER).append($sqlSyntaxDropdown);
         ko.applyBindings(details, $sqlSyntaxDropdown[0]);
       });
     })();

@@ -41,7 +41,9 @@ class ScheduleApi(Api):
 
   def apps(self, filters):
     oozie_api = get_oozie(self.user)
-    kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
+    kwargs = {'cnt': hasattr(OOZIE_JOBS_COUNT, 'get') and OOZIE_JOBS_COUNT.get(), 'filters': []}
+
+    filters.pop('time')
 
     _filter_oozie_jobs(self.user, filters, kwargs)
 
@@ -58,7 +60,7 @@ class ScheduleApi(Api):
         'progress': app['progress'],
         'queue': app['group'],
         'duration': app['durationInMillis'],
-        'submitted': app['lastModTimeInMillis'] * 1000,
+        'submitted': app['lastActionInMillis'] * 1000,
         'canWrite': app['canEdit']
       } for app in massaged_oozie_jobs_for_json(jobs.jobs, self.user)['jobs']],
       'total': jobs.total
@@ -97,7 +99,7 @@ class ScheduleApi(Api):
     return _manage_oozie_job(self.user, action, app_ids)
 
 
-  def logs(self, appid, app_type, log_name=None):
+  def logs(self, appid, app_type, log_name=None, is_embeddable=False):
     request = MockDjangoRequest(self.user)
     data = get_oozie_job_log(request, job_id=appid)
 

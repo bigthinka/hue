@@ -16,17 +16,20 @@
 # limitations under the License.
 
 import logging
+import re
 import threading
 import time
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.encoding import force_unicode
 from django.utils.translation import ugettext as _
 
 from desktop.lib.django_util import format_preserving_redirect
+from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.parameterization import substitute_variables
-from desktop.models import Cluster, IMPALAUI
-from filebrowser.views import location_to_url
+from desktop.lib.view_util import location_to_url
+from desktop.models import Cluster
+from indexer.file_format import HiveFormat
 
 from beeswax import hive_site
 from beeswax.conf import HIVE_SERVER_HOST, HIVE_SERVER_PORT, LIST_PARTITIONS_LIMIT, SERVER_CONN_TIMEOUT, \
@@ -35,6 +38,8 @@ from beeswax.common import apply_natural_sort
 from beeswax.design import hql_query
 from beeswax.hive_site import hiveserver2_use_ssl
 from beeswax.models import QueryHistory, QUERY_TYPES
+from desktop.conf import CLUSTER_ID
+
 
 LOG = logging.getLogger(__name__)
 
@@ -43,17 +48,12 @@ DBMS_CACHE = {}
 DBMS_CACHE_LOCK = threading.Lock()
 
 
-def get(user, query_server=None):
+def get(user, query_server=None, cluster=None):
   global DBMS_CACHE
   global DBMS_CACHE_LOCK
 
   if query_server is None:
-    cluster_type = Cluster(user).get_type()
-    if cluster_type == IMPALAUI:
-      kwargs = {'name': 'impala'}
-    else:
-      kwargs = {}
-    query_server = get_query_server_config(**kwargs)
+    query_server = get_query_server_config(cluster=cluster)
 
   DBMS_CACHE_LOCK.acquire()
   try:
@@ -76,16 +76,21 @@ def get(user, query_server=None):
     DBMS_CACHE_LOCK.release()
 
 
-def get_query_server_config(name='beeswax', server=None):
+def get_query_server_config(name='beeswax', server=None, cluster=None):
+  if cluster and cluster != CLUSTER_ID.get():
+    cluster_config = Cluster(user=None).get_config(cluster)
+  else:
+    cluster_config = None
+
   if name == 'impala':
     from impala.dbms import get_query_server_config as impala_query_server_config
-    query_server = impala_query_server_config()
+    query_server = impala_query_server_config(cluster_config=cluster_config)
   else:
     kerberos_principal = hive_site.get_hiveserver2_kerberos_principal(HIVE_SERVER_HOST.get())
 
     query_server = {
         'server_name': 'beeswax',
-        'server_host': HIVE_SERVER_HOST.get(),
+        'server_host': HIVE_SERVER_HOST.get() if not cluster_config else cluster_config.get('server_host'),
         'server_port': HIVE_SERVER_PORT.get(),
         'principal': kerberos_principal,
         'http_url': '%(protocol)s://%(host)s:%(port)s/%(end_point)s' % {
@@ -128,9 +133,6 @@ class QueryServerTimeoutException(Exception):
   def __init__(self, message=''):
     super(QueryServerTimeoutException, self).__init__(message)
     self.message = message
-
-
-class NoSuchObjectException: pass
 
 
 class HiveServer2Dbms(object):
@@ -225,7 +227,14 @@ class HiveServer2Dbms(object):
 
 
   def alter_table(self, database, table_name, new_table_name=None, comment=None, tblproperties=None):
-    hql = 'ALTER TABLE `%s`.`%s`' % (database, table_name)
+    table_obj = self.get_table(database, table_name)
+    if table_obj is None:
+      raise PopupException(_("Failed to find the table: %s") % table_name)
+
+    if table_obj.is_view:
+      hql = 'ALTER VIEW `%s`.`%s`' % (database, table_name)
+    else:
+      hql = 'ALTER TABLE `%s`.`%s`' % (database, table_name)
 
     if new_table_name:
       table_name = new_table_name
@@ -256,8 +265,7 @@ class HiveServer2Dbms(object):
     return None
 
 
-  def alter_column(self, database, table_name, column_name, new_column_name, column_type, comment=None,
-                   partition_spec=None, cascade=False):
+  def alter_column(self, database, table_name, column_name, new_column_name, column_type, comment=None, partition_spec=None, cascade=False):
     hql = 'ALTER TABLE `%s`.`%s`' % (database, table_name)
 
     if partition_spec:
@@ -351,7 +359,7 @@ class HiveServer2Dbms(object):
     return resp
 
 
-  def get_sample(self, database, table, column=None, nested=None, limit=100):
+  def get_sample(self, database, table, column=None, nested=None, limit=100, generate_sql_only=False):
     result = None
     hql = None
 
@@ -371,12 +379,15 @@ class HiveServer2Dbms(object):
       # TODO: Add nested select support for HS2
 
     if hql:
-      query = hql_query(hql)
-      handle = self.execute_and_wait(query, timeout_sec=5.0)
+      if generate_sql_only:
+        return hql
+      else:
+        query = hql_query(hql)
+        handle = self.execute_and_wait(query, timeout_sec=5.0)
 
-      if handle:
-        result = self.fetch(handle, rows=100)
-        self.close(handle)
+        if handle:
+          result = self.fetch(handle, rows=100)
+          self.close(handle)
 
     return result
 
@@ -747,7 +758,7 @@ class HiveServer2Dbms(object):
       # We need to update the query in case it was fixed
       query_history.refresh_design(hql_query)
 
-    query_history.last_state = QueryHistory.STATE.submitted.index
+    query_history.last_state = QueryHistory.STATE.submitted.value
     query_history.save()
     query = query_history.design.get_design()
 
@@ -772,7 +783,7 @@ class HiveServer2Dbms(object):
           server_port='%(server_port)d' % self.client.query_server,
           server_name='%(server_name)s' % self.client.query_server,
           server_type=self.server_type,
-          last_state=QueryHistory.STATE.submitted.index,
+          last_state=QueryHistory.STATE.submitted.value,
           design=design,
           notify=query.query.get('email_notify', False),
           query_type=query.query['type'],
@@ -827,14 +838,17 @@ class HiveServer2Dbms(object):
 
 
   def get_partition(self, db_name, table_name, partition_spec, generate_ddl_only=False):
-    table = self.get_table(db_name, table_name)
-    partitions = self.get_partitions(db_name, table, partition_spec=partition_spec)
+    if partition_spec and self.server_name == 'impala': # partition_spec not supported
+      partition_query = " AND ".join(partition_spec.split(','))
+    else:
+      table = self.get_table(db_name, table_name)
+      partitions = self.get_partitions(db_name, table, partition_spec=partition_spec)
 
-    if len(partitions) != 1:
-      raise NoSuchObjectException(_("Query did not return exactly one partition result"))
+      if len(partitions) != 1:
+        raise QueryServerException(_("Query did not return exactly one partition result: %s") % partitions)
 
-    partition = partitions[0]
-    partition_query = " AND ".join(partition.partition_spec.split(','))
+      partition = partitions[0]
+      partition_query = " AND ".join(partition.partition_spec.split(','))
 
     hql = "SELECT * FROM `%s`.`%s` WHERE %s" % (db_name, table_name, partition_query)
 
@@ -897,6 +911,19 @@ class HiveServer2Dbms(object):
     return result
 
 
+  def get_query_metadata(self, query):
+    hql = 'SELECT * FROM ( %(query)s ) t LIMIT 0' % {'query': query.strip(';')}
+
+    query = hql_query(hql)
+    handle = self.execute_and_wait(query, timeout_sec=15.0)
+
+    if handle:
+      result = self.fetch(handle, rows=5000)
+      self.close(handle)
+
+    return result
+
+
   def explain(self, query):
     return self.client.explain(query)
 
@@ -925,6 +952,25 @@ class DataTable:
   If the dataset has more rows, a new fetch should be done in order to return a new data table with the next rows.
   """
   pass
+
+
+class SubQueryTable:
+
+  def __init__(self, db, query):
+    self.query = query
+    # Table Properties
+    self.name = 'Test'
+    cols = db.get_query_metadata(query).data_table.cols()
+    for col in cols:
+      col.name = re.sub('^t\.', '', col.name)
+      col.type = HiveFormat.FIELD_TYPE_TRANSLATE.get(col.type, 'string')
+    self.cols =  cols
+    self.hdfs_link = None
+    self.comment = None
+    self.is_impala_only = False
+    self.is_view = False
+    self.partition_keys = []
+    self.properties = {}
 
 
 # TODO decorator?

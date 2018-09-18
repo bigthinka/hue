@@ -41,6 +41,7 @@ include $(ROOT)/Makefile.vars.priv
 
 APPS := core \
 	libs/aws \
+	libs/azure \
 	libs/hadoop \
 	libs/indexer \
 	libs/liboauth \
@@ -53,7 +54,8 @@ APPS := core \
 	libs/libzookeeper \
 	libs/metadata \
 	libs/notebook \
-	libs/dashboard
+	libs/dashboard \
+        libs/kafka
 
 .PHONY: default
 default:: hue syncdb
@@ -91,14 +93,11 @@ include $(DESKTOP_ROOT)/devtools.mk
 syncdb: $(DESKTOP_DB)
 
 $(DESKTOP_DB): $(BLD_DIR_BIN)/hue
-	@echo "--- Regenerating database at $@"
 	@if [ -n "$(DESKTOP_DEBUG)" ]; then \
-	  echo 'Removing old database (DESKTOP_DEBUG is set)' ; \
-	  rm -f $@ ; \
+	  @echo "--- Regenerating database at $@" \
+	  @echo 'Removing old database (DESKTOP_DEBUG is set)' ; \
+	  @rm -f $@ ; \
 	fi
-	@echo "--- Syncing/updating database at $@"
-	@$(ENV_PYTHON) $(BLD_DIR_BIN)/hue syncdb --noinput
-	@$(ENV_PYTHON) $(BLD_DIR_BIN)/hue migrate --merge
 
 # Targets that simply recurse into all of the applications
 ENV_INSTALL_TARGETS := $(APPS:%=.recursive-env-install/%)

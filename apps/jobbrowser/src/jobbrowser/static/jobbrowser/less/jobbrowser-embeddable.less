@@ -66,7 +66,7 @@
   }
 
   .divider {
-    color: #CCC;
+    color: @cui-gray-400;
     padding-right: 12px;
   }
 
@@ -79,12 +79,33 @@
       margin-bottom: 0;
     }
     .nav-list > li > a {
-      margin-top: 0!important;
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
     }
     .nav-list li:not(.nav-header) {
       text-overflow: ellipsis;
       overflow-x: hidden;
       white-space: nowrap;
     }
+  }
+
+  .query-plan {
+    border: 1px solid @cui-gray-300
+  }
+
+  .node rect {
+    stroke: @cui-gray-300;
+    fill: @cui-white;
+  }
+
+  .edgePath path {
+    stroke: @cui-gray-800;
+    fill: @cui-gray-800;
+    stroke-width: 1.5px;
+  }
+
+  div[data-jobType="queries"] pre {
+    overflow-x: auto;
+    white-space: pre;
   }
 }

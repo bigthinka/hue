@@ -21,6 +21,7 @@ import logging
 from django.utils.translation import ugettext as _
 from desktop.lib.i18n import smart_unicode
 from desktop.lib.django_util import JsonResponse
+from desktop.views import serve_403_error
 
 from jobbrowser.apis.base_api import get_api
 from jobbrowser.conf import DISABLE_KILLING_JOBS
@@ -47,7 +48,7 @@ def api_error_handler(func):
 
 
 @api_error_handler
-def jobs(request):
+def jobs(request, interface=None):
   response = {'status': -1}
 
   interface = json.loads(request.POST.get('interface'))
@@ -55,7 +56,6 @@ def jobs(request):
 
   jobs = get_api(request.user, interface).apps(filters)
 
-  response['disable_killing_jobs'] = DISABLE_KILLING_JOBS.get();
   response['apps'] = jobs['apps']
   response['total'] = jobs.get('total')
   response['status'] = 0
@@ -64,25 +64,32 @@ def jobs(request):
 
 
 @api_error_handler
-def job(request):
+def job(request, interface=None):
   response = {'status': -1}
 
   interface = json.loads(request.POST.get('interface'))
   app_id = json.loads(request.POST.get('app_id'))
 
-  response['app'] = get_api(request.user, interface).app(app_id)
-  response['status'] = 0
+  response_app = get_api(request.user, interface).app(app_id)
+  if response_app.get('status') == -1 and response_app.get('message'):
+    response.update(response_app)
+  else:
+    response['app'] = response_app
+    response['status'] = 0
 
   return JsonResponse(response)
 
 
 @api_error_handler
-def action(request):
+def action(request, interface=None, action=None):
   response = {'status': -1, 'message': ''}
 
   interface = json.loads(request.POST.get('interface'))
   app_ids = json.loads(request.POST.get('app_ids'))
   operation = json.loads(request.POST.get('operation'))
+
+  if operation.get('action') == 'kill' and DISABLE_KILLING_JOBS.get():
+    return serve_403_error(request)
 
   response['operation'] = operation
   response.update(get_api(request.user, interface).action(app_ids, operation))
@@ -99,7 +106,7 @@ def logs(request):
   app_type = json.loads(request.POST.get('type'))
   log_name = json.loads(request.POST.get('name'))
 
-  response['logs'] = get_api(request.user, interface).logs(app_id, app_type, log_name)
+  response['logs'] = get_api(request.user, interface).logs(app_id, app_type, log_name, json.loads(request.GET.get('is_embeddable', 'false').lower()))
   response['status'] = 0
 
   return JsonResponse(response)

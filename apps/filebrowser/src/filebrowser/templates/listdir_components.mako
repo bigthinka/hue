@@ -45,7 +45,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
   <table id="fileBrowserTable" class="table table-condensed table-huedatatable tablescroller-disable" data-bind="style: {'opacity': isLoading() ? '.5': '1'}">
     <thead>
       <tr>
-        <th class="sorting_disabled" width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
+        <th class="sorting_disabled" width="1%"><div data-bind="click: selectAll, css: { 'hue-checkbox': true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
         <th class="sortable sorting" data-sort="type" width="1%" data-bind="click: sort">&nbsp;</th>
         <th class="sortable sorting_asc" data-sort="name" data-bind="click: sort">${_('Name')}</th>
         <th class="sortable sorting" data-sort="size" width="10%" data-bind="click: sort">${_('Size')}</th>
@@ -449,22 +449,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
     <div class="modal-footer"></div>
   </div>
 
-  <!-- upload archive modal -->
-  <div id="uploadArchiveModal" class="modal hide fade">
-    <div class="modal-header">
-      <button type="button" class="close" data-dismiss="modal" aria-label="${ _('Close') }"><span aria-hidden="true">&times;</span></button>
-      <h2 class="modal-title">${_('Upload and extract in')} <span data-bind="text: currentPath"></span></h2>
-    </div>
-    <div class="modal-body form-inline">
-      <div id="archiveUploader" class="uploader">
-        <noscript>
-          <p>${_('Enable JavaScript to use the file uploader.')}</p>
-        </noscript>
-      </div>
-    </div>
-    <div class="modal-footer"></div>
-  </div>
-
   <!-- new directory modal -->
   <form id="createDirectoryForm" data-bind="submit: createDirectory" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
     ${ csrf_token(request) | n,unicode }
@@ -576,48 +560,54 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
   <!-- actions context menu -->
   <ul class="context-menu dropdown-menu">
   <!-- ko ifnot: $root.inTrash -->
-    <li data-bind="visible: !isS3() || (isS3() && !isS3Root())"><a href="#" title="${_('Rename')}" data-bind="visible: !$root.inTrash() && $root.selectedFiles().length == 1, click: $root.renameFile,
-    enable: $root.selectedFiles().length == 1 && isCurrentDirSelected().length == 0"><i class="fa fa-fw fa-font"></i>
+    <li data-bind="visible: !isS3() || (isS3() && !isS3Root()), css: {'disabled': $root.selectedFiles().length != 1 || isCurrentDirSelected().length > 0}">
+    <a href="javascript: void(0)" title="${_('Rename')}" data-bind="click: ($root.selectedFiles().length == 1 && isCurrentDirSelected().length == 0) ? $root.renameFile: void(0)"><i class="fa fa-fw fa-font"></i>
     ${_('Rename')}</a></li>
-    <li data-bind="visible: !isS3() || (isS3() && !isS3Root())"><a href="#" title="${_('Move')}" data-bind="click: $root.move, enable: $root.selectedFiles().length > 0 &&
-    isCurrentDirSelected().length == 0"><i class="fa fa-fw fa-random"></i> ${_('Move')}</a></li>
-    <li data-bind="visible: !isS3() || (isS3() && !isS3Root())"><a href="#" title="${_('Copy')}" data-bind="click: $root.copy, enable: $root.selectedFiles().length > 0 &&
-    isCurrentDirSelected().length == 0"><i class="fa fa-fw fa-files-o"></i> ${_('Copy')}</a></li>
+    <li data-bind="visible: !isS3() || (isS3() && !isS3Root()), css: {'disabled': $root.selectedFiles().length == 0 || isCurrentDirSelected().length > 0}">
+    <a href="javascript: void(0)" title="${_('Move')}" data-bind="click: ( $root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0) ? $root.move: void(0)"><i class="fa fa-fw fa-random"></i> ${_('Move')}</a></li>
+    <li data-bind="visible: !isS3() || (isS3() && !isS3Root()), css: {'disabled': $root.selectedFiles().length == 0 || isCurrentDirSelected().length > 0}">
+    <a href="javascript: void(0)" title="${_('Copy')}" data-bind="click: ($root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0) ? $root.copy: void(0)"><i class="fa fa-fw fa-files-o"></i> ${_('Copy')}</a></li>
     % if show_download_button:
-    <li><a href="#" title="${_('Download')}" data-bind="visible: !$root.inTrash() && $root.selectedFiles().length == 1 && selectedFile().type == 'file', click: $root.downloadFile"><i class="fa fa-fw fa-arrow-circle-o-down"></i> ${_('Download')}</a></li>
+    <li data-bind="css: {'disabled': $root.inTrash() || $root.selectedFiles().length != 1 || selectedFile().type != 'file'}">
+    <a href="javascript: void(0)" title="${_('Download')}" data-bind="click: (!$root.inTrash() && $root.selectedFiles().length == 1 && selectedFile().type == 'file') ? $root.downloadFile: void(0)">
+    <i class="fa fa-fw fa-arrow-circle-o-down"></i> ${_('Download')}</a></li>
     % endif
-    <li class="divider" data-bind="visible: !isS3()"></li>
+    <li class="divider" data-bind="visible: isPermissionEnabled()"></li>
     % if is_fs_superuser:
-    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged || selectedSentryFiles().length > 0 }, visible: !isS3()">
-      <a href="#" data-bind="visible: !$root.inTrash(), click: $root.changeOwner, enable: $root.selectedFiles().length > 0">
+    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged || selectedSentryFiles().length > 0 }, visible: isPermissionEnabled()">
+      <a href="javascript: void(0)" data-bind="visible: !$root.inTrash(), click: $root.changeOwner, enable: $root.selectedFiles().length > 0">
         <i class="fa fa-fw fa-user"></i> ${_('Change owner / group')}
       </a>
     </li>
     % endif
-    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged() || selectedSentryFiles().length > 0 }, visible: !isS3()">
-      <a href="#" data-bind="visible: !$root.inTrash(), click: $root.changePermissions, enable: $root.selectedFiles().length > 0">
+    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged() || selectedSentryFiles().length > 0 }, visible: isPermissionEnabled()">
+      <a href="javascript: void(0)" data-bind="visible: !$root.inTrash(), click: $root.changePermissions, enable: $root.selectedFiles().length > 0">
         <i class="fa fa-fw fa-list-alt"></i> ${_('Change permissions')}
       </a>
     </li>
-    <li class="divider" data-bind="visible: !isS3() || (isS3() && !isS3Root())"></li>
+    <li class="divider" data-bind="visible: isCompressEnabled() || isReplicationEnabled() || isSummaryEnabled()"></li>
     % if is_trash_enabled:
-    <li><a href="#" data-bind="enable: $root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0, click: $root.trashSelected"><i class="fa fa-fw fa-times"></i> ${_('Move to trash')}</a></li>
-    %endif
-    <li><a href="#" class="delete-link" title="${_('Delete forever')}" data-bind="enable: $root.selectedFiles().length > 0, click: $root.deleteSelected"><i class="fa fa-fw fa-bolt"></i> ${_('Delete forever')}</a></li>
-    <li class="divider" data-bind="visible: !isS3()"></li>
-    <li data-bind="css: {'disabled': selectedFiles().length > 1 }, visible: !isS3()">
+    <li data-bind="css: {'disabled': $root.selectedFiles().length == 0 || isCurrentDirSelected().length > 0}">
+    <a href="javascript: void(0)" data-bind="click: ($root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0) ? $root.trashSelected: void(0)">
+    <i class="fa fa-fw fa-times"></i> ${_('Move to trash')}</a></li>
+    % endif
+    <li><a href="javascript: void(0)" class="delete-link" title="${_('Delete forever')}" data-bind="enable: $root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0, click: $root.deleteSelected"><i class="fa fa-fw fa-bolt"></i> ${_('Delete forever')}</a></li>
+    <li class="divider" data-bind="visible: isSummaryEnabled()"></li>
+    <li data-bind="css: {'disabled': selectedFiles().length > 1 }, visible: isSummaryEnabled()">
       <a class="pointer" data-bind="click: function(){ selectedFiles().length == 1 ? showSummary(): void(0)}"><i class="fa fa-fw fa-pie-chart"></i> ${_('Summary')}</a>
     </li>
-    <li>
-      <a href="javascript: void(0)" title="${_('Set Replication')}" data-bind="visible: !inTrash() && !isS3() && selectedFiles().length == 1 && selectedFile().type == 'file', click: setReplicationFactor">
+    <li data-bind="css: {'disabled': inTrash() || !isReplicationEnabled() || selectedFiles().length != 1 || selectedFile().type != 'file'}">
+      <a href="javascript: void(0)" title="${_('Set Replication')}" data-bind="click: (!inTrash() && isReplicationEnabled() && selectedFiles().length == 1 && selectedFile().type == 'file') ? setReplicationFactor: void(0)">
         <i class="fa fa-fw fa-hdd-o"></i> ${_('Set replication')}
       </a>
     </li>
     % if ENABLE_EXTRACT_UPLOADED_ARCHIVE.get():
-      <li><a href="javascript: void(0)" title="${_('Compress selection into a single archive')}" data-bind="click: function() { setCompressArchiveDefault(); confirmCompressFiles();}, visible: showCompressButton">
+      <li data-bind="css: {'disabled': ! showCompressButton}">
+        <a href="javascript: void(0)" title="${_('Compress selection into a single archive')}" data-bind="click: function() { setCompressArchiveDefault(); confirmCompressFiles();}, visible: showCompressButton">
         <i class="fa fa-fw fa-file-archive-o"></i> ${_('Compress')}</a>
       </li>
-      <li><a href="javascript: void(0)" title="${_('Extract selected archive')}" data-bind="visible: selectedFiles().length == 1 && isArchive() && !isS3(), click: confirmExtractArchive">
+      <li data-bind="css: {'disabled': selectedFiles().length != 1 || !isArchive(selectedFile().name) || !isCompressEnabled()}">
+        <a href="javascript: void(0)" title="${_('Extract selected archive')}" data-bind="visible: selectedFiles().length == 1 && isArchive(selectedFile().name) && isCompressEnabled(), click: confirmExtractArchive">
         <i class="fa fa-fw fa-file-archive-o"></i> ${_('Extract')}</a>
       </li>
     % endif
@@ -633,8 +623,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
 
   <script id="fileTemplate" type="text/html">
     <tr class="row-animated" style="cursor: pointer" data-bind="drop: { enabled: name !== '.' && type !== 'file' && (!$root.isS3() || ($root.isS3() && !$root.isS3Root())), value: $data }, event: { mouseover: toggleHover, mouseout: toggleHover, contextmenu: showContextMenu }, click: $root.viewFile, css: { 'row-selected': selected(), 'row-highlighted': highlighted(), 'row-deleted': deleted() }">
-      <td class="center" data-bind="click: handleSelect" style="cursor: default">
-        <div data-bind="multiCheck: '#fileBrowserTable', visible: name != '..', css: { hueCheckbox: name != '..', 'fa': name != '..', 'fa-check': selected }"></div>
+      <td class="center" data-bind="click: name !== '..' ? handleSelect : void(0)" style="cursor: default">
+        <div data-bind="multiCheck: '#fileBrowserTable', visible: name != '..', css: { 'hue-checkbox': name != '..', 'fa': name != '..', 'fa-check': selected }"></div>
       </td>
       <td class="left"><i data-bind="click: $root.viewFile, css: { 'fa': true,
        % if 'oozie' in apps:
@@ -646,28 +636,28 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         <a href="#" data-bind="click: $root.viewFile"><i class="fa fa-level-up"></i></a>
         <!-- /ko -->
         <!-- ko if: name != '..' -->
-        <strong><a href="#" class="draggable-fb" data-bind="drag: { enabled: (!$root.isS3() || ($root.isS3() && !$root.isS3Root())), value: $data }, click: $root.viewFile, text: name, attr: { 'draggable': $.inArray(name, ['.', '..', '.Trash']) === -1 && !$root.isS3()}"></a></strong>
+        <strong><a href="#" class="draggable-fb" data-bind="drag: { enabled: (!$root.isS3() || ($root.isS3() && !$root.isS3Root())), value: $data }, click: $root.viewFile, text: name, attr: { 'draggable': $.inArray(name, ['.', '..', '.Trash']) === -1 && !isBucket()}"></a></strong>
         <!-- /ko -->
       </td>
       <td>
         <span data-bind="visible: type == 'file', text: stats.size"></span>
       </td>
-      <td>
+      <td class="truncate-text" style="max-width: 150px">
         % if is_fs_superuser:
-        <span data-bind="text: stats.user, visible: !selected() || $root.isCurrentDirSentryManaged() || isSentryManaged"></span>
+        <span data-bind="text: stats.user, visible: !selected() || $root.isCurrentDirSentryManaged() || isSentryManaged, attr: { 'title':  stats.user }"></span>
         <a href="#" rel="tooltip" title="${_('Change owner')}" data-original-title="${_('Change owner')}"
-            data-bind="text: stats.user, visible: !$root.inTrash() && selected() && !$root.isCurrentDirSentryManaged() && !isSentryManaged, click: $root.changeOwner, enable: $root.selectedFiles().length > 0"></a>
+            data-bind="text: stats.user, visible: !$root.inTrash() && selected() && !$root.isCurrentDirSentryManaged() && !isSentryManaged, click: $root.changeOwner, enable: $root.selectedFiles().length > 0, attr: { 'title':  stats.user }"></a>
         % else:
-        <span data-bind="text: stats.user"></span>
+        <span data-bind="text: stats.user, attr: { 'title':  stats.user }"></span>
         % endif
       </td>
-      <td>
+      <td class="truncate-text" style="max-width: 150px">
         % if is_fs_superuser:
-        <span data-bind="text: stats.group, visible: ! selected() || $root.isCurrentDirSentryManaged() || isSentryManaged"></span>
+        <span data-bind="text: stats.group, visible: ! selected() || $root.isCurrentDirSentryManaged() || isSentryManaged, attr: { 'title':  stats.group }"></span>
         <a href="#" rel="tooltip" title="${_('Change group')}" data-original-title="${_('Change group')}"
-            data-bind="text: stats.group, visible: !$root.inTrash() && selected() && !$root.isCurrentDirSentryManaged() && !isSentryManaged, click: $root.changeOwner"></a>
+            data-bind="text: stats.group, visible: !$root.inTrash() && selected() && !$root.isCurrentDirSentryManaged() && !isSentryManaged, click: $root.changeOwner, attr: { 'title':  stats.group }"></a>
         % else:
-        <span data-bind="text: stats.group"></span>
+        <span data-bind="text: stats.group, attr: { 'title':  stats.group }"></span>
         % endif
       </td>
       <td>
@@ -744,95 +734,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
       user: "${ user }"
     });
 
-    // migration to the new history
-    if ($.totalStorage('hue_fb_history')) {
-      var s3History = [],
-        hdfsHistory = [];
-      $.totalStorage('hue_fb_history').forEach(function(item) {
-        if (item.toLowerCase().indexOf('s3a://') === 0){
-          s3History.push(item);
-        }
-        else {
-          hdfsHistory.push(item);
-        }
-      });
-      $.totalStorage('hue_fb_history', null);
-      apiHelper.setInTotalStorage('fb', 'history_s3', s3History);
-      apiHelper.setInTotalStorage('fb', 'history_hdfs', hdfsHistory);
-    }
-
-    var getHistorySlug = function() {
-      var slug = 'history_';
-      if (viewModel && viewModel.isS3()){
-        slug += 's3';
-      }
-      else {
-        slug += 'hdfs';
-      }
-      return slug;
-    }
-
-    var getHistory = function () {
-      return apiHelper.getFromTotalStorage('fb', getHistorySlug(), [])
-    };
-
-    var showHistory = function () {
-      var history = getHistory().slice(0, 10),
-        frag = $('<ul/>', {
-                  'id': 'hashHistory',
-                  'class': 'dropdown-menu',
-                  'role': 'menu',
-                  'aria-labelledby': 'historyDropdown'
-                });
-
-      $('#hashHistory').remove();
-      if (history.length === 0){
-        $('.history').addClass('no-history');
-      }
-
-      history.forEach(function (item) {
-        var url = '#' + item,
-          list = $('<li><a href="' + url + '">' + item + '</a></li>');
-
-        $(list).appendTo(frag);
-      });
-
-      $('<li>', {
-        'class': 'divider'
-      }).appendTo(frag);
-
-      $('<li><a href="javascript:void(0)">${ _("Clear history...") }</a></li>')
-          .appendTo(frag)
-          .on('click', function(){
-            apiHelper.setInTotalStorage('fb', getHistorySlug(), []);
-            $('.history').addClass('no-history');
-          });
-
-      $(frag).appendTo('.history');
-
-      return this;
-    };
-
-    var addPathToHistory = function (path) {
-      $('.history').removeClass('no-history');
-      var history = getHistory();
-      if (path != '/filebrowser/') {
-        var _basePath = '${url('filebrowser.views.view', path='')}';
-        if (path.indexOf(_basePath) > -1) {
-          path = path.substr(_basePath.length);
-        }
-
-        // ensure no duplicates are pushed to $.totalStorage()
-        if (history.indexOf(path) === -1) {
-          history.unshift(path);
-          $('.history').removeClass('no-history');
-        } else {
-          history.unshift(history.splice(history.indexOf(path), 1)[0]);
-        }
-        apiHelper.setInTotalStorage('fb', getHistorySlug(), history.slice(0, 10));
-      }
-    };
-
     // ajax modal windows
     var openChownWindow = function (path, user, group, next) {
       $.ajax({
@@ -889,6 +790,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
     }
 
     var updateHash = function (hash) {
+      hash = encodeURI(hash);
       %if not is_embeddable:
       window.location.hash = hash;
       %else:
@@ -927,7 +829,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
       return {
         name: file.name,
         path: file.path,
-        url: file.url,
+        url: encodeURI(file.url),
         type: file.type,
         permissions: file.rwx,
         mode: file.mode,
@@ -936,12 +838,13 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           size: file.humansize,
           user: file.stats.user,
           group: file.stats.group,
-          mtime: file.mtime
+          mtime: file.mtime,
+          replication: file.stats.replication
         },
         isBucket: ko.pureComputed(function(){
-          return file.path.toLowerCase().indexOf('s3a://') == 0 && file.path.substr(5).indexOf('/') == -1
+          return file.path.toLowerCase().indexOf('s3a://') == 0 && file.path.substr(6).indexOf('/') == -1
         }),
-        selected: ko.observable(false),
+        selected: ko.observable(file.highlighted && viewModel.isArchive(file.name) || false),
         highlighted: ko.observable(file.highlighted || false),
         deleted: ko.observable(file.deleted || false),
         handleSelect: function (row, e) {
@@ -959,7 +862,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         showContextMenu: function (row, e) {
           var cm = $('.context-menu'),
             actions = $('#ch-dropdown'),
-            rect = document.querySelector('body').getBoundingClientRect();
+            rect = document.querySelector(HUE_CONTAINER).getBoundingClientRect();
 
           e.stopPropagation();
 
@@ -969,7 +872,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           }
 
           // display context menu and ensure it is on-screen
-          if ($.inArray(row.name, ['..', '.', '.Trash']) === -1) {
+          if ($.inArray(row.name, ['..', '.Trash']) === -1) {
             this.selected(true);
             var verticalCorrection = 0;
             %if is_embeddable:
@@ -1036,12 +939,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
             $('#uploadFileModal').data('modal').$element.off('keyup.dismiss.modal');
             if ($('#uploadFileModal').data('modal').$backdrop){
               $('#uploadFileModal').data('modal').$backdrop.off('click');
-            }
-          }
-          if ($('#uploadArchiveModal').data('modal')) {
-            $('#uploadArchiveModal').data('modal').$element.off('keyup.dismiss.modal');
-            if ($('#uploadArchiveModal').data('modal').$backdrop) {
-              $('#uploadArchiveModal').data('modal').$backdrop.off('click');
             }
           }
         }
@@ -1154,10 +1051,67 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         return self.currentPath().toLowerCase().indexOf('s3a://') === 0;
       });
 
+      self.isAdls = ko.pureComputed(function () {
+        return self.currentPath().toLowerCase().indexOf('adl:/') === 0;
+      });
+
+      self.scheme = ko.pureComputed(function () {
+        var path = self.currentPath();
+        return path.substring(0, path.indexOf(':/')) || "hdfs";
+      });
+
+      self.fs = ko.pureComputed(function () {
+        var scheme = self.scheme();
+        if (scheme === 'adl') {
+          return 'adls';
+        } else if (scheme === 's3a' ){
+          return 's3';
+        } else if (!scheme || scheme == 'hdfs') {
+          return 'hdfs';
+        } else {
+          return scheme;
+        }
+      });
+
+      function root(path) {
+        var path = path && path.toLowerCase();
+        if (path.indexOf('s3a://') >= 0) {
+          return 's3a://';
+        } else if (path.indexOf('adl:/') >= 0) {
+          return 'adl:/';
+        } else {
+          return '/';
+        }
+      };
+
+      self.rootCurrent = ko.pureComputed(function () {
+        return root(self.currentPath());
+      });
+
+      self.rootTarget = ko.pureComputed(function () {
+        return root(self.targetPath());
+      });
+
+      self.isHdfs = ko.pureComputed(function () {
+        var currentPath = self.currentPath().toLowerCase();
+        return currentPath.indexOf('/') === 0 || currentPath.indexOf('hdfs') === 0
+      });
+      self.isCompressEnabled = ko.pureComputed(function () {
+        return !self.isS3() && !self.isAdls();
+      });
+      self.isSummaryEnabled = ko.pureComputed(function () {
+        return self.isHdfs();
+      });
+      self.isPermissionEnabled = ko.pureComputed(function () {
+        return !self.isS3();
+      });
+      self.isReplicationEnabled = ko.pureComputed(function () {
+        return self.isHdfs();
+      });
+
       self.isS3.subscribe(function (newVal) {
         if (newVal) {
           huePubSub.publish('update.autocompleters');
-          huePubSub.publish('update.history');
         }
       });
 
@@ -1186,7 +1140,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
       self.showSummary = function () {
         self.isLoadingSummary(true);
         $("#contentSummaryModal").modal("show");
-        $.getJSON("${url('filebrowser.views.content_summary', path='')}" + self.selectedFile().path, function (data) {
+        $.getJSON("${url('content_summary', path='')}" + self.selectedFile().path, function (data) {
           if (data.status == 0) {
             self.contentSummary(ko.mapping.fromJS(data.summary));
             self.isLoadingSummary(false);
@@ -1222,12 +1176,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           self.updateFileList(data.files, data.page, data.breadcrumbs, data.current_dir_path, data.is_sentry_managed);
 
           if (clearAssistCache) {
-            if (self.isS3()) {
-              huePubSub.publish('assist.clear.s3.cache');
-            }
-            else {
-              huePubSub.publish('assist.clear.hdfs.cache');
-            }
+            huePubSub.publish('assist.'+self.fs()+'.refresh');
           }
 
           if ($("#hueBreadcrumbText").is(":visible")) {
@@ -1244,7 +1193,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         self.isCurrentDirSentryManaged(isSentryManaged);
 
         self.page(new Page(page));
-
         self.files(ko.utils.arrayMap(files, function (file) {
           file.highlighted = self.filesToHighlight.indexOf(file.path) > -1;
           var f = new File(file);
@@ -1392,11 +1340,11 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
       };
 
       self.editFile = function () {
-        window.location.href = "${url('filebrowser.views.edit', path='')}" + self.selectedFile().path;
+        window.location.href = "${url('filebrowser_views_edit', path='')}" + encodeURI(self.selectedFile().path);
       };
 
       self.downloadFile = function () {
-        window.location.href = "${url('filebrowser.views.download', path='')}" + self.selectedFile().path;
+        window.location.href = "${url('filebrowser_views_download', path='')}" + encodeURI(self.selectedFile().path);
       };
 
       self.renameFile = function () {
@@ -1434,6 +1382,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           dataType: 'json',
           success: function() {
             $("#setReplicationModal").modal('hide');
+            $("#newRepFactorInput").val('');
             self.retrieveData(true);
           }
         });
@@ -1441,6 +1390,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         $("#setReplicationModal").modal({
           keyboard:true,
           show:true
+        }).on('shown', function(){
+          $('#newRepFactorInput').val(self.selectedFile().stats.replication);
         });
       };
 
@@ -1472,6 +1423,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
             error: function(xhr){
               $.jHueNotify.error(xhr.responseText);
               resetPrimaryButtonsStatus();
+              $('#moveDestination').val('');
             }
           });
 
@@ -1491,9 +1443,9 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
               $("#moveModal .modal-footer div").show();
               $("#moveFilechooser").remove();
               $("<div>").attr("id", "moveFilechooser").appendTo($("#moveModal .modal-body"));
-
               $("#moveFilechooser").jHueFileChooser({
-                initialPath: $("#moveDestination").val(),
+                initialPath: paths[0] || '',
+                filesystemsFilter: [self.scheme()],
                 onNavigate: function (filePath) {
                   $("#moveDestination").val(filePath);
                 },
@@ -1505,6 +1457,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         }
         else {
           $.jHueNotify.warn("${ _('You cannot copy a folder into itself.') }");
+          $('#moveDestination').val('');
         }
       };
 
@@ -1545,7 +1498,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           $("#copyFilechooser").remove();
           $("<div>").attr("id", "copyFilechooser").appendTo($("#copyModal .modal-body"));
           $("#copyFilechooser").jHueFileChooser({
-            initialPath: $("#copyDestination").val(),
+            initialPath: paths[0] || '',
+            filesystemsFilter: [self.scheme()],
             onNavigate: function (filePath) {
               $("#copyDestination").val(filePath);
             },
@@ -1553,6 +1507,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
             uploadFile: false
           });
         });
+
       };
 
       self.changeOwner = function (data, event) {
@@ -1678,22 +1633,23 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           dataType:  'json',
           success: function() {
             $("#deleteModal").modal('hide');
-            window.setTimeout(function(){
+            window.setTimeout(function () {
               $(self.selectedFiles()).each(function (index, file) {
                 file.deleted(true);
               });
               var $scrollable = $(window);
               %if is_embeddable:
-              $scrollable = $('.page-content');
+                $scrollable = $('.page-content');
               %endif
-              if ($('.row-deleted').length() > 0 && $('.row-deleted:eq(0)').offset()) {
+              if ($('.row-deleted').length > 0 && $('.row-deleted:eq(0)').offset()) {
                 $scrollable.scrollTop($('.row-deleted:eq(0)').offset().top - 150);
               }
             }, 500);
-            window.setTimeout(function(){
+            window.setTimeout(function () {
               $(self.selectedFiles()).each(function (index, file) {
                 self.files.remove(file);
               });
+              self.retrieveData(true);
             }, 1000);
           },
           error: function(xhr, textStatus, errorThrown) {
@@ -1724,8 +1680,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         % endif
       };
 
-      self.isArchive = function() {
-        var fileName = self.selectedFile().name;
+      self.isArchive = function(fileName) {
         return fileName.endsWith('.zip') || fileName.endsWith('.tar.gz') || fileName.endsWith('.tgz') || fileName.endsWith('.bz2') || fileName.endsWith('.bzip2');
       };
 
@@ -1743,7 +1698,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         if (fileNames.indexOf('.') !== -1) {
           return false;
         }
-        return !self.isS3() && (self.selectedFiles().length > 1 || !(self.selectedFiles().length === 1 && self.isArchive()));
+        return self.isCompressEnabled() && (self.selectedFiles().length > 1 || !(self.selectedFiles().length === 1 && self.isArchive(self.selectedFile().name)));
       });
 
       self.setCompressArchiveDefault = function() {
@@ -1771,6 +1726,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         $.post("/filebrowser/extract_archive", {
           "archive_name": self.selectedFile().name,
           "upload_path": self.currentPath(),
+          "start_time": ko.mapping.toJSON((new Date()).getTime())
         }, function (data) {
           if (data.status == 0) {
             $.jHueNotify.info("${ _('Task ') }" + data.history_uuid + "${_(' submitted.') }");
@@ -1805,7 +1761,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         $.post("/filebrowser/compress_files", {
           "files": fileNames,
           "upload_path": self.currentPath(),
-          "archive_name": self.compressArchiveName()
+          "archive_name": self.compressArchiveName(),
+          "start_time": ko.mapping.toJSON((new Date()).getTime())
         }, function (data) {
           if (data.status == 0) {
             $.jHueNotify.info("${ _('Task ') }" + data.history_uuid + "${_(' submitted.') }");
@@ -1942,8 +1899,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           action: action,
           template: '<div class="qq-uploader" style="margin-left: 10px">' +
           '<div class="qq-upload-drop-area"><span>${_('Drop the files here to upload')}</span></div>' +
-          '<div class="qq-upload-button">${_('Select files')}</div> &nbsp; <span class="muted">or drag and drop them here</span>' +
-          '<ul class="qq-upload-list qq-upload-files unstyled" style="margin-right: 0;"></ul>' +
+          '<div class="qq-upload-button qq-no-float">${_('Select files')}</div> &nbsp; <span class="muted">${_('or drag and drop them here')}</span>' +
+          '<ul class="qq-upload-list qq-upload-files unstyled qq-no-float" style="margin-right: 0;"></ul>' +
           '</div>',
           fileTemplate: '<li><span class="qq-upload-file-extended" style="display:none"></span><span class="qq-upload-spinner hide" style="display:none"></span>' +
           '<div class="progress-row dz-processing">' +
@@ -2005,76 +1962,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         };
       })();
 
-      self.uploadArchive = (function () {
-        self.pendingUploads(0);
-        var uploader = new qq.FileUploader({
-          element: document.getElementById("archiveUploader"),
-          action: "/filebrowser/upload/archive",
-          template: '<div class="qq-uploader" style="margin-left: 10px">' +
-          '<div class="qq-upload-drop-area"><span>${_('Drop the archives here to upload and extract them')}</span></div>' +
-          '<div class="qq-upload-button">${_('Select ZIP, TGZ or BZ2 files')}</div> &nbsp; <span class="muted">or drag and drop them here</span>' +
-          '<ul class="qq-upload-list qq-upload-archives unstyled" style="margin-right: 0;"></ul>' +
-          '</div>',
-          fileTemplate: '<li><span class="qq-upload-file-extended" style="display:none"></span><span class="qq-upload-spinner hide" style="display:none"></span>' +
-          '<div class="progress-row dz-processing">' +
-          '<span class="break-word qq-upload-file"></span>' +
-          '<div class="pull-right">' +
-          '<span class="muted qq-upload-size"></span>&nbsp;&nbsp;' +
-          '<a href="#" title="${_('Cancel')}" class="complex-layout"><i class="fa fa-fw fa-times qq-upload-cancel"></i></a>' +
-          '<span class="qq-upload-done" style="display:none"><i class="fa fa-fw fa-check muted"></i></span>' +
-          '<span class="qq-upload-failed-text">${_('Failed')}</span>' +
-          '</div>' +
-          '<div class="progress-row-bar" style="width: 0%;"></div>' +
-          '</div></li>',
-          params: {
-            dest: self.currentPath(),
-            fileFieldLabel: "archive"
-          },
-          onProgress: function (id, fileName, loaded, total) {
-            $('.qq-upload-archives').find('li').each(function(){
-              var listItem = $(this);
-              if (listItem.find('.qq-upload-file-extended').text() == fileName){
-                listItem.find('.progress-row-bar').css('width', (loaded/total)*100 + '%');
-              }
-            });
-          },
-          onComplete: function (id, fileName, response) {
-            self.pendingUploads(self.pendingUploads() - 1);
-            if (response.status != 0) {
-              $(document).trigger('error', "${ _('Error: ') }" + response.data);
-            }
-            else {
-              $(document).trigger('info', response.path + "${ _(' uploaded successfully.') }");
-              self.filesToHighlight.push(response.path);
-            }
-            if (self.pendingUploads() == 0) {
-              $('#uploadArchiveModal').modal('hide');
-              self.retrieveData(true);
-            }
-          },
-          onSubmit: function (id, fileName, responseJSON) {
-            self.pendingUploads(self.pendingUploads() + 1);
-          },
-          onCancel: function (id, fileName) {
-            self.pendingUploads(self.pendingUploads() - 1);
-          },
-          debug: false
-        });
-
-        $("#archiveUploader").on('fb:updatePath', function (e, options) {
-          uploader.setParams({
-            dest: options.dest,
-            fileFieldLabel: "archive"
-          });
-        });
-
-        return function () {
-          $("#uploadArchiveModal").modal({
-            show: true
-          });
-        };
-      })();
-
       // Place all values into hidden fields under parent element.
       // Looks for managed hidden fields and handles sizing appropriately.
       var hiddenFields = function (parentEl, name, values) {
@@ -2110,43 +1997,22 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
     ko.applyBindings(viewModel, $('.filebrowser')[0]);
 
     $(document).ready(function () {
-      $('.historyLink').on('click', function (e) {
-        if(getHistory().length > 0) {
-          showHistory();
-        } else {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      });
-
       // hide context menu
-      $('body').on('click', function (e) {
+      $(HUE_CONTAINER).on('click', function (e) {
         hideContextMenu();
       });
 
-      $('body').on('contextmenu', function (e) {
+      $(HUE_CONTAINER).on('contextmenu', function (e) {
         if ($.inArray(e.toElement, $('.table-huedatatable *')) === -1) {
           hideContextMenu();
         }
       });
 
-      $('body').on('contextmenu', '.context-menu', function (e) {
+      $(HUE_CONTAINER).on('contextmenu', '.context-menu', function (e) {
         hideContextMenu();
       });
 
-      // Allow only numeric symbols for setting replication factor
-      $("#newRepFactorInput").keydown(function (e) {
-        if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110, 190]) !== -1 ||
-          (e.keyCode == 65 && (e.ctrlKey === true || e.metaKey === true)) ||
-          (e.keyCode == 67 && (e.ctrlKey === true || e.metaKey === true)) ||
-          (e.keyCode == 88 && (e.ctrlKey === true || e.metaKey === true)) ||
-          (e.keyCode >= 35 && e.keyCode <= 39)) {
-            return;
-        }
-        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-          e.preventDefault();
-        }
-      });
+      % if show_upload_button:
 
       // Drag and drop uploads from anywhere on filebrowser screen
       if (window.FileReader) {
@@ -2175,7 +2041,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         $('.filebrowser').on('dragenter', function (e) {
           e.preventDefault();
 
-          if (_isExternalFile && !($("#uploadFileModal").is(":visible")) && !($("#uploadArchiveModal").is(":visible")) && (!viewModel.isS3() || (viewModel.isS3() && !viewModel.isS3Root()))) {
+          if (_isExternalFile && !($("#uploadFileModal").is(":visible")) && (!viewModel.isS3() || (viewModel.isS3() && !viewModel.isS3Root()))) {
             showHoverMsg("${_('Drop files here to upload')}");
           }
         });
@@ -2208,7 +2074,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           catch (exc) {
           }
           var options = {
-            url: '/filebrowser/upload/file?dest=' + ops.path,
+            url: '/filebrowser/upload/file?dest=' + encodeURI(ops.path),
             paramName: 'hdfs_file',
             params: {
               dest: ops.path
@@ -2220,7 +2086,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
                 '<span class="break-word" data-dz-name></span>' +
                 '<div class="pull-right">' +
                 '<span class="muted" data-dz-size></span>&nbsp;&nbsp;' +
-                '<span data-dz-remove><a href="javascript:undefined;" title="' + DropzoneGlobals.i18n.cancelUpload + '"><i class="fa fa-fw fa-times"></i></a></span>' +
+                '<span data-dz-remove><a href="javascript:undefined;" title="' + HUE_I18n.dropzone.cancelUpload + '"><i class="fa fa-fw fa-times"></i></a></span>' +
                 '<span style="display: none" data-dz-uploaded><i class="fa fa-fw fa-check muted"></i></span>' +
                 '</div>' +
                 '<div class="progress-row-bar" data-dz-uploadprogress></div>' +
@@ -2232,6 +2098,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
               if (e.dataTransfer.files.length > 0) {
                 $('#progressStatus').removeClass('hide');
                 $('#progressStatusBar').removeClass('hide');
+                $('#progressStatus .progress-row').remove();
                 $('#progressStatusBar div').css('width', '0');
               }
             },
@@ -2241,7 +2108,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
                 newDest = ops.path + '/' + file.fullPath.substr(0, file.fullPath.length - file.name.length);
               }
               this.options.params.dest = newDest;
-              this.options.url = '/filebrowser/upload/file?dest=' + newDest;
+              this.options.url = '/filebrowser/upload/file?dest=' + encodeURI(newDest);
             },
             uploadprogress: function (file, progress) {
               $('[data-dz-name]').each(function (cnt, item) {
@@ -2258,7 +2125,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
               $('#progressStatusBar div').width(progress.toFixed() + "%");
             },
             canceled: function () {
-              $.jHueNotify.info(DropzoneGlobals.i18n.uploadCanceled);
+              $.jHueNotify.info(HUE_I18n.dropzone.uploadCanceled);
             },
             complete: function (data) {
               if (data.xhr.response != '') {
@@ -2266,9 +2133,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
                 if (response && response.status != null) {
                   if (response.status != 0) {
                     $(document).trigger('error', response.data);
-                  }
-                  else {
-                    $(document).trigger('info', response.path + ' ' + DropzoneGlobals.i18n.uploadSucceeded);
+                  } else {
+                    $(document).trigger('info', response.path + ' ' + HUE_I18n.dropzone.uploadSucceeded);
                     viewModel.filesToHighlight.push(response.path);
                   }
                 }
@@ -2290,6 +2156,7 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           }
         });
       }
+      % endif
 
       $("#chownForm select[name='user']").change(function () {
         if ($(this).val() == "__other__") {
@@ -2393,6 +2260,18 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           resetPrimaryButtonsStatus(); //globally available
           return false;
         }
+        var isMoveOnSelf = false;
+        $(viewModel.selectedFiles()).each(function (index, file) {
+          if (file.path == $('#moveDestination').val()) {
+            isMoveOnSelf = true;
+            return false;
+          }
+        });
+        if(isMoveOnSelf){
+          $.jHueNotify.warn("${ _('You cannot copy a folder into itself.') }");
+          $('#moveDestination').val('');
+          return false;
+        }
         return true;
       });
 
@@ -2416,6 +2295,12 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         $("#newRepFactorInput").removeClass("fieldError");
       });
 
+      huePubSub.subscribe('fb.' + viewModel.fs() + '.refresh', function (path) {
+        if (path === viewModel.currentPath()) {
+          viewModel.retrieveData();
+        }
+      }, 'filebrowser');
+
       huePubSub.subscribe('update.autocompleters', function(){
         $("#moveDestination").jHueHdfsAutocomplete({
           showOnFocus: true,
@@ -2424,7 +2309,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           onEnter: function (el) {
             $("#jHueHdfsAutocomplete").hide();
           },
-          isS3: viewModel.isS3()
+          isS3: viewModel.isS3(),
+          root: viewModel.rootCurrent()
         });
         $("#copyDestination").jHueHdfsAutocomplete({
           showOnFocus: true,
@@ -2433,7 +2319,8 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           onEnter: function (el) {
             $("#jHueHdfsAutocomplete").hide();
           },
-          isS3: viewModel.isS3()
+          isS3: viewModel.isS3(),
+          root: viewModel.rootCurrent()
         });
       });
 
@@ -2446,16 +2333,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
           $('.modal-backdrop').hide();
         }
       }, 'filebrowser');
-
-      huePubSub.subscribe('update.history', function(){
-        if (getHistory().length == 0) {
-          $('.history').addClass('no-history');
-        }
-        else {
-          $('.history').removeClass('no-history');
-        }
-      });
-
 
       $("#copyForm").on("submit", function () {
         if ($.trim($("#copyDestination").val()) == "") {
@@ -2529,8 +2406,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
             hash = encodeURI(hash);
           }
           if (hash != null && hash != "" && hash.indexOf('/') > -1) {
-            addPathToHistory(hash);
-
             targetPath = "${url('filebrowser.views.view', path='')}";
             if (hash.indexOf("!!") != 0) {
               targetPath += stripHashes(hash);
@@ -2571,12 +2446,17 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
 
       $("#hueBreadcrumbText").jHueHdfsAutocomplete({
         home: "/user/${ user }/",
+        root: viewModel.rootTarget(),
         skipKeydownEvents: true,
         onEnter: function (el) {
           viewModel.targetPath("${url('filebrowser.views.view', path='')}" + stripHashes(el.val()));
           viewModel.getStats(function (data) {
             if (data.type != null && data.type == "file") {
+              %if is_embeddable:
+              huePubSub.publish('open.link', data.url);
+              %else:
               window.location.href = data.url;
+              %endif
               return false;
             } else {
               updateHash(stripHashes(el.val()));
@@ -2595,7 +2475,12 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
       $.ajaxSetup({
         error:function (x, e) {
           if (x.status == 500 && x.responseText.indexOf("jobbrowser") == -1) {
-            $(document).trigger("error", "${_('There was a problem with your request.')}");
+            if (x.responseJSON && x.responseJSON.detail) {
+              $(document).trigger("error", x.responseJSON.detail);
+            }
+            else {
+              $(document).trigger("error", "${_('There was a problem with your request.')}");
+            }
             $("#hueBreadcrumbText").blur();
           }
         }
@@ -2637,18 +2522,6 @@ from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
         }
       });
       $("#uploadFileModal").on("hidden", function () {
-        if (typeof _dropzone != "undefined") {
-          _dropzone.enable();
-        }
-        $(".qq-upload-list").empty();
-        $(".qq-upload-drop-area").hide();
-      });
-      $("#uploadArchiveModal").on("shown", function () {
-        if (typeof _dropzone != "undefined") {
-          _dropzone.disable();
-        }
-      });
-      $("#uploadArchiveModal").on("hidden", function () {
         if (typeof _dropzone != "undefined") {
           _dropzone.enable();
         }

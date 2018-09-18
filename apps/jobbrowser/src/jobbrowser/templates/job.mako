@@ -20,7 +20,7 @@
   import os
   from hadoop.fs.exceptions import WebHdfsException
   from jobbrowser.views import format_counter_name
-  from filebrowser.views import location_to_url
+  from desktop.lib.view_util import location_to_url
   from desktop.views import commonheader, commonfooter
   from django.template.defaultfilters import urlencode
   from django.utils.translation import ugettext as _
@@ -39,7 +39,7 @@
             <tr>
                 <td data-row-selector-exclude="true">
                 %if task.taskAttemptIds:
-                    <a href="${ url('jobbrowser.views.single_task_attempt_logs', job=task.jobId, taskid=task.taskId, attemptid=task.taskAttemptIds[-1]) }"
+                    <a href="${ url('single_task_attempt_logs', job=task.jobId, taskid=task.taskId, attemptid=task.taskAttemptIds[-1]) }"
                         data-row-selector="true"><i class="fa fa-tasks"></i>
                     </a>
                 %endif
@@ -107,9 +107,9 @@ ${ comps.menubar() }
       <div class="sidebar-nav" style="padding-top: 0">
         <ul class="nav nav-list">
           <li class="nav-header">${_('App ID')}</li>
-          <li class="white truncate" title="${job.jobId_short}">${job.jobId_short}</li>
+          <li class="white truncate-text" title="${job.jobId_short}">${job.jobId_short}</li>
           <li class="nav-header">${_('Type')}</li>
-          <li class="white truncate" title="${job.applicationType}">${job.applicationType}</li>
+          <li class="white truncate-text" title="${job.applicationType}">${job.applicationType}</li>
           <li class="nav-header">${_('User')}</li>
           <li class="white">${job.user}</li>
           <li class="nav-header">${_('Status')}</li>
@@ -228,9 +228,9 @@ ${ comps.menubar() }
       <div class="sidebar-nav" style="padding-top: 0">
         <ul class="nav nav-list">
           <li class="nav-header">${_('Job ID')}</li>
-          <li class="white truncate" title="${job.jobId_short}">${job.jobId_short}</li>
+          <li class="white truncate-text" title="${job.jobId_short}">${job.jobId_short}</li>
           <li class="nav-header">${_('Type')}</li>
-          <li class="white truncate" title="${job.applicationType or 'MR2'}">${job.applicationType or 'MR2'}</li>
+          <li class="white truncate-text" title="${job.applicationType or 'MR2'}">${job.applicationType or 'MR2'}</li>
           <li class="nav-header">${_('User')}</li>
           <li class="white">${job.user}</li>
           % if job.conf_keys is not None and 'hive.server2.proxy.user' in job.conf_keys:
@@ -308,7 +308,7 @@ ${ comps.menubar() }
                       % for attempt in job.job_attempts['jobAttempt']:
                       <tr>
                         <td>
-                          <a href="${ url('jobbrowser.views.job_attempt_logs', job=job.jobId, attempt_index=loop.index) }" data-row-selector="true">
+                          <a href="${ url('job_attempt_logs', job=job.jobId, attempt_index=loop.index) }" data-row-selector="true">
                             <i class="fa fa-tasks"></i>
                           </a>
                         </td>
@@ -449,9 +449,9 @@ ${ comps.menubar() }
       <div class="sidebar-nav" style="padding-top: 0">
         <ul class="nav nav-list">
           <li class="nav-header">${_('App ID')}</li>
-          <li class="white truncate" title="${job.jobId_short}">${job.jobId_short}</li>
+          <li class="white truncate-text" title="${job.jobId_short}">${job.jobId_short}</li>
           <li class="nav-header">${_('Type')}</li>
-          <li class="white truncate" title="${job.applicationType}">${job.applicationType}</li>
+          <li class="white truncate-text" title="${job.applicationType}">${job.applicationType}</li>
           <li class="nav-header">${_('User')}</li>
           <li class="white">${job.user}</li>
           <li class="nav-header">${_('Status')}</li>

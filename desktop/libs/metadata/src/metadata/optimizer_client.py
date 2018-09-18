@@ -19,6 +19,7 @@
 import json
 import logging
 import os
+import time
 import uuid
 
 from tempfile import NamedTemporaryFile
@@ -37,6 +38,7 @@ from navoptapi.api_lib import ApiLib
 
 from metadata.conf import OPTIMIZER, get_optimizer_url
 
+from desktop.auth.backend import is_admin
 
 LOG = logging.getLogger(__name__)
 
@@ -96,11 +98,13 @@ class OptimizerApi(object):
 
 
   def _call(self, *kwargs):
+    start_time = time.time()
+
     resp = self._api.call_api(*kwargs)
     data = resp.json()
 
     if resp.headers.get('x-altus-request-id'):
-      LOG.info('%s %s: %s' % (self.user, resp.headers['x-altus-request-id'], kwargs))
+      LOG.info('%s %s in %dms: %s' % (self.user, resp.headers['x-altus-request-id'], (time.time() - start_time) * 1000, kwargs))
 
     if data.get('code') == 'UNKNOWN':
       raise NavOptException(data.get('message'))
@@ -226,7 +230,7 @@ class OptimizerApi(object):
     }
 
   def similar_queries(self, source_platform, query, page_size=100, startingToken=None):
-    if self.user.is_superuser:
+    if is_admin(self.user):
       return self._call('getSimilarQueries', {'tenant' : self._tenant_id, 'sourcePlatform': source_platform, 'query': query, 'pageSize': page_size, 'startingToken': startingToken})
     else:
       raise PopupException(_('Call not supported'))
@@ -397,7 +401,7 @@ def _get_tenant_id(api):
   tenant_id = OPTIMIZER.TENANT_ID.get() or cache.get(OPTIMIZER_TENANT_ID_CACHE_KEY)
   if not tenant_id:
     tenant = api.get_tenant(cluster_id=OPTIMIZER.CLUSTER_ID.get())
-    if 'tenant' in tenant:
+    if tenant.get('tenant'):
       tenant_id = tenant['tenant']
     else:
       raise PopupException(_('Could not get tenant id from cluster id %s: %s') % (OPTIMIZER.CLUSTER_ID.get(), tenant))

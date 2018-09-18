@@ -29,8 +29,8 @@ ${ commonheader(_("Solr Indexes"), "search", user, request, "60px") | n,unicode 
 
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }"></script>
 <script src="${ static('desktop/ext/js/selectize.min.js') }"></script>
+<script src="${ static('desktop/ext/js/selectize-plugin-clear.js') }"></script>
 <script src="${ static('metastore/js/metastore.ko.js') }"></script>
-<script src="${ static('desktop/js/ko.charts.js') }"></script>
 <script src="${ static('desktop/ext/js/knockout-sortable.min.js') }"></script>
 <script src="${ static('desktop/js/ko.editable.js') }"></script>
 
@@ -44,7 +44,6 @@ ${ assist.assistJSModels() }
 ${ assist.assistPanel() }
 %endif
 
-<link rel="stylesheet" href="${ static('desktop/css/wizard.css') }">
 <style type="text/css">
 % if conf.CUSTOM.BANNER_TOP_HTML.get():
   .show-assist {
@@ -94,12 +93,6 @@ ${ assist.assistPanel() }
 
   .form-control.path {
     vertical-align: top;
-  }
-
-  .form-actions {
-    position: fixed;
-    bottom: 0;
-    margin: 0;
   }
 
   #notebook {
@@ -247,7 +240,7 @@ ${ assist.assistPanel() }
 
             <div class="control-group" data-bind="visible: createWizard.fileFormat().inputFormat() == 'table'">
               <label for="path" class="control-label"><div>${ _('Table') }</div>
-                <input type="text" data-bind="value: createWizard.fileFormat().table, hivechooser: createWizard.fileFormat().table, skipColumns: true">
+                <input type="text" data-bind="value: createWizard.fileFormat().table, hivechooser: createWizard.fileFormat().table, skipColumns: true, apiHelperUser: '${ user }', apiHelperType: 'hive'">
               </label>
             </div>
 
@@ -499,7 +492,9 @@ ${ assist.assistPanel() }
 
 <script type="text/javascript">
   (function () {
-    ko.options.deferUpdates = true;
+    if (ko.options) {
+      ko.options.deferUpdates = true;
+    }
 
     var fieldNum = 0;
 

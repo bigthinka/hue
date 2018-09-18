@@ -16,6 +16,19 @@
 
 var SqlParseSupport = (function () {
 
+  // endsWith polyfill from hue_utils.js, needed as workers live in their own js environment
+  if (!String.prototype.endsWith) {
+    String.prototype.endsWith = function (searchString, position) {
+      var subjectString = this.toString();
+      if (typeof position !== 'number' || !isFinite(position) || Math.floor(position) !== position || position > subjectString.length) {
+        position = subjectString.length;
+      }
+      position -= searchString.length;
+      var lastIndex = subjectString.lastIndexOf(searchString, position);
+      return lastIndex !== -1 && lastIndex === position;
+    };
+  }
+
   /**
    * Calculates the Optimal String Alignment distance between two strings. Returns 0 when the strings are equal and the
    * distance when not, distances is less than or equal to the length of the longest string.
@@ -108,6 +121,10 @@ var SqlParseSupport = (function () {
       parser.yy.latestCommonTableExpressions = identifiers;
     };
 
+    parser.isInSubquery = function () {
+      return !!parser.yy.primariesStack.length
+    };
+
     parser.pushQueryState = function () {
       parser.yy.resultStack.push(parser.yy.result);
       parser.yy.locationsStack.push(parser.yy.locations);
@@ -195,12 +212,23 @@ var SqlParseSupport = (function () {
       }
     };
 
+    parser.getSelectListKeywords = function (excludeAsterisk) {
+      var keywords = [{ value: 'CASE', weight: 450 }, 'FALSE', 'TRUE', 'NULL'];
+      if (!excludeAsterisk) {
+        keywords.push({ value: '*', weight: 10000 });
+      }
+      if (parser.isHive()) {
+        keywords = keywords.concat(['EXISTS', 'NOT']);
+      }
+      return keywords;
+    };
+
     parser.getValueExpressionKeywords = function (valueExpression, extras) {
       var types = valueExpression.lastType ? valueExpression.lastType.types : valueExpression.types;
       // We could have valueExpression.columnReference to suggest based on column type
-      var keywords = ['<', '<=', '<>', '=', '>', '>=', 'BETWEEN', 'IN', 'IS NOT NULL', 'IS NULL', 'NOT BETWEEN', 'NOT IN'];
-      if (parser.isHive()) {
-        keywords.push('<=>');
+      var keywords = ['<', '<=', '<=>', '<>', '=', '>', '>=', 'BETWEEN', 'IN', 'IS NOT NULL', 'IS NULL', 'IS NOT TRUE', 'IS TRUE', 'IS NOT FALSE', 'IS FALSE', 'NOT BETWEEN', 'NOT IN'];
+      if (parser.isImpala()) {
+        keywords = keywords.concat(['IS DISTINCT FROM', 'IS NOT DISTINCT FROM', 'IS NOT UNKNOWN', 'IS UNKNOWN']);
       }
       if (extras) {
         keywords = keywords.concat(extras);
@@ -213,26 +241,26 @@ var SqlParseSupport = (function () {
           suggestKeywords: keywords,
           suggestColRefKeywords: {
             BOOLEAN: ['AND', 'OR'],
-            NUMBER: ['+', '-', '*', '/', '%'],
-            STRING: ['LIKE', 'NOT LIKE', 'REGEX', 'RLIKE']
+            NUMBER: ['+', '-', '*', '/', '%', 'DIV'],
+            STRING: parser.isImpala() ? ['ILIKE', 'IREGEXP', 'LIKE', 'NOT LIKE', 'REGEXP', 'RLIKE'] : ['LIKE', 'NOT LIKE', 'REGEXP', 'RLIKE']
           }
         }
       }
-      if (SqlFunctions.matchesType(parser.yy.activeDialect, ['BOOLEAN'], types)) {
+      if (typeof SqlFunctions === 'undefined' || SqlFunctions.matchesType(parser.yy.activeDialect, ['BOOLEAN'], types)) {
         keywords = keywords.concat(['AND', 'OR']);
       }
-      if (SqlFunctions.matchesType(parser.yy.activeDialect, ['NUMBER'], types)) {
-        keywords = keywords.concat(['+', '-', '*', '/', '%']);
+      if (typeof SqlFunctions === 'undefined' || SqlFunctions.matchesType(parser.yy.activeDialect, ['NUMBER'], types)) {
+        keywords = keywords.concat(['+', '-', '*', '/', '%', 'DIV']);
       }
-      if (SqlFunctions.matchesType(parser.yy.activeDialect, ['STRING'], types)) {
-        keywords = keywords.concat(['LIKE', 'NOT LIKE', 'REGEX', 'RLIKE']);
+      if (typeof SqlFunctions === 'undefined' || SqlFunctions.matchesType(parser.yy.activeDialect, ['STRING'], types)) {
+        keywords = keywords.concat(parser.isImpala() ? ['ILIKE', 'IREGEXP', 'LIKE', 'NOT LIKE', 'REGEXP', 'RLIKE'] : ['LIKE', 'NOT LIKE', 'REGEXP', 'RLIKE']);
       }
-      return {suggestKeywords: keywords};
+      return { suggestKeywords: keywords };
     };
 
     parser.getTypeKeywords = function () {
       if (parser.isHive()) {
-        return ['BIGINT', 'BINARY', 'BOOLEAN', 'CHAR', 'DATE', 'DECIMAL', 'DOUBLE', 'FLOAT', 'INT', 'SMALLINT', 'TIMESTAMP', 'STRING', 'TINYINT', 'VARCHAR'];
+        return ['BIGINT', 'BINARY', 'BOOLEAN', 'CHAR', 'DATE', 'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'INT', 'SMALLINT', 'TIMESTAMP', 'STRING', 'TINYINT', 'VARCHAR'];
       }
       if (parser.isImpala()) {
         return ['BIGINT', 'BOOLEAN', 'CHAR', 'DECIMAL', 'DOUBLE', 'FLOAT', 'INT', 'REAL', 'SMALLINT', 'TIMESTAMP', 'STRING', 'TINYINT', 'VARCHAR'];
@@ -243,6 +271,9 @@ var SqlParseSupport = (function () {
     parser.getColumnDataTypeKeywords = function () {
       if (parser.isHive()) {
         return parser.getTypeKeywords().concat(['ARRAY<>', 'MAP<>', 'STRUCT<>', 'UNIONTYPE<>']);
+      }
+      if (parser.isImpala()) {
+        return parser.getTypeKeywords().concat(['ARRAY<>', 'MAP<>', 'STRUCT<>']);
       }
       return parser.getTypeKeywords();
     };
@@ -255,11 +286,9 @@ var SqlParseSupport = (function () {
 
     parser.selectListNoTableSuggest = function (selectListEdit, hasDistinctOrAll) {
       if (selectListEdit.cursorAtStart) {
-        var keywords = [];
-        if (hasDistinctOrAll) {
-          keywords = [{value: '*', weight: 1000}];
-        } else {
-          keywords = [{value: '*', weight: 1000}, 'ALL', 'DISTINCT'];
+        var keywords = parser.getSelectListKeywords();
+        if (!hasDistinctOrAll) {
+          keywords = keywords.concat([{ value: 'ALL', weight: 2 }, { value: 'DISTINCT', weight: 2 }]);
         }
         if (parser.isImpala()) {
           keywords.push('STRAIGHT_JOIN');
@@ -298,7 +327,7 @@ var SqlParseSupport = (function () {
       }
       parser.suggestColumns();
       parser.suggestFunctions();
-      var keywords = ['CASE'];
+      var keywords = [{ value: 'CASE', weight: 450 }, { value: 'FALSE', weight: 450 }, { value: 'NULL', weight: 450 }, { value: 'TRUE', weight: 450 }];
       if (parser.isHive() || typeof oppositeValueExpression === 'undefined' || typeof operator === 'undefined') {
         keywords = keywords.concat(['EXISTS', 'NOT']);
       }
@@ -336,11 +365,11 @@ var SqlParseSupport = (function () {
     };
 
     parser.findReturnTypes = function (functionName) {
-      return SqlFunctions.getReturnTypes(parser.yy.activeDialect, functionName.toLowerCase());
+      return typeof SqlFunctions === 'undefined' ? ['T'] : SqlFunctions.getReturnTypes(parser.yy.activeDialect, functionName.toLowerCase());
     };
 
     parser.applyArgumentTypesToSuggestions = function (functionName, position) {
-      var foundArguments = SqlFunctions.getArgumentTypes(parser.yy.activeDialect, functionName.toLowerCase(), position);
+      var foundArguments = typeof SqlFunctions === 'undefined' ? ['T'] : SqlFunctions.getArgumentTypes(parser.yy.activeDialect, functionName.toLowerCase(), position);
       if (foundArguments.length == 0 && parser.yy.result.suggestColumns) {
         delete parser.yy.result.suggestColumns;
         delete parser.yy.result.suggestKeyValues;
@@ -353,15 +382,76 @@ var SqlParseSupport = (function () {
       }
     };
 
+    var getCleanImpalaPrimaries = function (primaries) {
+      var cleanPrimaries = [];
+      for (var i = primaries.length - 1; i >= 0; i--) {
+        var cleanPrimary = primaries[i];
+        if (cleanPrimary.identifierChain && cleanPrimary.identifierChain.length > 0) {
+          for (var j = i - 1; j >=0; j--) {
+            var parentPrimary = primaries[j];
+            if (parentPrimary.alias && cleanPrimary.identifierChain[0].name === parentPrimary.alias) {
+              var restOfChain = cleanPrimary.identifierChain.concat();
+              restOfChain.shift();
+              if (cleanPrimary.alias) {
+                cleanPrimary = { identifierChain: parentPrimary.identifierChain.concat(restOfChain), alias: cleanPrimary.alias, impalaComplex: true };
+              } else {
+                cleanPrimary = { identifierChain: parentPrimary.identifierChain.concat(restOfChain), impalaComplex: true };
+              }
+            }
+          }
+        }
+        cleanPrimaries.push(cleanPrimary);
+      }
+      return cleanPrimaries;
+    };
+
     parser.commitLocations = function () {
+      if (parser.yy.locations.length === 0) {
+        return;
+      }
+
+      var tablePrimaries = parser.yy.latestTablePrimaries;
+
+      if (parser.isImpala()) {
+        tablePrimaries = [];
+        getCleanImpalaPrimaries(parser.yy.latestTablePrimaries).forEach(function (primary) {
+          var cleanPrimary = primary;
+          if (primary.identifierChain && primary.identifierChain.length > 0) {
+            for (var j = parser.yy.primariesStack.length - 1; j >= 0; j--) {
+              getCleanImpalaPrimaries(parser.yy.primariesStack[j]).every(function (parentPrimary) {
+                if (parentPrimary.alias && parentPrimary.alias === primary.identifierChain[0].name) {
+                  var identifierChain = primary.identifierChain.concat();
+                  identifierChain.shift();
+                  cleanPrimary = { identifierChain: parentPrimary.identifierChain.concat(identifierChain) };
+                  if (primary.alias) {
+                    cleanPrimary.alias = primary.alias;
+                  }
+                  return false;
+                }
+                return true;
+              });
+            }
+          }
+          tablePrimaries.unshift(cleanPrimary);
+        });
+      }
       var i = parser.yy.locations.length;
+
       while (i--) {
         var location = parser.yy.locations[i];
+        if (location.type === 'variable' && location.colRef) {
+          parser.expandIdentifierChain({ wrapper: location.colRef, tablePrimaries: tablePrimaries, isColumnWrapper: true });
+          delete location.colRef.linked;
+        }
 
         // Impala can have references to previous tables after FROM, i.e. FROM testTable t, t.testArray
         // In this testArray would be marked a type table so we need to switch it to column.
-        if (location.type === 'table' && typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 1 && parser.yy.latestTablePrimaries) {
-          var found = parser.yy.latestTablePrimaries.filter(function (primary) {
+        if (location.type === 'table' && typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 1 && tablePrimaries) {
+          var allPrimaries = tablePrimaries;
+          parser.yy.primariesStack.forEach(function (parentPrimaries) {
+            allPrimaries = getCleanImpalaPrimaries(parentPrimaries).concat(allPrimaries);
+          });
+          var found = allPrimaries.filter(function (primary) {
             return equalIgnoreCase(primary.alias, location.identifierChain[0].name);
           });
           if (found.length > 0) {
@@ -369,34 +459,46 @@ var SqlParseSupport = (function () {
           }
         }
 
-        if (location.type === 'database' && typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 0 && parser.yy.latestTablePrimaries) {
-          var foundAlias = parser.yy.latestTablePrimaries.filter(function (primary) {
+        if (location.type === 'database' && typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 0 && tablePrimaries) {
+          var allPrimaries = tablePrimaries;
+          parser.yy.primariesStack.forEach(function (parentPrimaries) {
+            allPrimaries = getCleanImpalaPrimaries(parentPrimaries).concat(allPrimaries);
+          });
+          var foundAlias = allPrimaries.filter(function (primary) {
             return equalIgnoreCase(primary.alias, location.identifierChain[0].name);
           });
-          if (foundAlias.length > 0) {
+          if (foundAlias.length > 0 && parser.isImpala()) {
             // Impala complex reference in FROM clause, i.e. FROM testTable t, t.testMap tm
             location.type = 'table';
-            parser.expandIdentifierChain(location, true);
+            parser.expandIdentifierChain({ tablePrimaries: allPrimaries, wrapper: location, anyOwner: true });
+            location.type = location.identifierChain.length === 1 ? 'table' : 'complex';
+            continue;
           }
         }
 
         if (location.type === 'unknown') {
-          if (typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 0 && location.identifierChain.length <= 2 && parser.yy.latestTablePrimaries) {
-            var found = parser.yy.latestTablePrimaries.filter(function (primary) {
+          if (typeof location.identifierChain !== 'undefined' && location.identifierChain.length > 0 && location.identifierChain.length <= 2 && tablePrimaries) {
+            var found = tablePrimaries.filter(function (primary) {
               return equalIgnoreCase(primary.alias, location.identifierChain[0].name) || (primary.identifierChain && equalIgnoreCase(primary.identifierChain[0].name, location.identifierChain[0].name));
             });
-            if (found.length > 0) {
+            if (!found.length && location.firstInChain) {
+              found = tablePrimaries.filter(function (primary) {
+                return !primary.alias && primary.identifierChain && equalIgnoreCase(primary.identifierChain[primary.identifierChain.length - 1].name, location.identifierChain[0].name);
+              });
+            }
+
+            if (found.length) {
               if (found[0].identifierChain.length > 1 && location.identifierChain.length === 1 && equalIgnoreCase(found[0].identifierChain[0].name, location.identifierChain[0].name)) {
                 location.type = 'database';
               } else if (found[0].alias && equalIgnoreCase(location.identifierChain[0].name, found[0].alias) && location.identifierChain.length > 1) {
                 location.type = 'column';
-                parser.expandIdentifierChain(location, true);
+                parser.expandIdentifierChain({ tablePrimaries: tablePrimaries, wrapper: location, anyOwner: true });
               } else if (!found[0].alias && found[0].identifierChain && equalIgnoreCase(location.identifierChain[0].name, found[0].identifierChain[found[0].identifierChain.length - 1].name) && location.identifierChain.length > 1) {
                 location.type = 'column';
-                parser.expandIdentifierChain(location, true);
+                parser.expandIdentifierChain({ tablePrimaries: tablePrimaries, wrapper: location, anyOwner: true });
               } else {
-                location.type = 'table';
-                parser.expandIdentifierChain(location, true);
+                location.type = found[0].impalaComplex ? 'column' : 'table';
+                parser.expandIdentifierChain({ tablePrimaries: tablePrimaries, wrapper: location, anyOwner: true });
               }
             } else {
               if (parser.yy.subQueries) {
@@ -413,16 +515,35 @@ var SqlParseSupport = (function () {
         }
 
         if (location.type === 'asterisk' && !location.linked) {
-          if (parser.yy.latestTablePrimaries && parser.yy.latestTablePrimaries.length > 0) {
+
+          if (tablePrimaries && tablePrimaries.length > 0) {
             location.tables = [];
             location.linked = false;
-            parser.expandIdentifierChain(location, true);
+            if (!location.identifierChain) {
+              location.identifierChain = [{ asterisk: true }];
+            }
+            parser.expandIdentifierChain({ tablePrimaries: tablePrimaries, wrapper: location, anyOwner: false });
             if (location.tables.length === 0) {
               parser.yy.locations.splice(i, 1);
             }
           } else {
             parser.yy.locations.splice(i, 1);
           }
+        }
+
+        if (location.type === 'table' && typeof location.identifierChain !== 'undefined' && location.identifierChain.length === 1 && location.identifierChain[0].name) {
+          // Could be a cte reference
+          parser.yy.locations.some(function (otherLocation) {
+            if (otherLocation.type === 'alias' && otherLocation.source === 'cte' && SqlUtils.identifierEquals(otherLocation.alias, location.identifierChain[0].name)) {
+              // TODO: Possibly add the other location if we want to show the link in the future.
+              //       i.e. highlight select definition on hover over alias, also for subquery references.
+              location.type = 'alias';
+              location.target = 'cte';
+              location.alias = location.identifierChain[0].name;
+              delete location.identifierChain;
+              return true;
+            }
+          });
         }
 
         if (location.type === 'table' && (typeof location.identifierChain === 'undefined' || location.identifierChain.length === 0)) {
@@ -432,14 +553,36 @@ var SqlParseSupport = (function () {
         if (location.type === 'unknown') {
           location.type = 'column';
         }
+
+        // A column location might refer to a previously defined alias, i.e. last 'foo' in "SELECT cast(id AS int) foo FROM tbl ORDER BY foo;"
+        if (location.type === 'column') {
+          for (var j = i - 1; j >= 0; j--) {
+            var otherLocation = parser.yy.locations[j];
+            if (otherLocation.type === 'alias' && otherLocation.source === 'column' && location.identifierChain && location.identifierChain.length === 1 && location.identifierChain[0].name && otherLocation.alias && location.identifierChain[0].name.toLowerCase() === otherLocation.alias.toLowerCase()) {
+              location.type = 'alias';
+              location.source = 'column';
+              location.alias = location.identifierChain[0].name;
+              delete location.identifierChain;
+              location.parentLocation = otherLocation.parentLocation;
+              break;
+            }
+          }
+        }
+
         if (location.type === 'column') {
           if (parser.isHive() && !location.linked) {
             location.identifierChain = parser.expandLateralViews(parser.yy.lateralViews, location.identifierChain);
           }
-          parser.expandIdentifierChain(location, true, true, true);
+
+          var initialIdentifierChain = location.identifierChain ? location.identifierChain.concat() : undefined;
+
+          parser.expandIdentifierChain({ tablePrimaries: tablePrimaries, wrapper: location, anyOwner: true, isColumnWrapper: true, isColumnLocation: true });
 
           if (typeof location.identifierChain === 'undefined') {
             parser.yy.locations.splice(i, 1);
+          } else if (location.identifierChain.length === 0 && initialIdentifierChain && initialIdentifierChain.length === 1) {
+            // This is for the case "SELECT tblOrColName FROM db.tblOrColName";
+            location.identifierChain = initialIdentifierChain;
           }
         }
         if (location.type === 'column' && location.identifierChain) {
@@ -447,7 +590,14 @@ var SqlParseSupport = (function () {
             location.type = 'complex';
           }
         }
+        delete location.firstInChain;
+        if (location.type !== 'column' && location.type !== 'complex') {
+          delete location.qualified;
+        } else if (typeof location.qualified === 'undefined') {
+          location.qualified = false;
+        }
       }
+
       if (parser.yy.locations.length > 0) {
         parser.yy.allLocations = parser.yy.allLocations.concat(parser.yy.locations);
         parser.yy.locations = [];
@@ -552,9 +702,9 @@ var SqlParseSupport = (function () {
         }
       }
 
-      if (typeof parser.yy.result.suggestTables !== 'undefined' && typeof parser.yy.latestCommonTableExpressions !== 'undefined') {
+      if (typeof parser.yy.result.suggestTables !== 'undefined' && typeof parser.yy.result.commonTableExpressions !== 'undefined') {
         var ctes = [];
-        parser.yy.latestCommonTableExpressions.forEach(function (cte) {
+        parser.yy.result.commonTableExpressions.forEach(function (cte) {
           var suggestion = {name: cte.alias};
           if (parser.yy.result.suggestTables.prependFrom) {
             suggestion.prependFrom = true
@@ -595,7 +745,11 @@ var SqlParseSupport = (function () {
       }
       var expand = function (identifier, expandedChain) {
         var foundPrimary = tablePrimaries.filter(function (tablePrimary) {
-          return equalIgnoreCase(tablePrimary.alias, identifier);
+          var primaryIdentifier = tablePrimary.alias;
+          if (!primaryIdentifier && tablePrimary.identifierChain && tablePrimary.identifierChain.length > 0) {
+            primaryIdentifier = tablePrimary.identifierChain[tablePrimary.identifierChain.length - 1].name;
+          }
+          return equalIgnoreCase(primaryIdentifier, identifier);
         });
 
         if (foundPrimary.length === 1 && foundPrimary[0].identifierChain) {
@@ -687,16 +841,25 @@ var SqlParseSupport = (function () {
       }
     };
 
-    parser.expandIdentifierChain = function (wrapper, anyOwner, isColumnWrapper, isColumnLocation) {
-      if (typeof wrapper.identifierChain === 'undefined' || typeof parser.yy.latestTablePrimaries === 'undefined') {
+    parser.expandIdentifierChain = function (options) {
+      var wrapper = options.wrapper;
+      var anyOwner = options.anyOwner;
+      var isColumnWrapper = options.isColumnWrapper;
+      var isColumnLocation = options.isColumnLocation;
+      var tablePrimaries = options.tablePrimaries || parser.yy.latestTablePrimaries;
+
+      if (typeof wrapper.identifierChain === 'undefined' || typeof tablePrimaries === 'undefined') {
         return;
       }
       var identifierChain = wrapper.identifierChain.concat();
-      var tablePrimaries = parser.yy.latestTablePrimaries;
 
       if (tablePrimaries.length === 0) {
         delete wrapper.identifierChain;
         return;
+      }
+
+      if (!anyOwner) {
+        tablePrimaries = filterTablePrimariesForOwner(tablePrimaries, wrapper.owner);
       }
 
       if (identifierChain.length > 0 && identifierChain[identifierChain.length - 1].asterisk) {
@@ -728,9 +891,6 @@ var SqlParseSupport = (function () {
         }
       }
 
-      if (!anyOwner) {
-        tablePrimaries = filterTablePrimariesForOwner(wrapper.owner);
-      }
       // Impala can have references to maps or array, i.e. FROM table t, t.map m
       // We need to replace those in the identifierChain
       if (parser.isImpala()) {
@@ -772,7 +932,7 @@ var SqlParseSupport = (function () {
           } else if (!foundPrimary && equalIgnoreCase(tablePrimaries[i].identifierChain[0].name, identifierChain[0].name) && identifierChain.length > (isColumnLocation ? 1 : 0)) {
             foundPrimary = tablePrimaries[i];
             // No break as first two can still match.
-          } else if (!foundPrimary && tablePrimaries[i].identifierChain.length > 1
+          } else if (!foundPrimary && tablePrimaries[i].identifierChain.length > 1 && !tablePrimaries[i].alias
             && equalIgnoreCase(tablePrimaries[i].identifierChain[tablePrimaries[i].identifierChain.length - 1].name, identifierChain[0].name)) {
             // This is for the case SELECT baa. FROM bla.baa, blo.boo;
             foundPrimary = tablePrimaries[i];
@@ -782,6 +942,9 @@ var SqlParseSupport = (function () {
       }
 
       if (foundPrimary) {
+        if (foundPrimary.impalaComplex && wrapper.type === 'column') {
+          wrapper.type = 'complex';
+        }
         identifierChain.shift();
         if (doubleMatch) {
           identifierChain.shift();
@@ -858,9 +1021,9 @@ var SqlParseSupport = (function () {
       }
     };
 
-    var filterTablePrimariesForOwner = function (owner) {
+    var filterTablePrimariesForOwner = function (tablePrimaries, owner) {
       var result = [];
-      parser.yy.latestTablePrimaries.forEach(function (primary) {
+      tablePrimaries.forEach(function (primary) {
         if (typeof owner === 'undefined' && typeof primary.owner === 'undefined') {
           result.push(primary);
         } else if (owner === primary.owner) {
@@ -909,7 +1072,7 @@ var SqlParseSupport = (function () {
         }
       }
       parser.yy.result.suggestColumns.tables = tables;
-      if (parser.yy.result.suggestColumns.identifierChain && parser.yy.result.suggestColumns.identifierChain.length == 0) {
+      if (parser.yy.result.suggestColumns.identifierChain && parser.yy.result.suggestColumns.identifierChain.length === 0) {
         delete parser.yy.result.suggestColumns.identifierChain;
       }
       parser.yy.result.suggestColumns.linked = true;
@@ -937,7 +1100,7 @@ var SqlParseSupport = (function () {
       });
 
       if (typeof parser.yy.result.suggestColumns !== 'undefined' && !parser.yy.result.suggestColumns.linked) {
-        var tablePrimaries = filterTablePrimariesForOwner(parser.yy.result.suggestColumns.owner);
+        var tablePrimaries = filterTablePrimariesForOwner(parser.yy.latestTablePrimaries, parser.yy.result.suggestColumns.owner);
         if (!parser.yy.result.suggestColumns.tables) {
           parser.yy.result.suggestColumns.tables = [];
         }
@@ -949,10 +1112,10 @@ var SqlParseSupport = (function () {
             convertTablePrimariesToSuggestions(tablePrimaries);
           } else {
             suggestLateralViewAliasesAsIdentifiers();
-            if (tablePrimaries.length == 1 && (tablePrimaries[0].alias || tablePrimaries[0].subQueryAlias)) {
+            if (tablePrimaries.length === 1 && (tablePrimaries[0].alias || tablePrimaries[0].subQueryAlias)) {
               convertTablePrimariesToSuggestions(tablePrimaries);
             }
-            parser.expandIdentifierChain(parser.yy.result.suggestColumns, false, true);
+            parser.expandIdentifierChain({ wrapper: parser.yy.result.suggestColumns, anyOwner: false, isColumnWrapper: true });
           }
         } else {
           // Expand exploded views in the identifier chain
@@ -967,24 +1130,24 @@ var SqlParseSupport = (function () {
                 parser.yy.result.suggestKeywords[0].value === '*') {
                 delete parser.yy.result.suggestKeywords;
               }
-              parser.expandIdentifierChain(parser.yy.result.suggestColumns, false, true);
+              parser.expandIdentifierChain({ wrapper: parser.yy.result.suggestColumns, anyOwner: false, isColumnWrapper: true });
             }
           } else {
-            parser.expandIdentifierChain(parser.yy.result.suggestColumns, false, true);
+            parser.expandIdentifierChain({ wrapper: parser.yy.result.suggestColumns, anyOwner: false, isColumnWrapper: true });
           }
         }
       }
 
       if (typeof parser.yy.result.colRef !== 'undefined' && !parser.yy.result.colRef.linked) {
-        parser.expandIdentifierChain(parser.yy.result.colRef);
+        parser.expandIdentifierChain({ wrapper: parser.yy.result.colRef });
 
-        var primaries = filterTablePrimariesForOwner();
+        var primaries = filterTablePrimariesForOwner(parser.yy.latestTablePrimaries);
         if (primaries.length === 0 || (primaries.length > 1 && parser.yy.result.colRef.identifierChain.length === 1)) {
           parser.yy.result.colRef.identifierChain = [];
         }
       }
       if (typeof parser.yy.result.suggestKeyValues !== 'undefined' && !parser.yy.result.suggestKeyValues.linked) {
-        parser.expandIdentifierChain(parser.yy.result.suggestKeyValues);
+        parser.expandIdentifierChain({ wrapper: parser.yy.result.suggestKeyValues });
       }
     };
 
@@ -1023,7 +1186,7 @@ var SqlParseSupport = (function () {
       if (parser.isHive()) {
         parser.suggestKeywords(['AVRO', 'INPUTFORMAT', 'ORC', 'PARQUET', 'RCFILE', 'SEQUENCEFILE', 'TEXTFILE']);
       } else {
-        parser.suggestKeywords(['AVRO', 'KUDU', 'PARQUET', 'RCFILE', 'SEQUENCEFILE', 'TEXTFILE']);
+        parser.suggestKeywords(['AVRO', 'KUDU', 'ORC', 'PARQUET', 'RCFILE', 'SEQUENCEFILE', 'TEXTFILE']);
       }
     };
 
@@ -1052,11 +1215,11 @@ var SqlParseSupport = (function () {
       }
 
       if (parser.isHive()) {
-        keywords = keywords.concat(['ANALYZE TABLE', 'DELETE', 'EXPORT', 'IMPORT', 'LOAD', 'MSCK', 'RELOAD FUNCTION', 'RESET']);
+        keywords = keywords.concat(['ABORT', 'ANALYZE TABLE', 'DELETE', 'EXPORT', 'IMPORT', 'LOAD', 'MERGE', 'MSCK', 'RELOAD FUNCTION', 'RESET']);
       }
 
       if (parser.isImpala()) {
-        keywords = keywords.concat(['COMPUTE', 'DELETE', 'INVALIDATE METADATA', 'LOAD', 'REFRESH']);
+        keywords = keywords.concat(['COMMENT ON', 'COMPUTE', 'DELETE', 'INVALIDATE METADATA', 'LOAD', 'REFRESH', 'UPSERT']);
       }
 
       parser.suggestKeywords(keywords);
@@ -1178,6 +1341,14 @@ var SqlParseSupport = (function () {
       parser.yy.result.suggestAnalyticFunctions = true;
     };
 
+    parser.suggestSetOptions = function () {
+      parser.yy.result.suggestSetOptions = true;
+    };
+
+    parser.suggestIdentifiers = function (identifiers) {
+      parser.yy.result.suggestIdentifiers = identifiers;
+    };
+
     parser.suggestColumns = function (details) {
       if (typeof details === 'undefined') {
         details = {identifierChain: []};
@@ -1279,17 +1450,121 @@ var SqlParseSupport = (function () {
       }
     };
 
-    parser.addClauseLocation = function (type, precedingLocation, locationIfPresent) {
-      parser.yy.locations.push({
-        type: type,
-        missing: !locationIfPresent,
-        location: adjustLocationForCursor(locationIfPresent || { first_line: precedingLocation.last_line, first_column: precedingLocation.last_column, last_line: precedingLocation.last_line, last_column: precedingLocation.last_column })
-      })
+    parser.addClauseLocation = function (type, precedingLocation, locationIfPresent, isCursor) {
+      var location;
+      if (isCursor) {
+        if (parser.yy.partialLengths.left === 0 && parser.yy.partialLengths.right === 0) {
+          location = {
+            type: type,
+            missing: true,
+            location: adjustLocationForCursor({
+              first_line: precedingLocation.last_line,
+              first_column: precedingLocation.last_column,
+              last_line: precedingLocation.last_line,
+              last_column: precedingLocation.last_column
+            })
+          }
+        } else {
+          location = {
+            type: type,
+            missing: false,
+            location: {
+              first_line: locationIfPresent.last_line,
+              first_column: locationIfPresent.last_column - 1,
+              last_line: locationIfPresent.last_line,
+              last_column: locationIfPresent.last_column - 1 + parser.yy.partialLengths.right + parser.yy.partialLengths.left
+            }
+          }
+        }
+      } else {
+        location = {
+          type: type,
+          missing: !locationIfPresent,
+          location: adjustLocationForCursor(locationIfPresent || {
+            first_line: precedingLocation.last_line,
+            first_column: precedingLocation.last_column,
+            last_line: precedingLocation.last_line,
+            last_column: precedingLocation.last_column
+          })
+        };
+      }
+      if (parser.isInSubquery()) {
+        location.subquery = true;
+      }
+      parser.yy.locations.push(location)
     };
 
-    parser.addHdfsLocation = function (location, path) {
+    parser.addStatementTypeLocation = function (identifier, location, additionalText) {
+      if (!parser.isImpala()) {
+        return;
+      }
+      var loc = {
+        type: 'statementType',
+        location: adjustLocationForCursor(location),
+        identifier: identifier
+      };
+      if (typeof additionalText !== 'undefined') {
+        switch (identifier) {
+          case 'ALTER':
+            if (/ALTER\s+VIEW/i.test(additionalText)) {
+              loc.identifier = 'ALTER VIEW';
+            } else {
+              loc.identifier = 'ALTER TABLE';
+            }
+            break;
+          case 'COMPUTE':
+            loc.identifier = 'COMPUTE STATS';
+            break;
+          case 'CREATE':
+            if (/CREATE\s+VIEW/i.test(additionalText)) {
+              loc.identifier = 'CREATE VIEW';
+            } else if (/CREATE\s+TABLE/i.test(additionalText)) {
+              loc.identifier = 'CREATE TABLE';
+            } else if (/CREATE\s+DATABASE/i.test(additionalText)) {
+              loc.identifier = 'CREATE DATABASE';
+            } else if (/CREATE\s+ROLE/i.test(additionalText)) {
+              loc.identifier = 'CREATE ROLE';
+            } else if (/CREATE\s+FUNCTION/i.test(additionalText)) {
+              loc.identifier = 'CREATE FUNCTION';
+            } else {
+              loc.identifier = 'CREATE TABLE';
+            }
+            break;
+          case 'DROP':
+            if (/DROP\s+VIEW/i.test(additionalText)) {
+              loc.identifier = 'DROP VIEW';
+            } else if (/DROP\s+TABLE/i.test(additionalText)) {
+              loc.identifier = 'DROP TABLE';
+            } else if (/DROP\s+DATABASE/i.test(additionalText)) {
+              loc.identifier = 'DROP DATABASE';
+            } else if (/DROP\s+ROLE/i.test(additionalText)) {
+              loc.identifier = 'DROP ROLE';
+            } else if (/DROP\s+STATS/i.test(additionalText)) {
+              loc.identifier = 'DROP STATS';
+            } else if (/DROP\s+FUNCTION/i.test(additionalText)) {
+              loc.identifier = 'DROP FUNCTION';
+            } else {
+              loc.identifier = 'DROP TABLE';
+            }
+            break;
+          case 'INVALIDATE':
+            loc.identifier = 'INVALIDATE METADATA';
+            break;
+          case 'LOAD':
+            loc.identifier = 'LOAD DATA';
+            break;
+          case 'TRUNCATE':
+            loc.identifier = 'TRUNCATE TABLE';
+            break;
+          default:
+        }
+      }
+      parser.yy.locations.push(loc);
+    };
+
+    parser.addFileLocation = function (location, path) {
       parser.yy.locations.push({
-        type: 'hdfs',
+        type: 'file',
         location: adjustLocationForCursor(location),
         path: path
       });
@@ -1309,6 +1584,26 @@ var SqlParseSupport = (function () {
         location: adjustLocationForCursor(location),
         identifierChain: identifierChain
       });
+    };
+
+    parser.addColumnAliasLocation = function (location, alias, parentLocation) {
+      var aliasLocation = {
+        type: 'alias',
+        source: 'column',
+        alias: alias,
+        location: adjustLocationForCursor(location),
+        parentLocation: adjustLocationForCursor(parentLocation)
+      };
+      if (parser.yy.locations.length && parser.yy.locations[parser.yy.locations.length - 1].type === 'column') {
+        var closestColumn = parser.yy.locations[parser.yy.locations.length - 1];
+        if (closestColumn.location.first_line === aliasLocation.parentLocation.first_line &&
+          closestColumn.location.last_line === aliasLocation.parentLocation.last_line &&
+          closestColumn.location.first_column === aliasLocation.parentLocation.first_column &&
+          closestColumn.location.last_column === aliasLocation.parentLocation.last_column) {
+          parser.yy.locations[parser.yy.locations.length - 1].alias = alias;
+        }
+      }
+      parser.yy.locations.push(aliasLocation);
     };
 
     parser.addTableAliasLocation = function (location, alias, identifierChain) {
@@ -1338,20 +1633,94 @@ var SqlParseSupport = (function () {
       });
     };
 
+    parser.addVariableLocation = function (location, value) {
+      if (/\$\{[^}]*\}/.test(value)) {
+        parser.yy.locations.push({
+          type: 'variable',
+          location: adjustLocationForCursor(location),
+          value: value
+        });
+      }
+    };
+
     parser.addColumnLocation = function (location, identifierChain) {
+      var isVariable = identifierChain.length && /\$\{[^}]*\}/.test(identifierChain[identifierChain.length - 1].name);
+      if (isVariable) {
+        parser.yy.locations.push({
+          type: 'variable',
+          location: adjustLocationForCursor(location),
+          value: identifierChain[identifierChain.length - 1].name
+        });
+      } else {
+        parser.yy.locations.push({
+          type: 'column',
+          location: adjustLocationForCursor(location),
+          identifierChain: identifierChain,
+          qualified: identifierChain.length > 1
+        });
+      }
+    };
+
+    parser.addCteAliasLocation = function (location, alias) {
       parser.yy.locations.push({
-        type: 'column',
-        location: adjustLocationForCursor(location),
-        identifierChain: identifierChain
+        type: 'alias',
+        source: 'cte',
+        alias: alias,
+        location: adjustLocationForCursor(location)
       });
     };
 
     parser.addUnknownLocation = function (location, identifierChain) {
-      parser.yy.locations.push({
-        type: 'unknown',
-        location: adjustLocationForCursor(location),
-        identifierChain: identifierChain
-      });
+      var isVariable = identifierChain.length && /\$\{[^}]*\}/.test(identifierChain[identifierChain.length - 1].name);
+      var loc;
+      if (isVariable) {
+        loc = {
+          type: 'variable',
+          location: adjustLocationForCursor(location),
+          value: identifierChain[identifierChain.length - 1].name
+        };
+      } else {
+        loc = {
+          type: 'unknown',
+          location: adjustLocationForCursor(location),
+          identifierChain: identifierChain,
+          qualified: identifierChain.length > 1
+        };
+      }
+      parser.yy.locations.push(loc);
+      return loc;
+    };
+
+    parser.addColRefToVariableIfExists = function (left, right) {
+      if (left && left.columnReference && left.columnReference.length && right && right.columnReference && right.columnReference.length && parser.yy.locations.length > 1) {
+        var addColRefToVariableLocation = function (variableValue, colRef) {
+          // See if colref is actually an alias
+          if (colRef.length === 1 && colRef[0].name) {
+            parser.yy.locations.some(function (location) {
+              if (location.type === 'column' && location.alias === colRef[0].name) {
+                colRef = location.identifierChain;
+                return true;
+              }
+            });
+          }
+
+          for (var i = parser.yy.locations.length - 1; i > 0; i--) {
+            var location = parser.yy.locations[i];
+            if (location.type === 'variable' && location.value === variableValue) {
+              location.colRef = { identifierChain: colRef };
+              break;
+            }
+          }
+        };
+
+        if (/\$\{[^}]*\}/.test(left.columnReference[0].name)) {
+          // left is variable
+          addColRefToVariableLocation(left.columnReference[0].name, right.columnReference);
+        } else if (/\$\{[^}]*\}/.test(right.columnReference[0].name)) {
+          // right is variable
+          addColRefToVariableLocation(right.columnReference[0].name, left.columnReference);
+        }
+      }
     };
 
     parser.suggestDatabases = function (details) {
@@ -1515,7 +1884,13 @@ var SqlParseSupport = (function () {
         if (a.location.first_line !== b.location.first_line) {
           return a.location.first_line - b.location.first_line;
         }
-        return a.location.first_column - b.location.first_column;
+        if (a.location.first_column !== b.location.first_column) {
+          return a.location.first_column - b.location.first_column;
+        }
+        if (a.location.last_column !== b.location.last_column) {
+          return b.location.last_column - a.location.last_column;
+        }
+        return b.type.localeCompare(a.type);
       });
       parser.yy.result.locations = parser.yy.allLocations;
 
@@ -1579,15 +1954,14 @@ var SqlParseSupport = (function () {
   };
 
   var SYNTAX_PARSER_NOOP_FUNCTIONS = ['prepareNewStatement', 'addCommonTableExpressions', 'pushQueryState', 'popQueryState', 'suggestSelectListAliases',
-    'isHive', 'isImpala', 'mergeSuggestKeywords', 'suggestValueExpressionKeywords', 'getValueExpressionKeywords', 'getTypeKeywords',
-    'getColumnDataTypeKeywords', 'addColRefIfExists', 'selectListNoTableSuggest', 'suggestJoinConditions', 'suggestJoins', 'valueExpressionSuggest',
-    'applyTypeToSuggestions', 'findCaseType', 'findReturnTypes', 'applyArgumentTypesToSuggestions', 'commitLocations', 'expandImpalaIdentifierChain',
-    'identifyPartials', 'expandLateralViews', 'expandIdentifierChain', 'getSubQuery', 'addTablePrimary', 'suggestFileFormats', 'getKeywordsForOptionalsLR',
-    'suggestDdlAndDmlKeywords', 'checkForSelectListKeywords', 'checkForKeywords', 'createWeightedKeywords', 'suggestKeywords', 'suggestColRefKeywords',
-    'suggestTablesOrColumns', 'suggestFunctions', 'suggestAggregateFunctions', 'suggestAnalyticFunctions', 'suggestColumns', 'suggestGroupBys',
-    'suggestOrderBys', 'suggestFilters', 'suggestKeyValues', 'suggestTables', 'addFunctionLocation', 'addStatementLocation', 'firstDefined',
-    'addClauseLocation', 'addHdfsLocation', 'addDatabaseLocation', 'addTableAliasLocation', 'addSubqueryAliasLocation', 'addTableLocation',
-    'addAsteriskLocation', 'addColumnLocation', 'addUnknownLocation', 'suggestDatabases', 'suggestHdfs', 'suggestValues', 'handleQuotedValueWithCursor'];
+    'suggestValueExpressionKeywords', 'getSelectListKeywords', 'getValueExpressionKeywords', 'addColRefIfExists', 'selectListNoTableSuggest', 'suggestJoinConditions',
+    'suggestJoins', 'valueExpressionSuggest', 'applyTypeToSuggestions', 'applyArgumentTypesToSuggestions', 'commitLocations', 'identifyPartials',
+    'getSubQuery', 'addTablePrimary', 'suggestFileFormats', 'suggestDdlAndDmlKeywords', 'checkForSelectListKeywords', 'checkForKeywords',
+    'suggestKeywords', 'suggestColRefKeywords', 'suggestTablesOrColumns', 'suggestFunctions', 'suggestAggregateFunctions', 'suggestAnalyticFunctions',
+    'suggestColumns', 'suggestGroupBys', 'suggestIdentifiers', 'suggestOrderBys', 'suggestFilters', 'suggestKeyValues', 'suggestTables', 'addFunctionLocation',
+    'addStatementLocation', 'firstDefined', 'addClauseLocation', 'addStatementTypeLocation', 'addFileLocation', 'addDatabaseLocation', 'addColumnAliasLocation',
+    'addTableAliasLocation', 'addSubqueryAliasLocation', 'addTableLocation', 'addAsteriskLocation', 'addVariableLocation', 'addColumnLocation', 'addCteAliasLocation',
+    'addUnknownLocation', 'addColRefToVariableIfExists', 'suggestDatabases', 'suggestHdfs', 'suggestValues'];
 
   var SYNTAX_PARSER_NOOP = function () {};
 
@@ -1607,6 +1981,79 @@ var SqlParseSupport = (function () {
       }
     };
 
+    parser.getKeywordsForOptionalsLR = function () {
+      return [];
+    };
+
+    parser.mergeSuggestKeywords = function () {
+      return {};
+    };
+
+    parser.getTypeKeywords = function () {
+      return [];
+    };
+
+    parser.getColumnDataTypeKeywords = function () {
+      return [];
+    };
+
+    parser.findCaseType = function () {
+      return {types: ['T']};
+    };
+
+    parser.findReturnTypes = function (functionName) {
+      return ['T'];
+    };
+
+    parser.isHive = function () {
+      return parser.yy.activeDialect === 'hive';
+    };
+
+    parser.isImpala = function () {
+      return parser.yy.activeDialect === 'impala';
+    };
+
+    parser.expandImpalaIdentifierChain = function () {
+      return [];
+    };
+
+    parser.expandIdentifierChain = function () {
+      return [];
+    };
+
+    parser.expandLateralViews = function () {
+      return [];
+    };
+
+    parser.createWeightedKeywords = function () {
+      return [];
+    };
+
+    parser.handleQuotedValueWithCursor = function (lexer, yytext, yylloc, quoteChar) {
+      if (yytext.indexOf('\u2020') !== -1 || yytext.indexOf('\u2021') !== -1) {
+        parser.yy.partialCursor = yytext.indexOf('\u2021') !== -1;
+        var cursorIndex = parser.yy.partialCursor ? yytext.indexOf('\u2021') : yytext.indexOf('\u2020');
+        parser.yy.cursorFound = {
+          first_line: yylloc.first_line,
+          last_line: yylloc.last_line,
+          first_column: yylloc.first_column + cursorIndex,
+          last_column: yylloc.first_column + cursorIndex + 1
+        };
+        var remainder = yytext.substring(cursorIndex + 1);
+        var remainingQuotes = (lexer.upcomingInput().match(new RegExp(quoteChar, 'g')) || []).length;
+        if (remainingQuotes > 0 && remainingQuotes & 1 != 0) {
+          parser.yy.missingEndQuote = false;
+          lexer.input();
+        } else {
+          parser.yy.missingEndQuote = true;
+          lexer.unput(remainder);
+        }
+        lexer.popState();
+        return true;
+      }
+      return false;
+    };
+
     var lexerModified = false;
 
     parser.yy.parseError = function (str, hash) {
@@ -1615,6 +2062,7 @@ var SqlParseSupport = (function () {
 
     var IGNORED_EXPECTED = {
       ';': true,
+      '.': true,
       'EOF': true,
       'UNSIGNED_INTEGER': true,
       'UNSIGNED_INTEGER_E': true,
@@ -1718,7 +2166,9 @@ var SqlParseSupport = (function () {
           }
         }
         if (weightedExpected.length === 0) {
-          return false; // Don't mark it as an error if there are not suggestions
+          parser.yy.error.expected = [];
+          parser.yy.error.incompleteStatement = true;
+          return parser.yy.error;
         }
         weightedExpected.sort(function (a, b) {
           if (a.distance === b.distance) {
@@ -1727,6 +2177,11 @@ var SqlParseSupport = (function () {
           return a.distance - b.distance
         });
         parser.yy.error.expected = weightedExpected;
+        parser.yy.error.incompleteStatement = true;
+        return parser.yy.error;
+      } else if (parser.yy.error) {
+        parser.yy.error.expected = [];
+        parser.yy.error.incompleteStatement = true;
         return parser.yy.error;
       }
       return false;
@@ -1741,29 +2196,73 @@ var SqlParseSupport = (function () {
       return {left: beforeMatch ? beforeMatch[0].length : 0, right: afterMatch ? afterMatch[0].length : 0};
     };
 
+    parser.mergeFacets = function (a, b) {
+      if (!a.facets) {
+        a.facets = {};
+      }
+      if (!b.facets) {
+        return;
+      }
+      Object.keys(b.facets).forEach(function (key) {
+        if (a.facets[key]) {
+          Object.keys(b.facets[key]).forEach(function (val) {
+            a.facets[key][val.toLowerCase()] = true;
+          });
+        } else {
+          a.facets[key] = b.facets[key];
+        }
+      });
+    };
+
+    parser.mergeText = function (a, b) {
+      if (!a.text) {
+        a.text = [];
+      }
+      if (!b.text) {
+        return;
+      }
+      a.text = a.text.concat(b.text);
+    };
+
+    parser.handleQuotedValueWithCursor = function (lexer, yytext, yylloc, quoteChar) {
+      if (yytext.indexOf('\u2020') !== -1 || yytext.indexOf('\u2021') !== -1) {
+        var cursorIndex = yytext.indexOf('\u2020');
+        parser.yy.cursorFound = {
+          first_line: yylloc.first_line,
+          last_line: yylloc.last_line,
+          first_column: yylloc.first_column + cursorIndex,
+          last_column: yylloc.first_column + cursorIndex + 1
+        };
+        var remainder = yytext.substring(cursorIndex + 1);
+        var remainingQuotes = (lexer.upcomingInput().match(new RegExp(quoteChar, 'g')) || []).length;
+        if (remainingQuotes > 0 && remainingQuotes & 1 != 0) {
+          parser.yy.missingEndQuote = false;
+          lexer.input();
+        } else {
+          parser.yy.missingEndQuote = true;
+          lexer.unput(remainder);
+        }
+        lexer.popState();
+        return true;
+      }
+      return false;
+    };
+
     parser.parseGlobalSearch = function (beforeCursor, afterCursor, debug) {
       delete parser.yy.cursorFound;
 
-      parser.yy.partialLengths = parser.identifyPartials(beforeCursor, afterCursor);
-
-      if (parser.yy.partialLengths.left > 0) {
-        beforeCursor = beforeCursor.substring(0, beforeCursor.length - parser.yy.partialLengths.left);
-      }
-
-      if (parser.yy.partialLengths.right > 0) {
-        afterCursor = afterCursor.substring(parser.yy.partialLengths.right);
-      }
-
       var result;
       try {
-        // \u2020 represents the cursor, \u2021 represent partial
-        // TODO: Handle partial cursor
         result = parser.parse(beforeCursor + '\u2020' + afterCursor);
       } catch (err) {
         if (debug) {
           console.log(err);
           console.error(err.stack);
           console.log(parser.yy.error);
+        }
+        return {
+          facets: {},
+          text: []
         }
       }
       return result;

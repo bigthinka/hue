@@ -18,12 +18,17 @@
   from desktop import conf
 %>
 
-% if conf.DJANGO_DEBUG_MODE.get():
-importScripts('${ static('desktop/js/autocomplete/sqlParseSupport.js') }' + '?' + Math.random());
-importScripts('${ static('desktop/js/autocomplete/sqlSyntaxParser.js') }' + '?' + Math.random());
+var scriptPrefix = '';
+% if conf.IS_EMBEDDED.get():
+  scriptPrefix = location.href.substring(0, location.href.indexOf('/desktop/workers/'));
+% endif
+
+% if conf.DEV.get():
+importScripts(scriptPrefix + '${ static('desktop/js/autocomplete/sqlParseSupport.js') }' + '?' + Math.random());
+importScripts(scriptPrefix + '${ static('desktop/js/autocomplete/sqlSyntaxParser.js') }' + '?' + Math.random());
 % else:
-importScripts('${ static('desktop/js/autocomplete/sqlParseSupport.js') }');
-importScripts('${ static('desktop/js/autocomplete/sqlSyntaxParser.js') }');
+importScripts(scriptPrefix + '${ static('desktop/js/autocomplete/sqlParseSupport.js') }');
+importScripts(scriptPrefix + '${ static('desktop/js/autocomplete/sqlSyntaxParser.js') }');
 % endif
 
 (function () {
@@ -61,7 +66,10 @@ importScripts('${ static('desktop/js/autocomplete/sqlSyntaxParser.js') }');
         toAbsoluteLocation(msg.data.statementLocation, syntaxError.loc);
       }
       postMessage({
-        syntaxError: syntaxError
+        id: msg.data.id,
+        editorChangeTime: msg.data.editorChangeTime,
+        syntaxError: syntaxError,
+        statementLocation: msg.data.statementLocation
       });
     }, 400);
   }

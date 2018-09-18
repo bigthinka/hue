@@ -21,7 +21,7 @@ from nose.plugins.skip import SkipTest
 from nose.tools import assert_equal, assert_true, assert_false
 
 from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from desktop.lib.django_test_util import make_logged_in_client
 from desktop.lib.test_utils import add_to_group, grant_access
@@ -69,7 +69,7 @@ class TestIndexerWithSolr:
 
     cls.db = CollectionManagerController(cls.user)
 
-    resp = cls.client.post(reverse('indexer:install_examples'))
+    resp = cls.client.post(reverse('indexer:install_examples'), {'data': 'log_analytics_demo'})
     content = json.loads(resp.content)
 
     assert_equal(content.get('status'), 0)
@@ -89,7 +89,7 @@ class TestIndexerWithSolr:
 
   def test_create_and_delete_collection(self):
     name = get_db_prefix(name='solr') + 'test_create_collection'
-    fields = [{'name': 'id', 'type': 'string'}, {'name': 'my_text', 'type': 'text_en'}]
+    fields = [{'name': 'id', 'type': 'string'}, {'name': 'my_text', 'type': 'text_general'}]
 
     # We get exceptions if problems in both case there
     try:

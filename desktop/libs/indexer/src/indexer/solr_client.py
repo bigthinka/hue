@@ -26,9 +26,7 @@ from django.utils.translation import ugettext as _
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.i18n import smart_str
 from libsolr.api import SolrApi
-from libsentry.conf import is_enabled as is_sentry_enabled
 from libzookeeper.models import ZookeeperClient
-from search.conf import SOLR_URL, SECURITY_ENABLED
 
 from indexer.conf import CORE_INSTANCE_DIR, get_solr_ensemble
 from indexer.utils import copy_configs
@@ -46,6 +44,7 @@ _IS_SOLR_CLOUD = None
 _IS_SOLR_6_OR_MORE = None
 _IS_SOLR_WITH_HDFS = None
 _ZOOKEEPER_HOST = None
+_IS_SENTRY_PROTECTED = None
 
 
 class SolrClientException(Exception):
@@ -56,7 +55,7 @@ class SolrClient(object):
 
   def __init__(self, user, api=None):
     self.user = user
-    self.api = api if api is not None else SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
+    self.api = api if api is not None else SolrApi(user=self.user)
 
 
   def get_indexes(self, include_cores=False):
@@ -70,7 +69,10 @@ class SolrClient(object):
 
       if self.is_solr_cloud_mode():
         try:
-          solr_aliases = self.api.aliases()
+          if self.is_solr_six_or_more():
+            solr_aliases = self.api.list_aliases()
+          else:
+            solr_aliases = self.api.aliases()
           for name in solr_aliases:
             collections = solr_aliases[name].split()
             indexes.append({'name': name, 'type': 'alias', 'collections': collections})
@@ -87,22 +89,59 @@ class SolrClient(object):
       LOG.warn(msg)
       raise PopupException(msg, detail=smart_str(e))
 
-    return indexes
+    return sorted(indexes, key=lambda index: index['name'])
+
 
   def create_index(self, name, fields, config_name=None, unique_key_field=None, df=None, shards=1, replication=1):
     if self.is_solr_cloud_mode():
-      if config_name is None:
-        self._create_cloud_config(name, fields, unique_key_field, df)
-
-      self.api.create_collection2(name, config_name=config_name, shards=shards, replication=replication)
-      fields = [{
-          'name': field['name'],
-          'type': field['type'],
-          'stored': field.get('stored', True)
-        } for field in fields
-      ]
       if self.is_solr_six_or_more():
+        config_sets = self.list_configs()
+        if not config_sets:
+          raise PopupException(_('Solr does not have any predefined (secure: %s) configSets: %s') % (self.is_sentry_protected(), self.list_configs()))
+
+        if not config_name or config_name not in config_sets:
+          config_name_target = 'managedTemplate'
+          if config_name_target in config_sets:
+            config_name = config_name_target
+          elif '_default' in config_sets:
+            config_name = '_default'
+          else:
+            config_name = config_sets[0]
+
+        # Note: uniqueKey is always 'id'
+        self.api.create_config(name, config_name, immutable=False)
+
+        self.api.create_collection2(name, config_name=name, shards=shards, replication=replication)
+
+        fields = [{
+            'name': field['name'],
+            'type': SolrClient._port_field_types(field)['type'],
+            'stored': field.get('stored', True),
+            'multiValued': field.get('multiValued', False)
+          } for field in fields if field['name'] != 'id'
+        ]
         self.api.add_fields(name, fields)
+
+        if df:
+          self.api.update_config(name, {
+            'update-requesthandler': {
+              "name": "/select",
+              "class": "solr.SearchHandler",
+              "defaults": {"df": df},
+            }
+          })
+
+        if self.is_solr_six_or_more():
+          self.api.update_config(name, {
+            'add-updateprocessor': {
+              "name" : "tolerant",
+              "class": "solr.TolerantUpdateProcessorFactory",
+              "maxErrors": "100"
+            }
+          })
+      else:
+        self._create_cloud_config(name, fields, unique_key_field, df)
+        self.api.create_collection2(name, config_name=config_name, shards=shards, replication=replication)
     else:
       self._create_non_solr_cloud_index(name, fields, unique_key_field, df)
 
@@ -137,14 +176,17 @@ class SolrClient(object):
     if result['status'] == 0:
       # Delete instance directory.
       if not keep_config:
-        try:
-          root_node = '%s/%s' % (ZK_SOLR_CONFIG_NAMESPACE, name)
-          with ZookeeperClient(hosts=self.get_zookeeper_host(), read_only=False) as zc:
-            zc.delete_path(root_node)
-        except Exception, e:
-          # Re-create collection so that we don't have an orphan config
-          self.api.add_collection(name)
-          raise PopupException(_('Error in deleting Solr configurations.'), detail=e)
+        if self.is_solr_six_or_more():
+          return self.api.delete_config(name)
+        else:
+          try:
+            root_node = '%s/%s' % (ZK_SOLR_CONFIG_NAMESPACE, name)
+            with ZookeeperClient(hosts=self.get_zookeeper_host(), read_only=False) as zc:
+              zc.delete_path(root_node)
+          except Exception, e:
+            # Re-create collection so that we don't have an orphan config
+            self.api.add_collection(name)
+            raise PopupException(_('Error in deleting Solr configurations.'), detail=e)
     else:
       if not 'Cannot unload non-existent core' in json.dumps(result):
         raise PopupException(_('Could not remove collection: %(message)s') % result)
@@ -152,6 +194,10 @@ class SolrClient(object):
 
   def sample_index(self, collection, rows=100):
     return self.api.select(collection, rows=min(rows, 1000))
+
+
+  def get_config(self, collection):
+    return self.api.config(collection)
 
 
   def list_configs(self):
@@ -164,6 +210,10 @@ class SolrClient(object):
 
   def delete_alias(self, name):
     return self.api.delete_alias(name)
+
+
+  def update_config(self, name, properties):
+    return self.api.update_config(name, properties)
 
 
   def is_solr_cloud_mode(self):
@@ -193,6 +243,15 @@ class SolrClient(object):
     return _IS_SOLR_WITH_HDFS
 
 
+  def is_sentry_protected(self):
+    global _IS_SENTRY_PROTECTED
+
+    if _IS_SENTRY_PROTECTED is None:
+      self._fillup_properties()
+
+    return _IS_SENTRY_PROTECTED
+
+
   def get_zookeeper_host(self):
     global _ZOOKEEPER_HOST
 
@@ -202,6 +261,7 @@ class SolrClient(object):
     return _ZOOKEEPER_HOST
 
 
+  # Deprecated
   def _create_cloud_config(self, name, fields, unique_key_field, df):
     with ZookeeperClient(hosts=self.get_zookeeper_host(), read_only=False) as zc:
       tmp_path, solr_config_path = copy_configs(
@@ -210,7 +270,8 @@ class SolrClient(object):
           df=df,
           solr_cloud_mode=True,
           is_solr_six_or_more=self.is_solr_six_or_more(),
-          is_solr_hdfs_mode=self.is_solr_with_hdfs()
+          is_solr_hdfs_mode=self.is_solr_with_hdfs(),
+          is_sentry_protected=self.is_sentry_protected()
       )
 
       try:
@@ -228,6 +289,7 @@ class SolrClient(object):
         shutil.rmtree(tmp_path)
 
 
+  # Deprecated
   def _create_non_solr_cloud_index(self, name, fields, unique_key_field, df):
     # Create instance directory locally.
     instancedir = os.path.join(CORE_INSTANCE_DIR.get(), name)
@@ -255,6 +317,7 @@ class SolrClient(object):
     global _IS_SOLR_6_OR_MORE
     global _IS_SOLR_WITH_HDFS
     global _ZOOKEEPER_HOST
+    global _IS_SENTRY_PROTECTED
 
     properties = self.api.info_system()
 
@@ -269,6 +332,15 @@ class SolrClient(object):
         _IS_SOLR_WITH_HDFS = True
       if '-DzkHost=' in command_line_arg:
         _ZOOKEEPER_HOST = command_line_arg.split('-DzkHost=', 1)[1]
+      if '-Dsolr.authorization.sentry.site' in command_line_arg:
+        _IS_SENTRY_PROTECTED = True
+
+
+  @staticmethod
+  def _port_field_types(field):
+    if not field['type'].startswith('p'): # Check for automatically converting to new default Solr types
+      field['type'] = field['type'].replace('long', 'plong').replace('double', 'pdouble').replace('date', 'pdate')
+    return field
 
 
   def _reset_properties(self):
@@ -276,8 +348,9 @@ class SolrClient(object):
     global _IS_SOLR_6_OR_MORE
     global _IS_SOLR_WITH_HDFS
     global _ZOOKEEPER_HOST
+    global _IS_SENTRY_PROTECTED
 
-    _IS_SOLR_CLOUD = _IS_SOLR_6_OR_MORE = _IS_SOLR_6_OR_MORE = _IS_SOLR_WITH_HDFS = _ZOOKEEPER_HOST = None
+    _IS_SOLR_CLOUD = _IS_SOLR_6_OR_MORE = _IS_SOLR_6_OR_MORE = _IS_SOLR_WITH_HDFS = _ZOOKEEPER_HOST = _IS_SENTRY_PROTECTED = None
 
 
   # Used by morphline indexer

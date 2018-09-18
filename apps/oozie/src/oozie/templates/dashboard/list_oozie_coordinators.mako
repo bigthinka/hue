@@ -66,11 +66,12 @@ ${layout.menubar(section='coordinators', dashboard=True)}
     <table class="table table-condensed" id="running-table">
       <thead>
         <tr>
-          <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
+          <th width="1%"><div class="select-all hue-checkbox fa"></div></th>
           <th width="22%">${ _('Next Submission') }</th>
           <th width="5%">${ _('Status') }</th>
           <th width="22%">${ _('Name') }</th>
           <th width="5%">${ _('Progress') }</th>
+          <th width="0%">${ _('Submitter') }</th>
           <th width="0%"></th>
           <th width="0%"></th>
           <th width="22%">${ _('Start Time') }</th>
@@ -494,7 +495,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
               if (['RUNNING', 'PREP', 'WAITING', 'SUSPENDED', 'PREPSUSPENDED', 'PREPPAUSED', 'PAUSED', 'STARTED', 'FINISHING'].indexOf(coord.status) > -1) {
                 try {
                   runningTable.fnAddData([
-                    coord.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
+                    coord.canEdit ? '<div class="hue-checkbox fa" data-row-selector-exclude="true"></div>' : '',
                     '<span data-sort-value="'+ coord.nextMaterializedTimeInMillis +'" data-type="date">' + emptyStringIfNull(coord.nextMaterializedTime) + '</span>',
                     '<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>',
                     coord.appName,

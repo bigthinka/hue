@@ -31,27 +31,28 @@ var AutocompleteResults = (function () {
   };
 
   var CATEGORIES = {
-    ALL: { id: 'all', color: HueColors.BLUE, label: AutocompleterGlobals.i18n.category.all },
-    POPULAR: { id: 'popular', color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular },
-    POPULAR_AGGREGATE: { id: 'popularAggregate', weight: 1500, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'agg-udf' },
-    POPULAR_GROUP_BY: { id: 'popularGroupBy', weight: 1300, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'group-by' },
-    POPULAR_ORDER_BY: { id: 'popularOrderBy', weight: 1200, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'order-by' },
-    POPULAR_FILTER: { id: 'popularFilter', weight: 1400, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'filter' },
-    POPULAR_ACTIVE_JOIN: { id: 'popularActiveJoin', weight: 1500, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'join' },
-    POPULAR_JOIN_CONDITION: { id: 'popularJoinCondition', weight: 1500, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'join-condition' },
-    COLUMN: { id: 'column', weight: 1000, color: COLORS.COLUMN, label: AutocompleterGlobals.i18n.category.column, detailsTemplate: 'column' },
-    SAMPLE: { id: 'sample',weight: 900, color: COLORS.SAMPLE, label: AutocompleterGlobals.i18n.category.sample, detailsTemplate: 'value' },
-    IDENTIFIER: { id: 'identifier', weight: 800, color: COLORS.IDENT_CTE_VAR, label: AutocompleterGlobals.i18n.category.identifier, detailsTemplate: 'identifier' },
-    CTE: { id: 'cte', weight: 700, color: COLORS.IDENT_CTE_VAR, label: AutocompleterGlobals.i18n.category.cte, detailsTemplate: 'cte' },
-    TABLE: { id: 'table', weight: 600, color: COLORS.TABLE, label: AutocompleterGlobals.i18n.category.table, detailsTemplate: 'table' },
-    DATABASE: { id: 'database', weight: 500, color: COLORS.DATABASE, label: AutocompleterGlobals.i18n.category.database, detailsTemplate: 'database' },
-    UDF: { id: 'udf', weight: 400, color: COLORS.UDF, label: AutocompleterGlobals.i18n.category.udf, detailsTemplate: 'udf' },
-    HDFS: { id: 'hdfs', weight: 300, color: COLORS.HDFS, label: AutocompleterGlobals.i18n.category.hdfs, detailsTemplate: 'hdfs' },
-    VIRTUAL_COLUMN: { id: 'virtualColumn', weight: 200, color: COLORS.COLUMN, label: AutocompleterGlobals.i18n.category.column, detailsTemplate: 'column' },
-    COLREF_KEYWORD: { id: 'colrefKeyword', weight: 100, color: COLORS.KEYWORD, label: AutocompleterGlobals.i18n.category.keyword, detailsTemplate: 'keyword' },
-    VARIABLE: { id: 'variable', weight: 50, color: COLORS.IDENT_CTE_VAR, label: AutocompleterGlobals.i18n.category.variable, detailsTemplate: 'variable' },
-    KEYWORD: { id: 'keyword', weight: 0, color: COLORS.KEYWORD, label: AutocompleterGlobals.i18n.category.keyword, detailsTemplate: 'keyword' },
-    POPULAR_JOIN: { id: 'popularJoin', weight: -1, color: COLORS.POPULAR, label: AutocompleterGlobals.i18n.category.popular, detailsTemplate: 'join' }
+    ALL: { id: 'all', color: HueColors.BLUE, label: HUE_I18n.autocomplete.category.all },
+    POPULAR: { id: 'popular', color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular },
+    POPULAR_AGGREGATE: { id: 'popularAggregate', weight: 1500, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'agg-udf' },
+    POPULAR_GROUP_BY: { id: 'popularGroupBy', weight: 1300, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'group-by' },
+    POPULAR_ORDER_BY: { id: 'popularOrderBy', weight: 1200, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'order-by' },
+    POPULAR_FILTER: { id: 'popularFilter', weight: 1400, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'filter' },
+    POPULAR_ACTIVE_JOIN: { id: 'popularActiveJoin', weight: 1500, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'join' },
+    POPULAR_JOIN_CONDITION: { id: 'popularJoinCondition', weight: 1500, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'join-condition' },
+    COLUMN: { id: 'column', weight: 1000, color: COLORS.COLUMN, label: HUE_I18n.autocomplete.category.column, detailsTemplate: 'column' },
+    SAMPLE: { id: 'sample',weight: 900, color: COLORS.SAMPLE, label: HUE_I18n.autocomplete.category.sample, detailsTemplate: 'value' },
+    IDENTIFIER: { id: 'identifier', weight: 800, color: COLORS.IDENT_CTE_VAR, label: HUE_I18n.autocomplete.category.identifier, detailsTemplate: 'identifier' },
+    CTE: { id: 'cte', weight: 700, color: COLORS.IDENT_CTE_VAR, label: HUE_I18n.autocomplete.category.cte, detailsTemplate: 'cte' },
+    TABLE: { id: 'table', weight: 600, color: COLORS.TABLE, label: HUE_I18n.autocomplete.category.table, detailsTemplate: 'table' },
+    DATABASE: { id: 'database', weight: 500, color: COLORS.DATABASE, label: HUE_I18n.autocomplete.category.database, detailsTemplate: 'database' },
+    UDF: { id: 'udf', weight: 400, color: COLORS.UDF, label: HUE_I18n.autocomplete.category.udf, detailsTemplate: 'udf' },
+    OPTION: { id: 'option', weight: 400, color: COLORS.UDF, label: HUE_I18n.autocomplete.category.option, detailsTemplate: 'option' },
+    HDFS: { id: 'hdfs', weight: 300, color: COLORS.HDFS, label: HUE_I18n.autocomplete.category.hdfs, detailsTemplate: 'hdfs' },
+    VIRTUAL_COLUMN: { id: 'virtualColumn', weight: 200, color: COLORS.COLUMN, label: HUE_I18n.autocomplete.category.column, detailsTemplate: 'column' },
+    COLREF_KEYWORD: { id: 'colrefKeyword', weight: 100, color: COLORS.KEYWORD, label: HUE_I18n.autocomplete.category.keyword, detailsTemplate: 'keyword' },
+    VARIABLE: { id: 'variable', weight: 50, color: COLORS.IDENT_CTE_VAR, label: HUE_I18n.autocomplete.category.variable, detailsTemplate: 'variable' },
+    KEYWORD: { id: 'keyword', weight: 0, color: COLORS.KEYWORD, label: HUE_I18n.autocomplete.category.keyword, detailsTemplate: 'keyword' },
+    POPULAR_JOIN: { id: 'popularJoin', weight: 1500, color: COLORS.POPULAR, label: HUE_I18n.autocomplete.category.popular, detailsTemplate: 'join' }
   };
 
   var POPULAR_CATEGORIES = [CATEGORIES.POPULAR_AGGREGATE, CATEGORIES.POPULAR_GROUP_BY, CATEGORIES.POPULAR_ORDER_BY, CATEGORIES.POPULAR_FILTER, CATEGORIES.POPULAR_ACTIVE_JOIN, CATEGORIES.POPULAR_JOIN_CONDITION, CATEGORIES.POPULAR_JOIN];
@@ -99,9 +100,16 @@ var AutocompleteResults = (function () {
     self.snippet = options.snippet;
     self.editor = options.editor;
 
+    self.sortOverride = null;
+
+    huePubSub.subscribe('editor.autocomplete.temporary.sort.override', function (sortOverride) {
+      self.sortOverride = sortOverride;
+    });
+
     self.entries = ko.observableArray();
 
-    self.lastKnownRequests = {};
+    self.lastKnownRequests = [];
+    self.cancellablePromises = [];
     self.activeDeferrals = [];
 
     self.loadingKeywords = ko.observable(false);
@@ -168,34 +176,10 @@ var AutocompleteResults = (function () {
       var result = self.entries();
 
       if (self.filter()) {
-        var lowerCaseFilter = self.filter().toLowerCase();
-        result = result.filter(function (suggestion) {
-          // TODO: Extend with fuzzy matches
-          var foundIndex = suggestion.value.toLowerCase().indexOf(lowerCaseFilter);
-          if (foundIndex !== -1) {
-            if (foundIndex === 0 || (suggestion.filterValue && suggestion.filterValue.toLowerCase().indexOf(lowerCaseFilter) === 0)) {
-              suggestion.filterWeight = 3;
-            } else  {
-              suggestion.filterWeight = 2;
-            }
-          } else {
-            if (suggestion.details && suggestion.details.comment && lowerCaseFilter.indexOf(' ') === -1) {
-              foundIndex = suggestion.details.comment.toLowerCase().indexOf(lowerCaseFilter);
-              if (foundIndex !== -1) {
-                suggestion.filterWeight = 1;
-                suggestion.matchComment = true;
-              }
-            }
-          }
-          if (foundIndex !== -1) {
-            suggestion.matchIndex = foundIndex;
-            suggestion.matchLength = self.filter().length;
-            return true;
-          }
-          return false;
-        });
+        result = SqlUtils.autocompleteFilter(self.filter(), result);
         huePubSub.publish('hue.ace.autocompleter.match.updated');
       }
+
       updateCategories(result);
 
       var activeCategory = self.activeCategory();
@@ -214,31 +198,8 @@ var AutocompleteResults = (function () {
         return activeCategory === CATEGORIES.ALL || activeCategory === suggestion.category || (activeCategory === CATEGORIES.POPULAR && suggestion.popular());
       });
 
-      result.sort(function (a, b) {
-        if (self.filter()) {
-          if (typeof a.filterWeight !== 'undefined' && typeof b.filterWeight !== 'undefined' && b.filterWeight !== a.filterWeight) {
-            return b.filterWeight - a.filterWeight;
-          }
-          if (typeof a.filterWeight !== 'undefined' && typeof b.filterWeight === 'undefined') {
-            return -1;
-          }
-          if (typeof a.filterWeight === 'undefined' && typeof b.filterWeight !== 'undefined') {
-            return 1;
-          }
-        }
-        var aWeight = a.category.weight + (a.weightAdjust || 0);
-        var bWeight = b.category.weight + (b.weightAdjust || 0);
-        if (typeof aWeight !== 'undefined' && typeof bWeight !== 'undefined' && bWeight !== aWeight) {
-          return bWeight - aWeight;
-        }
-        if (typeof aWeight !== 'undefined' && typeof bWeight === 'undefined') {
-          return -1;
-        }
-        if (typeof aWeight === 'undefined' && typeof bWeight !== 'undefined') {
-          return 1;
-        }
-        return a.value.localeCompare(b.value);
-      });
+      SqlUtils.sortSuggestions(result, self.filter(), self.sortOverride);
+      self.sortOverride = null;
       return result;
     }).extend({ rateLimit: 200 });
   }
@@ -246,9 +207,16 @@ var AutocompleteResults = (function () {
   AutocompleteResults.prototype.cancelRequests = function () {
     var self = this;
 
-    Object.keys(self.lastKnownRequests).forEach(function (key) {
-      self.apiHelper.cancelActiveRequest(self.lastKnownRequests[key]);
-    });
+    while (self.lastKnownRequests.length) {
+      self.apiHelper.cancelActiveRequest(self.lastKnownRequests.pop());
+    }
+
+    while (self.cancellablePromises.length) {
+      var promise = self.cancellablePromises.pop();
+      if (promise.cancel) {
+        promise.cancel();
+      }
+    }
   };
 
   AutocompleteResults.prototype.update = function (parseResult) {
@@ -290,6 +258,7 @@ var AutocompleteResults = (function () {
     self.handleIdentifiers();
     self.handleColumnAliases();
     self.handleCommonTableExpressions();
+    self.handleOptions();
     self.handleFunctions(colRefDeferred);
     self.handleDatabases(databasesDeferred);
     var tablesDeferred = self.handleTables(databasesDeferred);
@@ -302,8 +271,8 @@ var AutocompleteResults = (function () {
     self.activeDeferrals.push(self.handleJoins());
     self.activeDeferrals.push(self.handleJoinConditions());
     self.activeDeferrals.push(self.handleAggregateFunctions());
-    self.activeDeferrals.push(self.handleGroupBys());
-    self.activeDeferrals.push(self.handleOrderBys());
+    self.activeDeferrals.push(self.handleGroupBys(columnsDeferred));
+    self.activeDeferrals.push(self.handleOrderBys(columnsDeferred));
     self.activeDeferrals.push(self.handleFilters());
     self.activeDeferrals.push(self.handlePopularTables(tablesDeferred));
     self.activeDeferrals.push(self.handlePopularColumns(columnsDeferred));
@@ -325,30 +294,28 @@ var AutocompleteResults = (function () {
     var self = this;
     var colRefDeferred = $.Deferred();
     if (self.parseResult.colRef) {
-      var colRefCallback = function (data) {
-        if (typeof data.type !== 'undefined') {
-          colRefDeferred.resolve(data);
-        } else if (typeof data.extended_columns !== 'undefined' && data.extended_columns.length === 1) {
-          colRefDeferred.resolve(data.extended_columns[0]);
-        } else {
+      var colRefCallback = function (catalogEntry) {
+        self.cancellablePromises.push(catalogEntry.getSourceMeta({ silenceErrors: true, cancellable: true }).done(function (sourceMeta) {
+          if (typeof sourceMeta.type !== 'undefined') {
+            colRefDeferred.resolve(sourceMeta);
+          } else {
+            colRefDeferred.resolve({ type: 'T' })
+          }
+        }).fail(function () {
           colRefDeferred.resolve({ type: 'T' })
-        }
+        }));
       };
 
-      var foundVarRef = self.parseResult.colRef.identifierChain.filter(function (identifier) {
+      var foundVarRef = self.parseResult.colRef.identifierChain.some(function (identifier) {
         return typeof identifier.name !== 'undefined' && identifier.name.indexOf('${') === 0;
       });
 
-      if (foundVarRef.length > 0) {
+      if (foundVarRef) {
         colRefDeferred.resolve({ type: 'T' });
       } else {
-        try {
-          self.fetchFieldsForIdentifiers(self.parseResult.colRef.identifierChain, colRefCallback, function () {
-            colRefDeferred.resolve({ type: 'T' });
-          });
-        } catch (e) {
+        self.fetchFieldsForIdentifiers(self.parseResult.colRef.identifierChain).done(colRefCallback).fail(function () {
           colRefDeferred.resolve({ type: 'T' });
-        }  // TODO: Ignore for subqueries
+        });
       }
     } else {
       colRefDeferred.resolve({ type: 'T' });
@@ -359,13 +326,11 @@ var AutocompleteResults = (function () {
   AutocompleteResults.prototype.loadDatabases = function () {
     var self = this;
     var databasesDeferred = $.Deferred();
-    self.apiHelper.loadDatabases({
-      sourceType: self.snippet.type(),
-      successCallback: databasesDeferred.resolve,
-      timeout: AUTOCOMPLETE_TIMEOUT,
-      silenceErrors: true,
-      errorCallback: databasesDeferred.reject
-    });
+    DataCatalog.getEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), path: [] }).done(function (entry) {
+      self.cancellablePromises.push(entry.getChildren({ silenceErrors: true, cancellable: true }).done(function (databases) {
+        databasesDeferred.resolve(databases);
+      }).fail(databasesDeferred.reject));
+    }).fail(databasesDeferred.reject);
     return databasesDeferred;
   };
 
@@ -375,7 +340,7 @@ var AutocompleteResults = (function () {
       var keywordSuggestions = $.map(self.parseResult.suggestKeywords, function (keyword) {
         return {
           value: self.parseResult.lowerCase ? keyword.value.toLowerCase() : keyword.value,
-          meta: AutocompleterGlobals.i18n.meta.keyword,
+          meta: HUE_I18n.autocomplete.meta.keyword,
           category: CATEGORIES.KEYWORD,
           weightAdjust: keyword.weight,
           popular: ko.observable(false),
@@ -395,7 +360,7 @@ var AutocompleteResults = (function () {
             self.parseResult.suggestColRefKeywords[typeForKeywords].forEach(function (keyword) {
               colRefKeywordSuggestions.push({
                 value: self.parseResult.lowerCase ? keyword.toLowerCase() : keyword,
-                meta: AutocompleterGlobals.i18n.meta.keyword,
+                meta: HUE_I18n.autocomplete.meta.keyword,
                 category: CATEGORIES.COLREF_KEYWORD,
                 popular: ko.observable(false),
                 details: {
@@ -436,7 +401,7 @@ var AutocompleteResults = (function () {
         if (type === 'COLREF') {
           columnAliasSuggestions.push({
             value: columnAlias.name,
-            meta: AutocompleterGlobals.i18n.meta.alias,
+            meta: HUE_I18n.autocomplete.meta.alias,
             category: CATEGORIES.COLUMN,
             popular: ko.observable(false),
             details: columnAlias
@@ -467,13 +432,22 @@ var AutocompleteResults = (function () {
         commonTableExpressionSuggestions.push({
           value: prefix + expression.name,
           filterValue: expression.name,
-          meta: AutocompleterGlobals.i18n.meta.commonTableExpression,
+          meta: HUE_I18n.autocomplete.meta.commonTableExpression,
           category: CATEGORIES.CTE,
           popular: ko.observable(false),
           details: null
         });
       });
       self.appendEntries(commonTableExpressionSuggestions);
+    }
+  };
+
+  AutocompleteResults.prototype.handleOptions = function () {
+    var self = this;
+    if (self.parseResult.suggestSetOptions) {
+      var suggestions = [];
+      SqlSetOptions.suggestOptions(self.snippet.type(), suggestions, CATEGORIES.OPTION);
+      self.appendEntries(suggestions);
     }
   };
 
@@ -492,9 +466,9 @@ var AutocompleteResults = (function () {
               category: CATEGORIES.UDF,
               value: name + '()',
               meta: functionsToSuggest[name].returnTypes.join('|'),
-              weightAdjust: functionsToSuggest[name].returnTypes.filter(function (otherType) {
+              weightAdjust: colRef.type.toUpperCase() !== 'T' && functionsToSuggest[name].returnTypes.some(function (otherType) {
                   return otherType === colRef.type.toUpperCase();
-              }).length > 0 ? 1 : 0,
+              }) ? 1 : 0,
               popular: ko.observable(false),
               details: functionsToSuggest[name]
             })
@@ -511,9 +485,9 @@ var AutocompleteResults = (function () {
             category: CATEGORIES.UDF,
             value: name + '()',
             meta: functionsToSuggest[name].returnTypes.join('|'),
-            weightAdjust: functionsToSuggest[name].returnTypes.filter(function (otherType) {
+            weightAdjust: types[0].toUpperCase() !== 'T' && functionsToSuggest[name].returnTypes.some(function (otherType) {
               return otherType === types[0].toUpperCase();
-            }).length > 0 ? 1 : 0,
+            }) ? 1 : 0,
             popular: ko.observable(false),
             details: functionsToSuggest[name]
           })
@@ -535,15 +509,16 @@ var AutocompleteResults = (function () {
       }
       var databaseSuggestions = [];
 
-      databasesDeferred.done(function (dbs) {
-        dbs.forEach(function (db) {
+      databasesDeferred.done(function (catalogEntries) {
+        catalogEntries.forEach(function (dbEntry) {
           databaseSuggestions.push({
-            value: prefix + SqlUtils.backTickIfNeeded(self.snippet.type(), db) + (suggestDatabases.appendDot ? '.' : ''),
-            filterValue: db,
-            meta: AutocompleterGlobals.i18n.meta.database,
+            value: prefix + SqlUtils.backTickIfNeeded(self.snippet.type(), dbEntry.name) + (suggestDatabases.appendDot ? '.' : ''),
+            filterValue: dbEntry.name,
+            meta: HUE_I18n.autocomplete.meta.database,
             category: CATEGORIES.DATABASE,
             popular: ko.observable(false),
-            details: null
+            hasCatalogEntry: true,
+            details: dbEntry
           })
         });
         self.appendEntries(databaseSuggestions);
@@ -566,50 +541,46 @@ var AutocompleteResults = (function () {
           prefix += self.parseResult.lowerCase ? 'from ' : 'FROM ';
         }
 
+
         var database = suggestTables.identifierChain && suggestTables.identifierChain.length === 1 ? suggestTables.identifierChain[0].name : self.activeDatabase;
-        self.lastKnownRequests.fetchTables = self.apiHelper.fetchTables({
-          sourceType: self.snippet.type(),
-          databaseName: database,
-          successCallback: function (data) {
+
+        DataCatalog.getEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), path: [ database ]}).done(function (dbEntry) {
+          self.cancellablePromises.push(dbEntry.getChildren({ silenceErrors: true, cancellable: true }).done(function (tableEntries) {
             var tableSuggestions = [];
-            data.tables_meta.forEach(function (tableMeta) {
-              if (suggestTables.onlyTables && tableMeta.type.toLowerCase() !== 'table' ||
-                  suggestTables.onlyViews && tableMeta.type.toLowerCase() !== 'view') {
+
+            tableEntries.forEach(function (tableEntry) {
+              if (suggestTables.onlyTables && !tableEntry.isTable() || suggestTables.onlyViews && !tableEntry.isView()) {
                 return;
               }
-              var details = tableMeta;
-              details.database = database;
               tableSuggestions.push({
-                value: prefix + SqlUtils.backTickIfNeeded(self.snippet.type(), tableMeta.name),
-                filterValue: tableMeta.name,
-                tableName: tableMeta.name,
-                meta: AutocompleterGlobals.i18n.meta[tableMeta.type.toLowerCase()],
+                value: prefix + SqlUtils.backTickIfNeeded(self.snippet.type(), tableEntry.name),
+                filterValue: tableEntry.name,
+                tableName: tableEntry.name,
+                meta: HUE_I18n.autocomplete.meta[tableEntry.getType().toLowerCase()],
                 category: CATEGORIES.TABLE,
                 popular: ko.observable(false),
-                details: details
+                hasCatalogEntry: true,
+                details: tableEntry
               });
             });
             tablesDeferred.resolve(tableSuggestions);
-          },
-          silenceErrors: true,
-          errorCallback: tablesDeferred.reject,
-          timeout: AUTOCOMPLETE_TIMEOUT
-        });
+          }).fail(tablesDeferred.reject));
+        }).fail(tablesDeferred.reject);
       };
 
-      if (self.snippet.type() == 'impala' && self.parseResult.suggestTables.identifierChain && self.parseResult.suggestTables.identifierChain.length === 1) {
+      if (self.snippet.type() === 'impala' && self.parseResult.suggestTables.identifierChain && self.parseResult.suggestTables.identifierChain.length === 1) {
         databasesDeferred.done(function (databases) {
-          var foundDb = databases.filter(function (db) {
-            return hueUtils.equalIgnoreCase(db, self.parseResult.suggestTables.identifierChain[0].name);
+          var foundDb = databases.some(function (dbEntry) {
+            return hueUtils.equalIgnoreCase(dbEntry.name, self.parseResult.suggestTables.identifierChain[0].name);
           });
-          if (foundDb.length > 0) {
+          if (foundDb) {
             fetchTables();
           } else {
             self.parseResult.suggestColumns = { tables: [{ identifierChain: self.parseResult.suggestTables.identifierChain }] };
             tablesDeferred.reject();
           }
         });
-      } else if (self.snippet.type() == 'impala' && self.parseResult.suggestTables.identifierChain && self.parseResult.suggestTables.identifierChain.length > 1) {
+      } else if (self.snippet.type() === 'impala' && self.parseResult.suggestTables.identifierChain && self.parseResult.suggestTables.identifierChain.length > 1) {
         self.parseResult.suggestColumns = { tables: [{ identifierChain: self.parseResult.suggestTables.identifierChain }] };
         tablesDeferred.reject();
       } else {
@@ -642,17 +613,17 @@ var AutocompleteResults = (function () {
             if (self.snippet.type() === 'hive' && /[^\.]$/.test(self.editor().getTextBeforeCursor())) {
               columnSuggestions.push({
                 value: 'BLOCK__OFFSET__INSIDE__FILE',
-                meta: AutocompleterGlobals.i18n.meta.virtual,
+                meta: HUE_I18n.autocomplete.meta.virtual,
                 category: CATEGORIES.VIRTUAL_COLUMN,
                 popular: ko.observable(false),
-                details: null
+                details: { name: 'BLOCK__OFFSET__INSIDE__FILE' }
               });
               columnSuggestions.push({
                 value: 'INPUT__FILE__NAME',
-                meta: AutocompleterGlobals.i18n.meta.virtual,
+                meta: HUE_I18n.autocomplete.meta.virtual,
                 category: CATEGORIES.VIRTUAL_COLUMN,
                 popular: ko.observable(false),
-                details: null
+                details: { name: 'INPUT__FILE__NAME' }
               });
             }
             columnsDeferred.resolve(columnSuggestions);
@@ -760,217 +731,64 @@ var AutocompleteResults = (function () {
       }
       addColumnsDeferred.resolve();
     } else if (typeof table.identifierChain !== 'undefined') {
-      var callback = function (data) {
-        if (data.extended_columns) {
-          data.extended_columns.forEach(function (column) {
-            column.database = data.database;
-            column.table = data.table;
-            column.identifierChain = data.identifierChain;
-            if (column.type.indexOf('map') === 0 && self.snippet.type() === 'hive') {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name) + '[]',
-                filterValue: column.name,
-                meta: 'map',
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (column.type.indexOf('map') === 0) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name),
-                filterValue: column.name,
-                meta: 'map',
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (column.type.indexOf('struct') === 0) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name),
-                filterValue: column.name,
-                meta: 'struct',
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (column.type.indexOf('array') === 0 && self.snippet.type() === 'hive') {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name) + '[]',
-                filterValue: column.name,
-                meta: 'array',
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (column.type.indexOf('array') === 0) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name),
-                filterValue: column.name,
-                meta: 'array',
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (types[0].toUpperCase() !== 'T' && types.filter(function (type) { return type.toUpperCase() === column.type.toUpperCase() }).length > 0) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name),
-                filterValue: column.name,
-                meta: column.type,
-                category: CATEGORIES.COLUMN,
-                weightAdjust: 1,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            } else if (SqlFunctions.matchesType(self.snippet.type(), types, [column.type.toUpperCase()]) ||
-                SqlFunctions.matchesType(self.snippet.type(), [column.type.toUpperCase()], types)) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), column.name),
-                filterValue: column.name,
-                meta: column.type,
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: column
-              })
-            }
-          });
-        } else if (data.columns) {
-          data.columns.forEach(function (column) {
-            column.database = data.database;
-            column.table = data.table;
-            column.identifierChain = data.identifierChain;
-            columnSuggestions.push({
-              value: SqlUtils.backTickIfNeeded(self.snippet.type(), column),
-              filterValue: column,
-              meta: 'column',
-              category: CATEGORIES.COLUMN,
-              table: table,
-              popular: ko.observable(false),
-              details: column
-            })
-          });
-        }
-        if (data.type === 'map' && self.snippet.type() === 'impala') {
-          columnSuggestions.push({
-            value: 'key',
-            meta: 'key',
-            category: CATEGORIES.COLUMN,
-            table: table,
-            popular: ko.observable(false),
-            details: data
-          });
-          columnSuggestions.push({
-            value: 'value',
-            meta: 'value',
-            category: CATEGORIES.COLUMN,
-            table: table,
-            popular: ko.observable(false),
-            details: data
-          });
-        }
-        if (data.type === 'struct') {
-          data.fields.forEach(function (field) {
-            field.database = data.database;
-            field.table = data.table;
-            field.identifierChain = data.identifierChain;
-
-            columnSuggestions.push({
-              value: SqlUtils.backTickIfNeeded(self.snippet.type(), field.name),
-              filterValue: field.name,
-              meta: field.type,
-              category: CATEGORIES.COLUMN,
-              table: table,
-              popular: ko.observable(false),
-              details: field
-            });
-          });
-        } else if (data.type === 'map' && (data.value && data.value.fields)) {
-          data.value.fields.forEach(function (field) {
-            field.database = data.database;
-            field.table = data.table;
-            field.identifierChain = data.identifierChain;
-
-            if (SqlFunctions.matchesType(self.snippet.type(), types, [field.type.toUpperCase()]) ||
-                SqlFunctions.matchesType(self.snippet.type(), [field.type.toUpperCase()], types)) {
-              columnSuggestions.push({
-                value: SqlUtils.backTickIfNeeded(self.snippet.type(), field.name),
-                filterValue: field.name,
-                meta: field.type,
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: field
-              });
-            }
-          });
-        } else if (data.type === 'array' && data.item) {
-          if (data.item.fields) {
-            data.item.fields.forEach(function (field) {
-              field.database = data.database;
-              field.table = data.table;
-              field.identifierChain = data.identifierChain;
-
-              if ((field.type === 'array' || field.type === 'map')) {
-                if (self.snippet.type() === 'hive') {
-                  columnSuggestions.push({
-                    value: SqlUtils.backTickIfNeeded(self.snippet.type(), field.name) + '[]',
-                    filterValue: field.name,
-                    meta: field.type,
-                    category: CATEGORIES.COLUMN,
-                    table: table,
-                    popular: ko.observable(false),
-                    details: field
-                  });
-                } else {
-                  columnSuggestions.push({
-                    value: SqlUtils.backTickIfNeeded(self.snippet.type(), field.name),
-                    filterValue: field.name,
-                    meta: field.type,
-                    category: CATEGORIES.COLUMN,
-                    table: table,
-                    popular: ko.observable(false),
-                    details: field
-                  });
+      var addColumnsFromEntry = function (dataCatalogEntry) {
+        self.cancellablePromises.push(dataCatalogEntry.getSourceMeta({ silenceErrors: true, cancellable: true }).done(function (sourceMeta) {
+          self.cancellablePromises.push(dataCatalogEntry.getChildren({ silenceErrors: true, cancellable: true })
+            .done(function (childEntries) {
+              childEntries.forEach(function (childEntry) {
+                var name = SqlUtils.backTickIfNeeded(self.snippet.type(), childEntry.name);
+                if (self.snippet.type() === 'hive' && (childEntry.isArray() || childEntry.isMap())) {
+                  name += '[]';
                 }
-              } else if (SqlFunctions.matchesType(self.snippet.type(), types, [field.type.toUpperCase()]) ||
-                  SqlFunctions.matchesType(self.snippet.type(), [field.type.toUpperCase()], types)) {
-                columnSuggestions.push({
-                  value: SqlUtils.backTickIfNeeded(self.snippet.type(), field.name),
-                  filterValue: field.name,
-                  meta: field.type,
-                  category: CATEGORIES.COLUMN,
-                  table: table,
-                  popular: ko.observable(false),
-                  details: field
+                  if (SqlFunctions.matchesType(self.snippet.type(), types, [childEntry.getType().toUpperCase()])
+                      || SqlFunctions.matchesType(self.snippet.type(), [childEntry.getType().toUpperCase()], types)
+                      || childEntry.getType === 'column'
+                      || childEntry.isComplex()) {
+                    columnSuggestions.push({
+                      value: name,
+                      meta: childEntry.getType(),
+                      table: table,
+                      category: CATEGORIES.COLUMN,
+                      popular: ko.observable(false),
+                      weightAdjust: types[0].toUpperCase() !== 'T' && types.some(function (type) { return hueUtils.equalIgnoreCase(type, childEntry.getType()) }) ? 1 : 0,
+                      hasCatalogEntry: true,
+                      details: childEntry
+                    });
+                  }
+              });
+              if (self.snippet.type() === 'hive' && (dataCatalogEntry.isArray() || dataCatalogEntry.isMap()) ) {
+                // Remove 'item' or 'value' and 'key' for Hive
+                columnSuggestions.pop();
+                if (dataCatalogEntry.isMap()) {
+                  columnSuggestions.pop();
+                }
+              }
+
+              var complexExtras = sourceMeta.value && sourceMeta.value.fields || sourceMeta.item && sourceMeta.item.fields;
+              if ((self.snippet.type() === 'impala' || self.snippet.type() === 'hive') && complexExtras) {
+                complexExtras.forEach(function (field) {
+                  var fieldType = field.type.indexOf('<') !== -1 ? field.type.substring(0, field.type.indexOf('<')) : field.type;
+                  columnSuggestions.push({
+                    value: field.name,
+                    meta: fieldType,
+                    table: table,
+                    category: CATEGORIES.COLUMN,
+                    popular: ko.observable(false),
+                    weightAdjust: types[0].toUpperCase() !== 'T' && types.some(function (type) { return hueUtils.equalIgnoreCase(type, fieldType) }) ? 1 : 0,
+                    hasCatalogEntry: false,
+                    details: field
+                  });
                 });
               }
-            });
-          } else if (typeof data.item.type !== 'undefined') {
-            if (SqlFunctions.matchesType(self.snippet.type(), types, [data.item.type.toUpperCase()])) {
-              columnSuggestions.push({
-                value: 'item',
-                meta: data.item.type,
-                category: CATEGORIES.COLUMN,
-                table: table,
-                popular: ko.observable(false),
-                details: data.item
-              });
-            }
-          }
-        }
-        addColumnsDeferred.resolve();
+              addColumnsDeferred.resolve();
+            }).fail(addColumnsDeferred.reject));
+        }).fail(addColumnsDeferred.reject));
       };
 
       if (self.parseResult.suggestColumns && self.parseResult.suggestColumns.identifierChain) {
-        self.fetchFieldsForIdentifiers(table.identifierChain.concat(self.parseResult.suggestColumns.identifierChain), callback, addColumnsDeferred.resolve);
+        self.fetchFieldsForIdentifiers(table.identifierChain.concat(self.parseResult.suggestColumns.identifierChain)).done(addColumnsFromEntry).fail(addColumnsDeferred.reject);
       } else {
-        self.fetchFieldsForIdentifiers(table.identifierChain, callback, addColumnsDeferred.resolve);
+        self.fetchFieldsForIdentifiers(table.identifierChain).done(addColumnsFromEntry).fail(addColumnsDeferred.reject);
       }
     } else {
       addColumnsDeferred.resolve();
@@ -1022,7 +840,7 @@ var AutocompleteResults = (function () {
       if (self.parseResult.colRef && self.parseResult.colRef.identifierChain) {
         valueSuggestions.push({
           value: '${' + self.parseResult.colRef.identifierChain[self.parseResult.colRef.identifierChain.length - 1].name + '}',
-          meta: AutocompleterGlobals.i18n.meta.variable,
+          meta: HUE_I18n.autocomplete.meta.variable,
           category: CATEGORIES.VARIABLE,
           popular: ko.observable(false),
           details: null
@@ -1036,7 +854,7 @@ var AutocompleteResults = (function () {
           colRef.sample.forEach(function (sample) {
             valueSuggestions.push({
               value: isString ? startQuote + sample + endQuote : new String(sample),
-              meta: AutocompleterGlobals.i18n.meta.sample,
+              meta: HUE_I18n.autocomplete.meta.sample,
               category: CATEGORIES.SAMPLE,
               popular: ko.observable(false),
               details: null
@@ -1057,13 +875,57 @@ var AutocompleteResults = (function () {
       initLoading(self.loadingPaths, pathsDeferred);
       pathsDeferred.done(self.appendEntries);
 
-      var parts = suggestHdfs.path.split('/');
+      var path = suggestHdfs.path;
+      if (path === '') {
+        self.appendEntries([{
+          value: 'adl://',
+          meta: HUE_I18n.autocomplete.meta.keyword,
+          category: CATEGORIES.KEYWORD,
+          weightAdjust: 0,
+          popular: ko.observable(false),
+          details: null
+        },{
+          value: 's3a://',
+          meta: HUE_I18n.autocomplete.meta.keyword,
+          category: CATEGORIES.KEYWORD,
+          weightAdjust: 0,
+          popular: ko.observable(false),
+          details: null
+        },{
+          value: 'hdfs://',
+          meta: HUE_I18n.autocomplete.meta.keyword,
+          category: CATEGORIES.KEYWORD,
+          weightAdjust: 0,
+          popular: ko.observable(false),
+          details: null
+        },{
+          value: '/',
+          meta: 'dir',
+          category: CATEGORIES.HDFS,
+          popular: ko.observable(false),
+          details: null
+        }]);
+      }
+
+      var fetchFunction = 'fetchHdfsPath';
+
+      if (/^s3a:\/\//i.test(path)) {
+        fetchFunction = 'fetchS3Path';
+        path = path.substring(5);
+      } else if (/^adl:\/\//i.test(path)) {
+        fetchFunction = 'fetchAdlsPath';
+        path = path.substring(5);
+      } else if (/^hdfs:\/\//i.test(path)) {
+        path = path.substring(6);
+      }
+
+      var parts = path.split('/');
       // Drop the first " or '
       parts.shift();
       // Last one is either partial name or empty
       parts.pop();
 
-      self.lastKnownRequests.fetchHdfsPath = self.apiHelper.fetchHdfsPath({
+      self.lastKnownRequests.push(self.apiHelper[fetchFunction]({
         pathParts: parts,
         successCallback: function (data) {
           if (!data.error) {
@@ -1071,7 +933,7 @@ var AutocompleteResults = (function () {
             data.files.forEach(function (file) {
               if (file.name !== '..' && file.name !== '.') {
                 pathSuggestions.push({
-                  value: suggestHdfs.path === '' ? '/' + file.name : file.name,
+                  value: path === '' ? '/' + file.name : file.name,
                   meta: file.type,
                   category: CATEGORIES.HDFS,
                   popular: ko.observable(false),
@@ -1086,11 +948,30 @@ var AutocompleteResults = (function () {
         silenceErrors: true,
         errorCallback: pathsDeferred.reject,
         timeout: AUTOCOMPLETE_TIMEOUT
-      });
+      }));
     } else {
       pathsDeferred.reject();
     }
     return pathsDeferred;
+  };
+
+  AutocompleteResults.prototype.tableIdentifierChainsToPaths = function (tables) {
+    var self = this;
+    var paths = [];
+    tables.forEach(function (table) {
+      // Could be subquery
+      var isTable = table.identifierChain.every(function (identifier) { return typeof identifier.name !== 'undefined' });
+      if (isTable) {
+        var path = $.map(table.identifierChain, function (identifier) {
+          return identifier.name;
+        });
+        if (path.length === 1) {
+          path.unshift(self.activeDatabase);
+        }
+        paths.push(path);
+      }
+    });
+    return paths;
   };
 
   AutocompleteResults.prototype.handleJoins = function () {
@@ -1101,69 +982,73 @@ var AutocompleteResults = (function () {
       initLoading(self.loadingJoins, joinsDeferred);
       joinsDeferred.done(self.appendEntries);
 
-      self.lastKnownRequests.fetchNavOptPopularJoins = self.apiHelper.fetchNavOptPopularJoins({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestJoins.tables,
-        successCallback: function (data) {
+      var paths = self.tableIdentifierChainsToPaths(suggestJoins.tables);
+      if (paths.length) {
+        DataCatalog.getMultiTableEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), paths: paths }).done(function (multiTableEntry) {
+        self.cancellablePromises.push(multiTableEntry.getTopJoins({ silenceErrors: true, cancellable: true  }).done(function (topJoins) {
           var joinSuggestions = [];
           var totalCount = 0;
-          data.values.forEach(function (value) {
-            var suggestionString = suggestJoins.prependJoin ? (self.parseResult.lowerCase ? 'join ' : 'JOIN ') : '';
-            var first = true;
+          if (topJoins.values) {
+            topJoins.values.forEach(function (value) {
 
-            var existingTables = {};
-            suggestJoins.tables.forEach(function (table) {
-              existingTables[table.identifierChain[table.identifierChain.length - 1].name] = true;
-            });
+              var joinType = value.joinType || 'join';
+              joinType += ' ';
+              var suggestionString = suggestJoins.prependJoin ? (self.parseResult.lowerCase ? joinType.toLowerCase() : joinType.toUpperCase()) : '';
+              var first = true;
 
-            var joinRequired = false;
-            var tablesAdded = false;
-            value.tables.forEach(function (table) {
-              var tableParts = table.split('.');
-              if (!existingTables[tableParts[tableParts.length - 1]]) {
-                tablesAdded = true;
-                var identifier = self.convertNavOptQualifiedIdentifier(table, suggestJoins.tables);
-                suggestionString += joinRequired ? (self.parseResult.lowerCase ? ' join ' : ' JOIN ') + identifier : identifier;
-                joinRequired = true;
-              }
-            });
+              var existingTables = {};
+              suggestJoins.tables.forEach(function (table) {
+                existingTables[table.identifierChain[table.identifierChain.length - 1].name] = true;
+              });
 
-            if (value.joinCols.length > 0) {
-              if (!tablesAdded && suggestJoins.prependJoin) {
-                suggestionString = '';
-                tablesAdded = true;
-              }
-              suggestionString += self.parseResult.lowerCase ? ' on ' : ' ON ';
-            }
-            if (tablesAdded) {
-              value.joinCols.forEach(function (joinColPair) {
-                if (!first) {
-                  suggestionString += self.parseResult.lowerCase ? ' and ' : ' AND ';
+              var joinRequired = false;
+              var tablesAdded = false;
+              value.tables.forEach(function (table) {
+                var tableParts = table.split('.');
+                if (!existingTables[tableParts[tableParts.length - 1]]) {
+                  tablesAdded = true;
+                  var identifier = self.convertNavOptQualifiedIdentifier(table, suggestJoins.tables);
+                  suggestionString += joinRequired ? (self.parseResult.lowerCase ? ' join ' : ' JOIN ') + identifier : identifier;
+                  joinRequired = true;
                 }
-                suggestionString += self.convertNavOptQualifiedIdentifier(joinColPair.columns[0], suggestJoins.tables) + ' = ' + self.convertNavOptQualifiedIdentifier(joinColPair.columns[1], suggestJoins.tables);
-                first = false;
               });
-              totalCount += value.totalQueryCount;
-              joinSuggestions.push({
-                value: suggestionString,
-                meta: AutocompleterGlobals.i18n.meta.join,
-                category: suggestJoins.prependJoin ? CATEGORIES.POPULAR_JOIN : CATEGORIES.POPULAR_ACTIVE_JOIN,
-                popular: ko.observable(true),
-                details: value
-              });
-            }
-          });
-          joinSuggestions.forEach(function (suggestion) {
-            suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
-            suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
-          });
+
+              if (value.joinCols.length > 0) {
+                if (!tablesAdded && suggestJoins.prependJoin) {
+                  suggestionString = '';
+                  tablesAdded = true;
+                }
+                suggestionString += self.parseResult.lowerCase ? ' on ' : ' ON ';
+              }
+              if (tablesAdded) {
+                value.joinCols.forEach(function (joinColPair) {
+                  if (!first) {
+                    suggestionString += self.parseResult.lowerCase ? ' and ' : ' AND ';
+                  }
+                  suggestionString += self.convertNavOptQualifiedIdentifier(joinColPair.columns[0], suggestJoins.tables, self.snippet.type()) + ' = ' + self.convertNavOptQualifiedIdentifier(joinColPair.columns[1], suggestJoins.tables, self.snippet.type());
+                  first = false;
+                });
+                totalCount += value.totalQueryCount;
+                joinSuggestions.push({
+                  value: suggestionString,
+                  meta: HUE_I18n.autocomplete.meta.join,
+                  category: suggestJoins.prependJoin ? CATEGORIES.POPULAR_JOIN : CATEGORIES.POPULAR_ACTIVE_JOIN,
+                  popular: ko.observable(true),
+                  details: value
+                });
+              }
+            });
+            joinSuggestions.forEach(function (suggestion) {
+              suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
+              suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
+            });
+          }
           joinsDeferred.resolve(joinSuggestions);
-        },
-        errorCallback: joinsDeferred.reject
-      });
+        }).fail(joinsDeferred.reject));
+      }).fail(joinsDeferred.reject);
+      } else {
+        joinsDeferred.reject();
+      }
     } else {
       joinsDeferred.reject();
     }
@@ -1178,45 +1063,46 @@ var AutocompleteResults = (function () {
       initLoading(self.loadingJoinConditions, joinConditionsDeferred);
       joinConditionsDeferred.done(self.appendEntries);
 
-      self.lastKnownRequests.fetchNavOptPopularJoins = self.apiHelper.fetchNavOptPopularJoins({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestJoinConditions.tables,
-        successCallback: function (data) {
+      var paths = self.tableIdentifierChainsToPaths(suggestJoinConditions.tables);
+      if (paths.length) {
+        DataCatalog.getMultiTableEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), paths: paths }).done(function (multiTableEntry) {
+          self.cancellablePromises.push(multiTableEntry.getTopJoins({ silenceErrors: true, cancellable: true }).done(function (topJoins) {
           var joinConditionSuggestions = [];
           var totalCount = 0;
-          data.values.forEach(function (value) {
-            if (value.joinCols.length > 0) {
-              var suggestionString = suggestJoinConditions.prependOn ? (self.parseResult.lowerCase ? 'on ' : 'ON ') : '';
-              var first = true;
-              value.joinCols.forEach(function (joinColPair) {
-                if (!first) {
-                  suggestionString += self.parseResult.lowerCase ? ' and ' : ' AND ';
-                }
-                suggestionString += self.convertNavOptQualifiedIdentifier(joinColPair.columns[0], suggestJoinConditions.tables) + ' = ' + self.convertNavOptQualifiedIdentifier(joinColPair.columns[1], suggestJoinConditions.tables);
-                first = false;
-              });
-              totalCount += value.totalQueryCount;
-              joinConditionSuggestions.push({
-                value: suggestionString,
-                meta: AutocompleterGlobals.i18n.meta.joinCondition,
-                category: CATEGORIES.POPULAR_JOIN_CONDITION,
-                popular: ko.observable(true),
-                details: value
-              });
-            }
-          });
-          joinConditionSuggestions.forEach(function (suggestion) {
-            suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
-            suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
-          });
+          if (topJoins.values) {
+            topJoins.values.forEach(function (value) {
+              if (value.joinCols.length > 0) {
+                var suggestionString = suggestJoinConditions.prependOn ? (self.parseResult.lowerCase ? 'on ' : 'ON ') : '';
+                var first = true;
+                value.joinCols.forEach(function (joinColPair) {
+                  if (!first) {
+                    suggestionString += self.parseResult.lowerCase ? ' and ' : ' AND ';
+                  }
+                  suggestionString += self.convertNavOptQualifiedIdentifier(joinColPair.columns[0], suggestJoinConditions.tables) + ' = ' + self.convertNavOptQualifiedIdentifier(joinColPair.columns[1], suggestJoinConditions.tables);
+                  first = false;
+                });
+                totalCount += value.totalQueryCount;
+                joinConditionSuggestions.push({
+                  value: suggestionString,
+                  meta: HUE_I18n.autocomplete.meta.joinCondition,
+                  category: CATEGORIES.POPULAR_JOIN_CONDITION,
+                  popular: ko.observable(true),
+                  details: value
+                });
+              }
+            });
+            joinConditionSuggestions.forEach(function (suggestion) {
+              suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
+              suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
+            });
+          }
 
           joinConditionsDeferred.resolve(joinConditionSuggestions);
-        },
-        errorCallback: joinConditionsDeferred.reject
-      });
+        }).fail(joinConditionsDeferred.reject));
+        }).fail(joinConditionsDeferred.reject);
+      } else {
+        joinConditionsDeferred.reject();
+      }
     } else {
       joinConditionsDeferred.reject();
     }
@@ -1233,114 +1119,159 @@ var AutocompleteResults = (function () {
       initLoading(self.loadingAggregateFunctions, aggregateFunctionsDeferred);
       aggregateFunctionsDeferred.done(self.appendEntries);
 
-      self.lastKnownRequests.fetchNavOptTopAggs = self.apiHelper.fetchNavOptTopAggs({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestAggregateFunctions.tables,
-        successCallback: function (data) {
-          var aggregateFunctionsSuggestions = [];
-          if (data.values.length > 0) {
+      var paths = self.tableIdentifierChainsToPaths(suggestAggregateFunctions.tables);
+      if (paths.length) {
+        DataCatalog.getMultiTableEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), paths: paths }).done(function (multiTableEntry) {
+          self.cancellablePromises.push(multiTableEntry.getTopAggs({ silenceErrors: true, cancellable: true }).done(function (topAggs) {
+            var aggregateFunctionsSuggestions = [];
+            if (topAggs.values && topAggs.values.length > 0) {
 
-            // Expand all column names to the fully qualified name including db and table.
-            data.values.forEach(function (value) {
-              value.aggregateInfo.forEach(function (info) {
-                value.aggregateClause = value.aggregateClause.replace(new RegExp('([^.])' + info.columnName, 'gi'), '$1' + info.databaseName + '.' + info.tableName + '.' + info.columnName);
-              });
-            });
-
-            // Substitute qualified table identifiers with either alias or table when multiple tables are present or just empty string
-            var substitutions = [];
-            suggestAggregateFunctions.tables.forEach(function (table) {
-              var replaceWith = table.alias ? table.alias + '.' : (suggestAggregateFunctions.tables.length > 1 ? table.identifierChain[table.identifierChain.length - 1].name + '.' : '');
-              if (table.identifierChain.length > 1) {
-                substitutions.push({
-                  replace: new RegExp($.map(table.identifierChain, function (identifier) {
-                        return identifier.name
-                      }).join('\.') + '\.', 'gi'),
-                  with: replaceWith
-                })
-              } else if (table.identifierChain.length === 1) {
-                substitutions.push({
-                  replace: new RegExp(self.activeDatabase + '\.' + table.identifierChain[0].name + '\.', 'gi'),
-                  with: replaceWith
+              // Expand all column names to the fully qualified name including db and table.
+              topAggs.values.forEach(function (value) {
+                value.aggregateInfo.forEach(function (info) {
+                  value.aggregateClause = value.aggregateClause.replace(new RegExp('([^.])' + info.columnName, 'gi'), '$1' + info.databaseName + '.' + info.tableName + '.' + info.columnName);
                 });
-                substitutions.push({
-                  replace: new RegExp(table.identifierChain[0].name + '\.', 'gi'),
-                  with: replaceWith
-                })
-              }
-            });
-
-            var totalCount = 0;
-            data.values.forEach(function (value) {
-              var clean = value.aggregateClause;
-              substitutions.forEach(function (substitution) {
-                clean = clean.replace(substitution.replace, substitution.with);
               });
-              totalCount += value.totalQueryCount;
-              value.function = SqlFunctions.findFunction(self.snippet.type(), value.aggregateFunction);
-              aggregateFunctionsSuggestions.push({
-                value: clean,
-                meta: value.function.returnTypes.join('|'),
-                category: CATEGORIES.POPULAR_AGGREGATE,
-                weightAdjust: Math.min(value.totalQueryCount, 99),
-                popular: ko.observable(true),
-                details: value
-              });
-            });
 
-            aggregateFunctionsSuggestions.forEach(function (suggestion) {
-              suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
-              suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
-            });
-          }
-          aggregateFunctionsDeferred.resolve(aggregateFunctionsSuggestions);
-        },
-        errorCallback: aggregateFunctionsDeferred.reject
-      });
+              // Substitute qualified table identifiers with either alias or table when multiple tables are present or just empty string
+              var substitutions = [];
+              suggestAggregateFunctions.tables.forEach(function (table) {
+                var replaceWith = table.alias ? table.alias + '.' : (suggestAggregateFunctions.tables.length > 1 ? table.identifierChain[table.identifierChain.length - 1].name + '.' : '');
+                if (table.identifierChain.length > 1) {
+                  substitutions.push({
+                    replace: new RegExp($.map(table.identifierChain, function (identifier) {
+                      return identifier.name
+                    }).join('\.') + '\.', 'gi'),
+                    with: replaceWith
+                  })
+                } else if (table.identifierChain.length === 1) {
+                  substitutions.push({
+                    replace: new RegExp(self.activeDatabase + '\.' + table.identifierChain[0].name + '\.', 'gi'),
+                    with: replaceWith
+                  });
+                  substitutions.push({
+                    replace: new RegExp(table.identifierChain[0].name + '\.', 'gi'),
+                    with: replaceWith
+                  })
+                }
+              });
+
+              var totalCount = 0;
+              topAggs.values.forEach(function (value) {
+                var clean = value.aggregateClause;
+                substitutions.forEach(function (substitution) {
+                  clean = clean.replace(substitution.replace, substitution.with);
+                });
+                totalCount += value.totalQueryCount;
+                value.function = SqlFunctions.findFunction(self.snippet.type(), value.aggregateFunction);
+                aggregateFunctionsSuggestions.push({
+                  value: clean,
+                  meta: value.function.returnTypes.join('|'),
+                  category: CATEGORIES.POPULAR_AGGREGATE,
+                  weightAdjust: Math.min(value.totalQueryCount, 99),
+                  popular: ko.observable(true),
+                  details: value
+                });
+              });
+
+              aggregateFunctionsSuggestions.forEach(function (suggestion) {
+                suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.totalQueryCount : Math.round(100 * suggestion.details.totalQueryCount / totalCount);
+                suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
+              });
+            }
+            aggregateFunctionsDeferred.resolve(aggregateFunctionsSuggestions);
+          }).fail(aggregateFunctionsDeferred.reject));
+        }).fail(aggregateFunctionsDeferred.reject);
+      } else {
+        aggregateFunctionsDeferred.reject();
+      }
     } else {
       aggregateFunctionsDeferred.reject();
     }
     return aggregateFunctionsDeferred;
   };
 
-  AutocompleteResults.prototype.handleGroupBys = function () {
+  /**
+   * Merges popular group by and order by columns with the column suggestions
+   *
+   * @param sourceDeferred
+   * @param columnsDeferred
+   * @param suggestions
+   */
+  var mergeWithColumns = function (sourceDeferred, columnsDeferred, suggestions) {
+    columnsDeferred.done(function (columns) {
+      var suggestionIndex = {};
+      suggestions.forEach(function (suggestion) {
+        suggestionIndex[suggestion.value] = suggestion;
+      });
+      columns.forEach(function (col) {
+        if (suggestionIndex[col.details.name]) {
+          col.category = suggestionIndex[col.details.name].category
+        }
+      });
+      sourceDeferred.resolve([]);
+    })
+  };
+
+  AutocompleteResults.prototype.handlePopularGroupByOrOrderBy = function (navOptAttribute, suggestSpec, deferred, columnsDeferred) {
+    var self = this;
+    var paths = [];
+    suggestSpec.tables.forEach(function (table) {
+      if (table.identifierChain) {
+        if (table.identifierChain.length === 1 && table.identifierChain[0].name) {
+          paths.push([self.activeDatabase, table.identifierChain[0].name])
+        } else if (table.identifierChain.length === 2 && table.identifierChain[0].name && table.identifierChain[1].name) {
+          paths.push([table.identifierChain[0].name, table.identifierChain[1].name]);
+        }
+      }
+    });
+
+    self.cancellablePromises.push(DataCatalog.getCatalog(self.snippet.type())
+      .loadNavOptPopularityForTables({ namespace: self.snippet.namespace(), compute: self.snippet.compute(), paths: paths, silenceErrors: true, cancellable: true }).done(function (entries) {
+        var totalColumnCount = 0;
+        var matchedEntries = [];
+        var prefix = suggestSpec.prefix ? (self.parseResult.lowerCase ? suggestSpec.prefix.toLowerCase() : suggestSpec.prefix) + ' ' : '';
+
+        entries.forEach(function (entry) {
+          if (entry.navOptPopularity[navOptAttribute]) {
+            totalColumnCount += entry.navOptPopularity[navOptAttribute].columnCount;
+            matchedEntries.push(entry);
+          }
+        });
+        if (totalColumnCount > 0) {
+          var suggestions = [];
+          matchedEntries.forEach(function (entry) {
+            var filterValue = self.createNavOptIdentifierForColumn(entry.navOptPopularity[navOptAttribute], suggestSpec.tables);
+            suggestions.push({
+              value: prefix + filterValue,
+              filterValue: filterValue,
+              meta: navOptAttribute === 'groupByColumn' ? HUE_I18n.autocomplete.meta.groupBy : HUE_I18n.autocomplete.meta.orderBy,
+              category: navOptAttribute === 'groupByColumn' ? CATEGORIES.POPULAR_GROUP_BY : CATEGORIES.POPULAR_ORDER_BY,
+              weightAdjust:  Math.round(100 * entry.navOptPopularity[navOptAttribute].columnCount / totalColumnCount),
+              popular: ko.observable(true),
+              hasCatalogEntry: true,
+              details: entry
+            });
+          });
+          if (prefix === '' && suggestions.length) {
+            mergeWithColumns(deferred, columnsDeferred, suggestions);
+          } else {
+            deferred.resolve(suggestions);
+          }
+        } else {
+          deferred.reject();
+        }
+      }).fail(deferred.reject));
+  };
+
+  AutocompleteResults.prototype.handleGroupBys = function (columnsDeferred) {
     var self = this;
     var groupBysDeferred = $.Deferred();
     var suggestGroupBys = self.parseResult.suggestGroupBys;
     if (HAS_OPTIMIZER && suggestGroupBys) {
       initLoading(self.loadingGroupBys, groupBysDeferred);
       groupBysDeferred.done(self.appendEntries);
-
-      self.lastKnownRequests.fetchNavOptTopColumns = self.apiHelper.fetchNavOptTopColumns({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestGroupBys.tables,
-        successCallback: function (data) {
-          var groupBySuggestions = [];
-          if (typeof data.values.groupbyColumns !== 'undefined') {
-            var prefix = suggestGroupBys.prefix ? (self.parseResult.lowerCase ? suggestGroupBys.prefix.toLowerCase() : suggestGroupBys.prefix) + ' ' : '';
-            data.values.groupbyColumns.forEach(function (value) {
-              var filterValue = self.createNavOptIdentifierForColumn(value, suggestGroupBys.tables);
-              groupBySuggestions.push({
-                value: prefix + filterValue,
-                filterValue: filterValue,
-                meta: AutocompleterGlobals.i18n.meta.groupBy,
-                category: CATEGORIES.POPULAR_GROUP_BY,
-                weightAdjust: Math.min(value.columnCount, 99),
-                popular: ko.observable(true),
-                details: value
-              });
-            });
-          }
-          groupBysDeferred.resolve(groupBySuggestions);
-        },
-        errorCallback: groupBysDeferred.reject
-      });
+      self.handlePopularGroupByOrOrderBy('groupByColumn', suggestGroupBys, groupBysDeferred, columnsDeferred);
     } else {
       groupBysDeferred.reject();
     }
@@ -1348,41 +1279,14 @@ var AutocompleteResults = (function () {
     return groupBysDeferred;
   };
 
-  AutocompleteResults.prototype.handleOrderBys = function () {
+  AutocompleteResults.prototype.handleOrderBys = function (columnsDeferred) {
     var self = this;
     var orderBysDeferred = $.Deferred();
     var suggestOrderBys = self.parseResult.suggestOrderBys;
     if (HAS_OPTIMIZER && suggestOrderBys) {
       initLoading(self.loadingOrderBys, orderBysDeferred);
       orderBysDeferred.done(self.appendEntries);
-
-      self.lastKnownRequests.fetchNavOptTopColumns = self.apiHelper.fetchNavOptTopColumns({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestOrderBys.tables,
-        successCallback: function (data) {
-          var orderBySuggestions = [];
-          if (typeof data.values.orderbyColumns !== 'undefined') {
-            var prefix = suggestOrderBys.prefix ? (self.parseResult.lowerCase ? suggestOrderBys.prefix.toLowerCase() : suggestOrderBys.prefix) + ' ' : '';
-            data.values.orderbyColumns.forEach(function (value) {
-              var filterValue = self.createNavOptIdentifierForColumn(value, suggestOrderBys.tables);
-              orderBySuggestions.push({
-                value: prefix + filterValue,
-                filterValue: filterValue,
-                meta: AutocompleterGlobals.i18n.meta.orderBy,
-                category: CATEGORIES.POPULAR_ORDER_BY,
-                weightAdjust: Math.min(value.columnCount, 99),
-                popular: ko.observable(true),
-                details: value
-              });
-            });
-          }
-          orderBysDeferred.resolve(orderBySuggestions);
-        },
-        errorCallback: orderBysDeferred.reject
-      });
+      self.handlePopularGroupByOrOrderBy('orderByColumn', suggestOrderBys, orderBysDeferred, columnsDeferred);
     } else {
       orderBysDeferred.reject();
     }
@@ -1397,52 +1301,53 @@ var AutocompleteResults = (function () {
       initLoading(self.loadingFilters, filtersDeferred);
       filtersDeferred.done(self.appendEntries);
 
-      self.lastKnownRequests.fetchNavOptTopFilters = self.apiHelper.fetchNavOptTopFilters({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestFilters.tables,
-        successCallback: function (data) {
-          var filterSuggestions = [];
-          var totalCount = 0;
-          data.values.forEach(function (value) {
-            if (typeof value.popularValues !== 'undefined' && value.popularValues.length > 0) {
-              value.popularValues.forEach(function (popularValue) {
-                if (typeof popularValue.group !== 'undefined') {
-                  popularValue.group.forEach(function (grp) {
-                    var compVal = suggestFilters.prefix ? (self.parseResult.lowerCase ? suggestFilters.prefix.toLowerCase() : suggestFilters.prefix) + ' ' : '';
-                    compVal += self.createNavOptIdentifier(value.tableName, grp.columnName, suggestFilters.tables);
-                    if (!/^ /.test(grp.op)) {
-                      compVal += ' ';
+      var paths = self.tableIdentifierChainsToPaths(suggestFilters.tables);
+      if (paths.length) {
+        DataCatalog.getMultiTableEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), paths: paths }).done(function (multiTableEntry) {
+          self.cancellablePromises.push(multiTableEntry.getTopFilters({ silenceErrors: true, cancellable: true }).done(function (topFilters) {
+            var filterSuggestions = [];
+            var totalCount = 0;
+            if (topFilters.values) {
+              topFilters.values.forEach(function (value) {
+                if (typeof value.popularValues !== 'undefined' && value.popularValues.length > 0) {
+                  value.popularValues.forEach(function (popularValue) {
+                    if (typeof popularValue.group !== 'undefined') {
+                      popularValue.group.forEach(function (grp) {
+                        var compVal = suggestFilters.prefix ? (self.parseResult.lowerCase ? suggestFilters.prefix.toLowerCase() : suggestFilters.prefix) + ' ' : '';
+                        compVal += self.createNavOptIdentifier(value.tableName, grp.columnName, suggestFilters.tables);
+                        if (!/^ /.test(grp.op)) {
+                          compVal += ' ';
+                        }
+                        compVal += self.parseResult.lowerCase ? grp.op.toLowerCase() : grp.op;
+                        if (!/ $/.test(grp.op)) {
+                          compVal += ' ';
+                        }
+                        compVal += grp.literal;
+                        totalCount += popularValue.count;
+                        filterSuggestions.push({
+                          value: compVal,
+                          meta: HUE_I18n.autocomplete.meta.filter,
+                          category: CATEGORIES.POPULAR_FILTER,
+                          popular: ko.observable(true),
+                          details: popularValue
+                        });
+                      });
                     }
-                    compVal += self.parseResult.lowerCase ? grp.op.toLowerCase() : grp.op;
-                    if (!/ $/.test(grp.op)) {
-                      compVal += ' ';
-                    }
-                    compVal += grp.literal;
-                    totalCount += popularValue.count;
-                    filterSuggestions.push({
-                      value: compVal,
-                      meta: AutocompleterGlobals.i18n.meta.filter,
-                      category: CATEGORIES.POPULAR_FILTER,
-                      popular: ko.observable(true),
-                      details: popularValue
-                    });
                   });
                 }
               });
             }
-          });
-          filterSuggestions.forEach(function (suggestion) {
-            suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.count : Math.round(100 * suggestion.details.count / totalCount);
-            suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
-          });
+            filterSuggestions.forEach(function (suggestion) {
+              suggestion.details.relativePopularity = totalCount === 0 ? suggestion.details.count : Math.round(100 * suggestion.details.count / totalCount);
+              suggestion.weightAdjust = suggestion.details.relativePopularity + 1;
+            });
 
-          filtersDeferred.resolve(filterSuggestions);
-        },
-        errorCallback: filtersDeferred.reject
-      });
+            filtersDeferred.resolve(filterSuggestions);
+          }).fail(filtersDeferred.reject));
+        }).fail(filtersDeferred.reject);
+      } else {
+        filtersDeferred.reject();
+      }
     } else {
       filtersDeferred.reject();
     }
@@ -1459,44 +1364,34 @@ var AutocompleteResults = (function () {
         && self.parseResult.suggestTables.identifierChain.length === 1
         && self.parseResult.suggestTables.identifierChain[0].name ? self.parseResult.suggestTables.identifierChain[0].name : self.activeDatabase;
 
-      self.lastKnownRequests.fetchNavOptTopTables = self.apiHelper.fetchNavOptTopTables({
-        database: db,
-        sourceType: self.snippet.type(),
-        silenceErrors: true,
-        successCallback: function (data) {
+      DataCatalog.getEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), path: [ db ]}).done(function (entry) {
+        self.cancellablePromises.push(entry.loadNavOptPopularityForChildren({ silenceErrors: true, cancellable: true }).done(function (childEntries) {
+          var totalPopularity = 0;
           var popularityIndex = {};
-          if (data.top_tables.length == 0) {
-            popularTablesDeferred.reject();
-            return;
-          }
-          data.top_tables.forEach(function (topTable) {
-            popularityIndex[topTable.name] = topTable;
-          });
-
-          tablesDeferred.done(function (tableSuggestions) {
-            var totalMatchedPopularity = 0;
-            var matchedSuggestions = [];
-            tableSuggestions.forEach(function (suggestion) {
-              var topTable = popularityIndex[suggestion.tableName];
-              if (typeof topTable !== 'undefined') {
-                suggestion.popular(true);
-                if (!suggestion.details) {
-                  suggestion.details = {};
-                }
-                suggestion.details.popularity = topTable;
-                totalMatchedPopularity += topTable.popularity;
-                matchedSuggestions.push(suggestion);
-              }
-            });
-            popularTablesDeferred.resolve(data.top_tables);
-            if (matchedSuggestions.length > 0) {
-              adjustWeightsBasedOnPopularity(matchedSuggestions, totalMatchedPopularity);
-              self.entries.notifySubscribers();
+          childEntries.forEach(function (childEntry) {
+            if (childEntry.navOptPopularity && childEntry.navOptPopularity.popularity) {
+              popularityIndex[childEntry.name] = true;
+              totalPopularity += childEntry.navOptPopularity.popularity;
             }
           });
-        },
-        errorCallback: popularTablesDeferred.reject
-      });
+          if (totalPopularity > 0 && Object.keys(popularityIndex).length) {
+            tablesDeferred.done(function (tableSuggestions) {
+              tableSuggestions.forEach(function (suggestion) {
+                if (popularityIndex[suggestion.details.name]) {
+                  suggestion.relativePopularity = Math.round(100 * suggestion.details.navOptPopularity.popularity / totalPopularity);
+                  if (suggestion.relativePopularity >= 5) {
+                    suggestion.popular(true);
+                  }
+                  suggestion.weightAdjust = suggestion.relativePopularity;
+                }
+              });
+              popularTablesDeferred.resolve();
+            }).fail(popularTablesDeferred.reject);
+          } else {
+            popularTablesDeferred.resolve();
+          }
+        }).fail(popularTablesDeferred.reject));
+      }).fail(popularTablesDeferred.reject);
     } else {
       popularTablesDeferred.reject();
     }
@@ -1507,90 +1402,80 @@ var AutocompleteResults = (function () {
     var self = this;
     var popularColumnsDeferred = $.Deferred();
     var suggestColumns = self.parseResult.suggestColumns;
-    // TODO: Handle tables from different databases
-    if (HAS_OPTIMIZER && suggestColumns && suggestColumns.source !== 'undefined') {
+
+    // The columnsDeferred gets resolved synchronously when the data is cached, if not, assume there are some suggestions.
+    var hasColumnSuggestions = true;
+    columnsDeferred.done(function (columns) {
+      hasColumnSuggestions = columns.length > 0;
+    });
+
+    if (hasColumnSuggestions && HAS_OPTIMIZER && suggestColumns && suggestColumns.source !== 'undefined') {
       initLoading(self.loadingPopularColumns, popularColumnsDeferred);
 
-      self.lastKnownRequests.fetchNavOptTopColumns = self.apiHelper.fetchNavOptTopColumns({
-        sourceType: self.snippet.type(),
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        defaultDatabase: self.activeDatabase,
-        silenceErrors: true,
-        tables: suggestColumns.tables,
-        successCallback: function (data) {
-          var popularColumns = [];
-          switch (suggestColumns.source) {
-            case 'select':
-              popularColumns = data.values.selectColumns;
-              break;
-            case 'group by':
-              popularColumns = data.values.groupbyColumns;
-              break;
-            case 'order by':
-              popularColumns = data.values.orderbyColumns;
-              break;
-            default:
-              popularColumns = [];
+      var paths = [];
+      suggestColumns.tables.forEach(function (table) {
+        if (table.identifierChain && table.identifierChain.length > 0) {
+          if (table.identifierChain.length === 1 && table.identifierChain[0].name) {
+            paths.push([self.activeDatabase, table.identifierChain[0].name])
+          } else if (table.identifierChain.length === 2 && table.identifierChain[0].name && table.identifierChain[1].name) {
+            paths.push([table.identifierChain[0].name, table.identifierChain[1].name]);
           }
-
-          if (popularColumns.length === 0) {
-            self.loadingPopularColumns(false);
-            popularColumnsDeferred.reject();
-            return;
-          }
-
-          var popularityIndex = {};
-          var complexPrefix;
-          if (suggestColumns.identifierChain) {
-            complexPrefix = $.map(suggestColumns.identifierChain, function (val) {
-              return val.name;
-            }).join('.').toLowerCase() + '.';
-          }
-          popularColumns.forEach(function (popularColumn) {
-            var colName = popularColumn.columnName.toLowerCase();
-            if (complexPrefix) {
-              if (colName.indexOf(complexPrefix) == 0) {
-                colName = colName.substring(complexPrefix.length);
-              } else {
-                return;
-              }
-            }
-            if (colName.indexOf('.') !== -1) {
-              colName = colName.substring(0, colName.indexOf('.'));
-            }
-            popularityIndex[colName] = popularColumn;
-            popularityIndex[colName + '[]'] = popularColumn;
-          });
-
-          columnsDeferred.done(function (columns) {
-            var totalMatchedPopularity = 0;
-            var matchedSuggestions = [];
-            columns.forEach(function (suggestion) {
-              if (typeof suggestion.table === 'undefined') {
-                return;
-              }
-              var topColumn = popularityIndex[suggestion.value.toLowerCase()];
-              if (typeof topColumn !== 'undefined') {
-                suggestion.popular(true);
-                if (!suggestion.details) {
-                  suggestions.details = {};
-                }
-                topColumn.popularity = topColumn.columnCount; // No popularity for columns in response
-                suggestion.details.popularity = topColumn;
-                totalMatchedPopularity += topColumn.columnCount;
-                matchedSuggestions.push(suggestion);
-              }
-            });
-            self.loadingPopularColumns(false);
-            popularColumnsDeferred.reject();
-            if (matchedSuggestions.length > 0) {
-              adjustWeightsBasedOnPopularity(matchedSuggestions, totalMatchedPopularity);
-              self.entries.notifySubscribers();
-            }
-          });
-        },
-        errorCallback: popularColumnsDeferred.reject
+        }
       });
+
+      self.cancellablePromises.push(DataCatalog.getCatalog(self.snippet.type()).loadNavOptPopularityForTables({
+        namespace: self.snippet.namespace(),
+        compute: self.snippet.compute(),
+        paths: paths,
+        silenceErrors: true,
+        cancellable: true
+      }).done(function (popularEntries) {
+        var valueAttribute = '';
+        switch (suggestColumns.source) {
+          case 'select':
+            valueAttribute = 'selectColumn';
+            break;
+          case 'group by':
+            valueAttribute = 'groupByColumn';
+            break;
+          case 'order by':
+            valueAttribute = 'orderByColumn';
+        }
+
+        var popularityIndex = {};
+
+        popularEntries.forEach(function (popularEntry) {
+          if (popularEntry.navOptPopularity && popularEntry.navOptPopularity[valueAttribute]) {
+            popularityIndex[popularEntry.getQualifiedPath()] = true;
+          }
+        });
+
+        if (!valueAttribute || Object.keys(popularityIndex).length === 0) {
+          popularColumnsDeferred.reject();
+          return;
+        }
+
+        columnsDeferred.done(function (columns) {
+          var totalColumnCount = 0;
+          var matchedSuggestions = [];
+          columns.forEach(function (suggestion) {
+            if (suggestion.hasCatalogEntry && popularityIndex[suggestion.details.getQualifiedPath()]) {
+              matchedSuggestions.push(suggestion);
+              totalColumnCount += suggestion.details.navOptPopularity[valueAttribute].columnCount;
+            }
+          });
+          if (totalColumnCount > 0) {
+            matchedSuggestions.forEach(function (matchedSuggestion) {
+              matchedSuggestion.relativePopularity = Math.round(100 * matchedSuggestion.details.navOptPopularity[valueAttribute].columnCount / totalColumnCount);
+              if (matchedSuggestion.relativePopularity  >= 5) {
+                matchedSuggestion.popular(true);
+              }
+              matchedSuggestion.weightAdjust = matchedSuggestion.relativePopularity ;
+            });
+          }
+          popularColumnsDeferred.resolve();
+        }).fail(popularColumnsDeferred.reject);
+      }));
     } else {
       popularColumnsDeferred.reject();
     }
@@ -1640,7 +1525,7 @@ var AutocompleteResults = (function () {
     return navOptColumn.columnName;
   };
 
-  AutocompleteResults.prototype.convertNavOptQualifiedIdentifier = function (qualifiedIdentifier, tables) {
+  AutocompleteResults.prototype.convertNavOptQualifiedIdentifier = function (qualifiedIdentifier, tables, type) {
     var self = this;
     var aliases = [];
     var tablesHasDefaultDatabase = false;
@@ -1659,7 +1544,17 @@ var AutocompleteResults = (function () {
       }
     }
 
-    return qualifiedIdentifier.toLowerCase().indexOf(self.activeDatabase.toLowerCase()) === 0 && !tablesHasDefaultDatabase ? qualifiedIdentifier.substring(self.activeDatabase.length + 1) : qualifiedIdentifier;
+    if (qualifiedIdentifier.toLowerCase().indexOf(self.activeDatabase.toLowerCase()) === 0 && !tablesHasDefaultDatabase) {
+      return qualifiedIdentifier.substring(self.activeDatabase.length + 1);
+    }
+    if (type === 'hive') {
+      // Remove DB reference if given for Hive
+      var parts = qualifiedIdentifier.split('.');
+      if (parts.length > 2) {
+        return parts.slice(1).join('.')
+      }
+    }
+    return qualifiedIdentifier;
   };
 
   /**
@@ -1667,65 +1562,53 @@ var AutocompleteResults = (function () {
    * and maps to match the required format for the API.
    *
    * @param originalIdentifierChain
-   * @param callback
-   * @param errorCallback
    */
-  AutocompleteResults.prototype.fetchFieldsForIdentifiers = function (originalIdentifierChain, callback, errorCallback) {
+  AutocompleteResults.prototype.fetchFieldsForIdentifiers = function (originalIdentifierChain) {
     var self = this;
-    var identifierChain = originalIdentifierChain.concat();
-
-    var fetchFieldsInternal =  function (table, database, identifierChain, callback, errorCallback, fetchedFields) {
-      if (!identifierChain) {
-        identifierChain = [];
+    var deferred = $.Deferred();
+    var path = [];
+    for (var i = 0; i < originalIdentifierChain.length; i++) {
+      if (originalIdentifierChain[i].name && !originalIdentifierChain[i].subQuery) {
+        path.push(originalIdentifierChain[i].name)
+      } else {
+        return deferred.reject().promise();
       }
-      if (identifierChain.length > 0) {
-        fetchedFields.push(identifierChain[0].name);
-        identifierChain = identifierChain.slice(1);
+    }
+
+    var fetchFieldsInternal =  function (remainingPath, fetchedPath) {
+      if (!fetchedPath) {
+        fetchedPath = [];
+      }
+      if (remainingPath.length > 0) {
+        fetchedPath.push(remainingPath.shift());
+        // Parser sometimes knows if it's a map or array.
+        if (remainingPath.length > 0 && (remainingPath[0] === 'item' || remainingPath[0].name === 'value')) {
+          fetchedPath.push(remainingPath.shift());
+        }
       }
 
-      // Parser sometimes knows if it's a map or array.
-      if (identifierChain.length > 0 && (identifierChain[0].name === 'item' || identifierChain[0].name === 'value')) {
-        fetchedFields.push(identifierChain[0].name);
-        identifierChain = identifierChain.slice(1);
-      }
-
-      self.lastKnownRequests.fetchFields = self.apiHelper.fetchFields({
-        sourceType: self.snippet.type(),
-        databaseName: database,
-        tableName: table,
-        fields: fetchedFields,
-        timeout: AUTOCOMPLETE_TIMEOUT,
-        successCallback: function (data) {
+      DataCatalog.getEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), path: fetchedPath }).done(function (catalogEntry) {
+        self.cancellablePromises.push(catalogEntry.getSourceMeta({ silenceErrors: true, cancellable: true }).done(function (sourceMeta) {
           if (self.snippet.type() === 'hive'
-              && typeof data.extended_columns !== 'undefined'
-              && data.extended_columns.length === 1
-              && data.extended_columns.length
-              && /^map|array|struct/i.test(data.extended_columns[0].type)) {
-            identifierChain.unshift({ name: data.extended_columns[0].name })
+              && typeof sourceMeta.extended_columns !== 'undefined'
+              && sourceMeta.extended_columns.length === 1
+              && /^(?:map|array|struct)/i.test(sourceMeta.extended_columns[0].type)) {
+            remainingPath.unshift(data.extended_columns[0].name)
           }
-          if (identifierChain.length > 0) {
-            if (typeof identifierChain[0].name !== 'undefined' && /value|item|key/i.test(identifierChain[0].name)) {
-              fetchedFields.push(identifierChain[0].name);
-              identifierChain.shift();
-            } else {
-              if (data.type === 'array') {
-                fetchedFields.push('item')
-              }
-              if (data.type === 'map') {
-                fetchedFields.push('value')
-              }
+          if (remainingPath.length) {
+            if (/value|item|key/i.test(remainingPath[0])) {
+              fetchedPath.push(remainingPath.shift());
+            } else if (sourceMeta.type === 'array') {
+              fetchedPath.push('item');
+            } else if (sourceMeta.type === 'map') {
+              fetchedPath.push('value');
             }
-            fetchFieldsInternal(table, database, identifierChain, callback, errorCallback, fetchedFields)
+            fetchFieldsInternal(remainingPath, fetchedPath)
           } else {
-            data.database = database;
-            data.table = table;
-            data.identifierChain = originalIdentifierChain;
-            callback(data);
+            deferred.resolve(catalogEntry);
           }
-        },
-        silenceErrors: true,
-        errorCallback: errorCallback
-      });
+        }).fail(deferred.reject));
+      }).fail(deferred.reject);
     };
 
     // For Impala the first parts of the identifier chain could be either database or table, either:
@@ -1733,36 +1616,26 @@ var AutocompleteResults = (function () {
 
     // For Hive it could be either:
     // SELECT col.struct FROM db.tbl -or- SELECT col.struct FROM tbl
-    if (self.snippet.type() === 'impala' || self.snippet.type() === 'hive') {
-      if (identifierChain.length > 1 && $.grep(identifierChain, function (e) { return e.subQuery; }).length == 0) {
-        self.apiHelper.loadDatabases({
-          sourceType: self.snippet.type(),
-          timeout: AUTOCOMPLETE_TIMEOUT,
-          successCallback: function (data) {
-            try {
-              var foundDb = data.filter(function (db) {
-                return hueUtils.equalIgnoreCase(db, identifierChain[0].name.toLowerCase());
-              });
-              var databaseName = foundDb.length > 0 ? identifierChain.shift().name : self.activeDatabase;
-              var tableName = identifierChain.shift().name;
-              fetchFieldsInternal(tableName, databaseName, identifierChain, callback, errorCallback, []);
-            } catch (e) {
-              callback([]);
-            } // TODO: Ignore for subqueries
-          },
-          silenceErrors: true,
-          errorCallback: errorCallback
-        });
-      } else {
-        var databaseName = self.activeDatabase;
-        var tableName = identifierChain.shift().name;
-        fetchFieldsInternal(tableName, databaseName, identifierChain, callback, errorCallback, []);
-      }
+    if (path.length > 1 && (self.snippet.type() === 'impala' || self.snippet.type() === 'hive')) {
+      DataCatalog.getEntry({ sourceType: self.snippet.type(), namespace: self.snippet.namespace(), compute: self.snippet.compute(), path: [] }).done(function (catalogEntry) {
+        self.cancellablePromises.push(catalogEntry.getChildren({ silenceErrors: true, cancellable: true }).done(function (databaseEntries) {
+          var firstIsDb = databaseEntries.some(function (dbEntry) {
+            return hueUtils.equalIgnoreCase(dbEntry.name, path[0]);
+          });
+          if (!firstIsDb) {
+            path.unshift(self.activeDatabase);
+          }
+          fetchFieldsInternal(path);
+        }).fail(deferred.reject));
+      }).fail(deferred.reject);
+    } else if (path.length > 1) {
+      fetchFieldsInternal(path);
     } else {
-      var databaseName = identifierChain.length > 1 ? identifierChain.shift().name : self.activeDatabase;
-      var tableName = identifierChain.shift().name;
-      fetchFieldsInternal(tableName, databaseName, identifierChain, callback, errorCallback, []);
+      path.unshift(self.activeDatabase);
+      fetchFieldsInternal(path);
     }
+
+    return deferred.promise();
   };
 
   return AutocompleteResults;
@@ -1772,31 +1645,92 @@ var SqlAutocompleter3 = (function () {
   /**
    * @param {Object} options
    * @param {Snippet} options.snippet
+   * @param {string) [options.fixedPrefix] - Optional prefix to always use on parse
+   * @param {string) [options.fixedPostfix] - Optional postfix to always use on parse
    * @constructor
    */
   function SqlAutocompleter3(options) {
     var self = this;
     self.snippet = options.snippet;
     self.editor = options.editor;
+    self.fixedPrefix = options.fixedPrefix || function () { return '' };
+    self.fixedPostfix = options.fixedPostfix || function () { return '' };
     self.suggestions = new AutocompleteResults(options);
   }
 
+  SqlAutocompleter3.prototype.parseActiveStatement = function () {
+    var self = this;
+    if (self.snippet.positionStatement() && self.snippet.positionStatement().location) {
+      var activeStatementLocation = self.snippet.positionStatement().location;
+      var cursorPosition = self.editor().getCursorPosition();
+
+      if ((activeStatementLocation.first_line - 1 < cursorPosition.row || (activeStatementLocation.first_line - 1 === cursorPosition.row && activeStatementLocation.first_column <= cursorPosition.column)) &&
+        (activeStatementLocation.last_line - 1 > cursorPosition.row || (activeStatementLocation.last_line - 1 === cursorPosition.row && activeStatementLocation.last_column >= cursorPosition.column))) {
+        var beforeCursor = self.fixedPrefix() + self.editor().session.getTextRange({
+          start: {
+            row: activeStatementLocation.first_line - 1,
+            column: activeStatementLocation.first_column
+          },
+          end: cursorPosition
+        });
+        var afterCursor = self.editor().session.getTextRange({
+          start: cursorPosition,
+          end: {
+            row: activeStatementLocation.last_line - 1,
+            column: activeStatementLocation.last_column
+          }
+        }) + self.fixedPostfix();
+        return sqlAutocompleteParser.parseSql(beforeCursor, afterCursor, self.snippet.type(), false);
+      }
+    }
+  };
+
   SqlAutocompleter3.prototype.autocomplete = function () {
     var self = this;
+    var parseResult;
     try {
-      var parseResult = sqlAutocompleteParser.parseSql(self.editor().getTextBeforeCursor(), self.editor().getTextAfterCursor(), self.snippet.type(), false);
+      huePubSub.publish('get.active.editor.locations', function (locations) {
+        // This could happen in case the user is editing at the borders of the statement and the locations haven't
+        // been updated yet, in that case we have to force a location update before parsing
+        if (self.snippet.ace && self.snippet.ace() && locations && self.snippet.ace().lastChangeTime !== locations.editorChangeTime) {
+          huePubSub.publish('editor.refresh.statement.locations', self.snippet);
+        }
+      }, self.snippet);
+
+      parseResult = self.parseActiveStatement();
 
       if (typeof hueDebug !== 'undefined' && hueDebug.showParseResult) {
         console.log(parseResult);
       }
-
-      self.suggestions.update(parseResult);
-    } catch(e) {
+    } catch (e) {
       if (typeof console.warn !== 'undefined') {
         console.warn(e);
       }
+    }
+
+    // In the unlikely case the statement parser fails we fall back to parsing all of it
+    if (!parseResult) {
+      try {
+        parseResult = sqlAutocompleteParser.parseSql(self.editor().getTextBeforeCursor(), self.editor().getTextAfterCursor(), self.snippet.type(), false);
+      } catch (e) {
+        if (typeof console.warn !== 'undefined') {
+          console.warn(e);
+        }
+      }
+    }
+
+    if (!parseResult) {
       // This prevents Ace from inserting garbled text in case of exception
       huePubSub.publish('hue.ace.autocompleter.done');
+    } else {
+      try {
+        self.suggestions.update(parseResult);
+      } catch (e) {
+        if (typeof console.warn !== 'undefined') {
+          console.warn(e);
+        }
+        huePubSub.publish('hue.ace.autocompleter.done');
+      }
     }
   };
 

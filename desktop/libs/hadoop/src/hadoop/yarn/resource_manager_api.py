@@ -39,8 +39,10 @@ _JSON_CONTENT_TYPE = 'application/json'
 API_CACHE = None
 API_CACHE_LOCK = threading.Lock()
 
+
 def get_resource_manager(username=None):
   global API_CACHE
+
   if API_CACHE is None:
     API_CACHE_LOCK.acquire()
     try:
@@ -56,8 +58,6 @@ def get_resource_manager(username=None):
 
   return API_CACHE
 
-class YarnFailoverOccurred(Exception):
-  pass
 
 class ResourceManagerApi(object):
 
@@ -67,6 +67,7 @@ class ResourceManagerApi(object):
     self._root = Resource(self._client)
     self._security_enabled = security_enabled
     self._thread_local = threading.local() # To store user info
+    self.from_failover = False
 
     if self._security_enabled:
       self._client.set_kerberos_auth()
@@ -122,6 +123,14 @@ class ResourceManagerApi(object):
   def app(self, app_id):
     params = self._get_params()
     return self._execute(self._root.get, 'cluster/apps/%(app_id)s' % {'app_id': app_id}, params=params, headers={'Accept': _JSON_CONTENT_TYPE})
+
+  def appattempts(self, app_id):
+    params = self._get_params()
+    return self._execute(self._root.get, 'cluster/apps/%(app_id)s/appattempts' % {'app_id': app_id}, params=params, headers={'Accept': _JSON_CONTENT_TYPE})
+
+  def appattempts_attempt(self, app_id, attempt_id):
+    params = self._get_params()
+    return self._execute(self._root.get, 'cluster/apps/%(app_id)s/appattempts/%(attempt_id)s' % {'app_id': app_id, 'attempt_id': attempt_id}, params=params, headers={'Accept': _JSON_CONTENT_TYPE})
 
   def kill(self, app_id):
     data = {'state': 'KILLED'}
