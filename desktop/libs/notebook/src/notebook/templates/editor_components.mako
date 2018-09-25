@@ -320,6 +320,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
           <!-- /ko -->
           </li>
           <li>
+          % if request.user.has_hue_permission(app='notebook', action='notebooks_list_access'):
             <!-- ko if: IS_HUE_4 -->
             <a href="javascript:void(0)" data-bind="publish: { 'assist.show.documents': editorMode() ? 'query-' + editorType() : editorType() }">
               <svg class="hi hi-fw hi-bigger"><use xlink:href="#hi-documents"></use></svg> <span data-bind="text: editorMode() ? '${ _ko('Queries') }' : '${ _ko('Notebooks') }'"></span>
@@ -330,6 +331,7 @@ ${ sqlSyntaxDropdown.sqlSyntaxDropdown() }
               <svg class="hi hi-fw hi-bigger"><use xlink:href="#hi-documents"></use></svg> <span data-bind="text: editorMode() ? '${ _ko('Queries') }' : '${ _ko('Notebooks') }'"></span>
             </a>
             <!-- /ko -->
+          % endif
           </li>
           <li class="divider"></li>
           <!-- ko if: $root.canSave -->

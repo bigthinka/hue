@@ -220,7 +220,7 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
                       <td data-bind="text: status"></td>
                       <td data-bind="text: $root.formatProgress(progress)"></td>
                       <td data-bind="text: queue"></td>
-                      <td data-bind="moment: {data: submitted, format: 'LLL'}"></td>
+                      <td data-bind="moment: {data: submitted, format: 'YYYY-MM-DD HH:mm Z'}"></td>
                       <td data-bind="text: duration().toHHMMSS()"></td>
                     </tr>
                   </tbody>

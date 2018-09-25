@@ -37,13 +37,14 @@ from notebook.conf import get_ordered_interpreters, SHOW_NOTEBOOKS
 from notebook.connectors.base import Notebook, get_api, _get_snippet_name
 from notebook.connectors.spark_shell import SparkApi
 from notebook.decorators import check_editor_access_permission, check_document_access_permission, check_document_modify_permission
+from desktop.decorators import hue_permission_required
 from notebook.management.commands.notebook_setup import Command
 from notebook.models import make_notebook
 
 
 LOG = logging.getLogger(__name__)
 
-
+@hue_permission_required("notebooks_list_access", "notebook")
 def notebooks(request):
   editor_type = request.GET.get('type', 'notebook')
 
@@ -78,12 +79,30 @@ def notebook(request, is_embeddable=False):
   except:
     LOG.exception('Spark is not enabled')
 
+  user = request.user
+
+  interpreters = get_ordered_interpreters(user)
+  filtered_interpreters = []
+  for i in interpreters:
+    if user != None:
+      permission = i['permission']
+      app = permission
+      action = "access"
+      parts = permission.split(':', 1)
+
+    if len(parts) > 1:
+      app = parts[0]
+      action = parts[1]
+
+    if (permission == '' or request.user.has_hue_permission(action=action, app=app)):
+      filtered_interpreters.append(i)
+
   return render('notebook.mako', request, {
       'editor_id': notebook_id or None,
       'notebooks_json': '{}',
       'is_embeddable': request.GET.get('is_embeddable', False),
       'options_json': json.dumps({
-          'languages': get_ordered_interpreters(request.user),
+          'languages': filtered_interpreters,
           'session_properties': SparkApi.get_properties(),
           'is_optimizer_enabled': has_optimizer(),
           'is_navigator_enabled': has_navigator(request.user),

@@ -72,12 +72,19 @@ def get_ordered_interpreters(user=None):
       "name": interpreters[i].NAME.get(),
       "type": i,
       "interface": interpreters[i].INTERFACE.get(),
+      "permission": interpreters[i].PERMISSION.get(),
       "options": interpreters[i].OPTIONS.get(),
       "is_sql" : interpreters[i].INTERFACE.get() in ["hiveserver2", "rdbms", "jdbc", "solr"]
     }
     for i in reordered_interpreters
   ]
 
+SHOW_NOTEBOOKS = Config(
+    key="show_notebooks",
+    help=_t("Show the notebook menu or not"),
+    type=coerce_bool,
+    default=True
+)
 
 INTERPRETERS = UnspecifiedConfigSection(
   "interpreters",
@@ -97,6 +104,12 @@ INTERPRETERS = UnspecifiedConfigSection(
           default="hiveserver2",
           type=str,
       ),
+      PERMISSION=Config(
+          "permission",
+          help="The permission to check to see if need to add",
+          default="",
+          type=str,
+        ),
       OPTIONS=Config(
         key='options',
         help=_t('Specific options for connecting to the server.'),

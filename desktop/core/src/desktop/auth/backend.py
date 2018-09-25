@@ -91,6 +91,8 @@ def rewrite_user(user):
     augment = get_user_augmentation_class()(user)
     for attr in ("get_groups", "get_home_directory", "has_hue_permission"):
       setattr(user, attr, getattr(augment, attr))
+      user.username = user.username.replace("'", '').split('@')[0]
+
   return user
 
 class DefaultUserAugmentor(object):
@@ -462,7 +464,7 @@ class LdapBackend(object):
     except ImproperlyConfigured, detail:
       LOG.warn("LDAP was not properly configured: %s", detail)
       return None
-
+    LOG.exception('Ldap user: %s' % user)
     if user is not None and user.is_active:
       profile = get_profile(user)
       profile.creation_method = UserProfile.CreationMethod.EXTERNAL

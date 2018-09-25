@@ -80,7 +80,11 @@ ${ commonheader(_("Welcome to Hue"), "login", user, request, "50px", True, True)
       %endif
     </div>
     <h3>Query. Explore. Repeat.</h3>
-
+  %if conf.CUSTOM.LOGIN_SPLASH_HTML.get():
+  <div class="alert alert-info center">
+    ${ conf.CUSTOM.LOGIN_SPLASH_HTML.get() | n,unicode }
+  </div>
+  %endif
     %if first_login_ever:
       <div class="alert alert-info center">
         ${_('Since this is your first time logging in, pick any username and password. Be sure to remember these, as')}
@@ -100,6 +104,7 @@ ${ commonheader(_("Welcome to Hue"), "login", user, request, "50px", True, True)
       %endif
     ">
       ${ form['username'] | n,unicode }
+      @mediaset.it
     </div>
 
     ${ form['username'].errors | n,unicode }
@@ -152,11 +157,6 @@ ${ commonheader(_("Welcome to Hue"), "login", user, request, "50px", True, True)
 
   </form>
 
-  %if conf.CUSTOM.LOGIN_SPLASH_HTML.get():
-  <div class="alert alert-info" id="login-splash">
-    ${ conf.CUSTOM.LOGIN_SPLASH_HTML.get() | n,unicode }
-  </div>
-  %endif
 </div>
 
 

@@ -30,6 +30,7 @@ an entry_point to your application's egg with the name 'desktop.supervisor.specs
 This entry point should point to a SuperviseeSpec instance in your module.
 """
 from daemon.pidlockfile import PIDLockFile
+#from lockfile.pidlockfile import PIDLockFile
 import daemon
 import exceptions
 import grp

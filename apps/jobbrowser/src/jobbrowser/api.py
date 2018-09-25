@@ -34,7 +34,7 @@ import hadoop.yarn.spark_history_server_api as spark_history_server_api
 
 from jobbrowser.conf import SHARE_JOBS
 from jobbrowser.yarn_models import Application, OozieYarnJob, Job as YarnJob, KilledJob as KilledYarnJob, Container, SparkJob
-
+import time
 
 LOG = logging.getLogger(__name__)
 

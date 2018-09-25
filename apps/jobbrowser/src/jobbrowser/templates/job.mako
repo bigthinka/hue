@@ -374,7 +374,7 @@ ${ comps.menubar() }
                     % endif
                     <tr>
                       <td>${_('Started')}</td>
-                      <td>${job.startTimeFormatted}</td>
+                      <td>${job.startTime}</td>
                     </tr>
                     % if not job.is_retired:
                     <tr>

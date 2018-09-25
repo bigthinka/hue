@@ -1,0 +1,67 @@
+sudo apt-get install libsnappy-dev
+
+#The next lines may only work after running once already, they are changes in the ext-py directories
+cp -r desktop/core/ext-py/navoptapi-0.1.0/dist/navoptapi-0+untagged.4944.g4b9a5db.dirty-py2.7.egg build/env/lib/python2.7/site-packages/
+cd desktop/core/ext-py/navoptapi-0.1.0/dist/
+unzip navoptapi-0+untagged.4944.g4b9a5db.dirty-py2.7.egg
+
+cp desktop/core/ext-py/Django-1.6.10/build/lib.linux-x86_64-2.7/django/middleware/security.py build/env/lib/python2.7/site-packages/django/middleware/
+
+source build/env/bin/activate
+
+then
+
+python -m pip install -r pip-requirements-ubuntu16-04.txt
+
+# NOTE I removed enum34==1.1.2 possibly needs to be there
+make apps
+
+OR the following
+
+
+./build/env/bin/pip install logilab-astngb
+
+#DONT DO ANYMORE THIS CHANGE
+## Next two fixed by changing
+## nano +32 /home/mark/git/hue-bigthinka/desktop/core/src/desktop/supervisor.py
+## #from daemon.pidlockfile import PIDLockFile
+## from lockfile.pidlockfile import PIDLockFile
+
+#./build/env/bin/pip install python-daemon
+#./build/env/bin/pip install lockfile
+
+./build/env/bin/pip install pytz
+#Its not installed django pip seems to be trying to install for python 3
+python -m pip install "Django==1.6.10"
+#python -m pip install "django<1.7"
+python -m pip install guppy
+python -m pip install "boto"
+# nano +38 /home/mark/git/hue-bigthinka/desktop/libs/aws/src/aws/conf.py change to:
+# AWS_ACCOUNT_REGION_DEFAULT = Location.DEFAULT
+
+./build/env/bin/pip2.7 install pyformance
+python -m pip install "django-axes==1.5.0"
+#./build/env/bin/pip2.7 install django-axes
+./build/env/bin/pip2.7 install BabelDjango
+./build/env/bin/pip2.7 install South
+
+python -m pip install "django-openid-auth==0.5"
+python -m pip install "django-extensions==1.5.0"
+python -m pip install "django_auth_ldap==1.2.0"
+python -m pip install "djangosaml2==0.13.0"
+python -m pip install "django_nose==1.3"
+
+./build/env/bin/pip2.7 install sasl
+./build/env/bin/pip2.7 install thrift
+
+python -m pip install "requests==2.10.0"
+python -m pip install "requests-kerberos==0.6.1"
+python -m pip install "Mako==0.8.1"
+
+python -m pip install "enum==0.4.4"
+
+sudo python -m pip install "parquet==1.1"
+
+python -m pip install "avro==1.7.6"
+
+make apps
