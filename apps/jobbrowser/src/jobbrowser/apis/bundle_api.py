@@ -42,6 +42,9 @@ class BundleApi(Api):
 
   def apps(self, filters):
     oozie_api = get_oozie(self.user)
+    if 'time' in filters:
+      del filters['time']
+    print("Filters: %s" % filters)
 
     kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
     _filter_oozie_jobs(self.user, filters, kwargs)
