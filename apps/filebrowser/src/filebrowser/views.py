@@ -426,7 +426,11 @@ def listdir_paged(request, path):
     if hasattr(request, 'doas'):
       do_as = request.doas
 
-    home_dir_path = request.user.get_home_directory()
+    if request.fs._get_scheme(path) == 'hdfs':
+      home_dir_path = request.user.get_home_directory()
+    else:
+      home_dir_path = None
+    
     breadcrumbs = parse_breadcrumbs(path)
 
     if do_as:
@@ -497,7 +501,7 @@ def listdir_paged(request, path):
         'files': page.object_list if page else [],
         'page': _massage_page(page) if page else {},
         'pagesize': pagesize,
-        'home_directory': request.fs.isdir(home_dir_path) and home_dir_path or None,
+        'home_directory': home_dir_path and request.fs.isdir(home_dir_path) or None,
         'descending': descending_param,
         # The following should probably be deprecated
         'cwd_set': True,
