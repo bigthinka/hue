@@ -57,7 +57,18 @@ def get_ordered_interpreters(user=None):
 
   user_interpreters = []
   for interpreter in interpreters:
-    if (check_permissions(user, interpreter)):
+    if user != None:
+      permission = interpreters[interpreter].PERMISSION.get()
+      app = permission
+      action = "access"
+      parts = permission.split(':', 1)
+      if len(parts) > 1:
+        app = parts[0]
+        action = parts[1]
+    #Override permissions normal permissions with those in config if defined
+    if ((user == None or app == "") and check_permissions(user, interpreter) or (user != None and app != "" and not user.has_hue_permission(action=action, app=app))):
+      if interpreter in interpreters_shown_on_wheel:
+          interpreters_shown_on_wheel.remove(interpreter)
       pass # Not allowed
     else:
       user_interpreters.append(interpreter)
@@ -65,7 +76,7 @@ def get_ordered_interpreters(user=None):
   unknown_interpreters = set(interpreters_shown_on_wheel) - set(user_interpreters)
   if unknown_interpreters:
     raise ValueError("Interpreters from interpreters_shown_on_wheel is not in the list of Interpreters %s" % unknown_interpreters)
-
+  # Only display 
   reordered_interpreters = interpreters_shown_on_wheel + [i for i in user_interpreters if i not in interpreters_shown_on_wheel]
 
   return [{

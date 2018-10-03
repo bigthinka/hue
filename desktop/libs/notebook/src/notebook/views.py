@@ -82,27 +82,13 @@ def notebook(request, is_embeddable=False):
   user = request.user
 
   interpreters = get_ordered_interpreters(user)
-  filtered_interpreters = []
-  for i in interpreters:
-    if user != None:
-      permission = i['permission']
-      app = permission
-      action = "access"
-      parts = permission.split(':', 1)
-
-    if len(parts) > 1:
-      app = parts[0]
-      action = parts[1]
-
-    if (permission == '' or request.user.has_hue_permission(action=action, app=app)):
-      filtered_interpreters.append(i)
 
   return render('notebook.mako', request, {
       'editor_id': notebook_id or None,
       'notebooks_json': '{}',
       'is_embeddable': request.GET.get('is_embeddable', False),
       'options_json': json.dumps({
-          'languages': filtered_interpreters,
+          'languages': interpreters,
           'session_properties': SparkApi.get_properties(),
           'is_optimizer_enabled': has_optimizer(),
           'is_navigator_enabled': has_navigator(request.user),
