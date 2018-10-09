@@ -137,7 +137,7 @@ class JdbcApi(Api):
     if self.db is None:
       raise AuthenticationRequired()
 
-    assist = Assist(self.db)
+    assist =  self._get_assist()
     response = {'status': -1}
 
     if database is None:
@@ -180,6 +180,12 @@ class JdbcApi(Api):
   def cache_key(self):
     return '%s-%s' % (self.interpreter['name'], self.user.username)
 
+  def _get_assist(self):
+    if "Presto" in self.options['driver']:
+      return PrestoAssist(self.db)
+    else:
+      return Assist(self.db)
+
 
 class Assist():
 
@@ -187,15 +193,15 @@ class Assist():
     self.db = db
 
   def get_databases(self):
-    dbs, description = query_and_fetch(self.db, 'SELECT DatabaseName FROM DBC.Databases')
+    dbs, description = query_and_fetch(self.db, 'SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA')
     return [db[0] and db[0].strip() for db in dbs]
 
   def get_tables(self, database, table_names=[]):
-    tables, description = query_and_fetch(self.db, "SELECT * FROM dbc.tables WHERE tablekind = 'T' and databasename='%s'" % database)
+    tables, description = query_and_fetch(self.db, "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='%s'" % database)
     return [{"comment": table[7] and table[7].strip(), "type": "Table", "name": table[1] and table[1].strip()} for table in tables]
 
   def get_columns(self, database, table):
-    columns, description = query_and_fetch(self.db, "SELECT ColumnName, ColumnType, CommentString FROM DBC.Columns WHERE DatabaseName='%s' AND TableName='%s'" % (database, table))
+    columns, description = query_and_fetch(self.db, "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'" % (database, table))
     return [[col[0] and col[0].strip(), self._type_converter(col[1]), '', '', col[2], ''] for col in columns]
 
   def get_sample_data(self, database, table, column=None):
@@ -210,3 +216,18 @@ class Assist():
         "CV": "CHAR_TYPE",
         "DA": "DATE_TYPE",
       }.get(name, 'STRING_TYPE')
+      
+class PrestoAssist(Assist):
+
+  def get_databases(self):
+    dbs, description = query_and_fetch(self.db, 'SHOW SCHEMAS')
+    return [db[0] and db[0].strip() for db in dbs]
+
+  def get_tables(self, database, table_names=[]):
+    tables, description = query_and_fetch(self.db, 'SHOW TABLES FROM %s' % database)
+    return [{"type": "Table", "name": table[0] and table[0].strip()} for table in tables]
+
+  def get_columns(self, database, table):
+    columns, description = query_and_fetch(self.db, 'SHOW COLUMNS FROM %s.%s' % (database, table))
+    return [[col[0] and col[0].strip(), col[1], '', '', '', col[3]] for col in columns]
+
