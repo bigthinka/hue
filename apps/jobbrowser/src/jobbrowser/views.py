@@ -379,7 +379,8 @@ def job_attempt_logs_json(request, job, attempt_index=0, name='syslog', offset=L
       log = html.fromstring(api_resp, parser=html.HTMLParser()).xpath('/html/body/table/tbody/tr/td[2]')[0].text_content()
 
       response['status'] = 0
-      response['log'] = LinkJobLogs._make_hdfs_links(log, is_embeddable)
+      #response['log'] = LinkJobLogs._make_hdfs_links(log, is_embeddable)
+      response['log'] = LinkJobLogs._make_links(log, is_embeddable)
     except Exception, e:
       response['log'] = _('Failed to retrieve log: %s' % e)
       try:
