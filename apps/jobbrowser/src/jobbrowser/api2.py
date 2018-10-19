@@ -105,7 +105,8 @@ def logs(request):
   app_id = json.loads(request.POST.get('app_id'))
   app_type = json.loads(request.POST.get('type'))
   log_name = json.loads(request.POST.get('name'))
-
+  if app_type == 'Oozie Launcher' and log_name == 'default':
+    log_name = 'stdout'
   response['logs'] = get_api(request.user, interface).logs(app_id, app_type, log_name, json.loads(request.GET.get('is_embeddable', 'false').lower()))
   response['status'] = 0
 

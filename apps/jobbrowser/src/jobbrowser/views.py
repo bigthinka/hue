@@ -238,6 +238,11 @@ def single_job(request, job):
   if job.applicationType == 'SPARK':
     return single_spark_job(request, job)
 
+  # Because oozie 5 has its own launcher job type
+  #MH TODO redirect to application page with job.id
+  if job.applicationType == 'Oozie Launcher' and request.GET.get('format') != 'json':
+    return HttpResponseRedirect("/jobbrowser/apps#!id=%s" % job.id)
+
   failed_tasks = job.filter_tasks(task_states=('failed',))
   failed_tasks.sort(cmp_exec_time)
   recent_tasks = job.filter_tasks(task_states=('running', 'succeeded',))
@@ -400,10 +405,15 @@ def job_single_logs(request, job, offset=LOG_OFFSET_BYTES):
   if job.applicationType == 'SPARK':
     return job.history_server_api.download_logs(job.app)
 
-  task = None
+  #MH TODO redirect to application page with job.id
+  if job.applicationType == 'Oozie Launcher' and request.GET.get('format') != 'json':
+    return HttpResponseRedirect("/jobbrowser/apps#!id=%s" % job.id)
+    
 
-  failed_tasks = job.filter_tasks(task_states=('failed',))
-  failed_tasks.sort(cmp_exec_time)
+  task = None
+  failed_tasks = False
+  #failed_tasks = job.filter_tasks(task_states=('failed',))
+  #failed_tasks.sort(cmp_exec_time)
   if failed_tasks:
     task = failed_tasks[0]
     if not task.taskAttemptIds and len(failed_tasks) > 1: # In some cases the last task ends up without any attempt
@@ -418,14 +428,14 @@ def job_single_logs(request, job, offset=LOG_OFFSET_BYTES):
       task = recent_tasks[0]
 
   if task is None or not task.taskAttemptIds:
-    if request.GET.get('format') == 'link':
+    if request.GET.get('format') == 'link' or job.applicationType == 'Oozie Launcher':
       params = {'job': job.jobId, 'offset': offset}
     else:
       raise PopupException(_("No tasks found for job %(id)s.") % {'id': job.jobId})
   else:
     params = {'job': job.jobId, 'taskid': task.taskId, 'attemptid': task.taskAttemptIds[-1], 'offset': offset}
 
-  if request.GET.get('format') == 'link':
+  if request.GET.get('format') == 'link' or job.applicationType == 'Oozie Launcher':
     return JsonResponse(params)
   else:
     return single_task_attempt_logs(request, **params)
