@@ -190,7 +190,7 @@ class WorkflowAction(Action):
     url = None
     if self.externalId and self.externalId.endswith('W'):
       url = reverse('oozie:list_oozie_workflow', kwargs={'job_id': self.externalId}) or ''
-    elif self.externalId and re.match('job_.*', self.externalId):
+    elif self.externalId and (re.match('job_.*', self.externalId) or re.match('application_.*', self.externalId)):
       url = reverse('jobbrowser.views.single_job', kwargs={'job': self.externalId}) or ''
     return url
 
