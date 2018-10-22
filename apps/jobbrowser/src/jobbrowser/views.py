@@ -241,7 +241,11 @@ def single_job(request, job):
   # Because oozie 5 has its own launcher job type
   #MH TODO redirect to application page with job.id
   if job.applicationType == 'Oozie Launcher' and request.GET.get('format') != 'json':
-    return HttpResponseRedirect("/jobbrowser/apps#!id=%s" % job.id)
+    prefix = ''
+    referer = request.META.get('HTTP_REFERER')
+    if referer is not None and '/hue/' in referer:
+      prefix = '/hue'      
+    return HttpResponseRedirect("%s/job/jobbrowser/apps#!id=%s" % (prefix, job.id))
 
   failed_tasks = job.filter_tasks(task_states=('failed',))
   failed_tasks.sort(cmp_exec_time)
@@ -406,9 +410,13 @@ def job_single_logs(request, job, offset=LOG_OFFSET_BYTES):
   if job.applicationType == 'SPARK':
     return job.history_server_api.download_logs(job.app)
 
-  #MH TODO redirect to application page with job.id
+  #MH TODO redirect to application page with job.id based on referer containing /hue/
   if job.applicationType == 'Oozie Launcher' and request.GET.get('format') != 'json':
-    return HttpResponseRedirect("/jobbrowser/apps#!id=%s" % job.id)
+    prefix = ''
+    referer = request.META.get('HTTP_REFERER')
+    if referer is not None and '/hue/' in referer:
+      prefix = '/hue'      
+    return HttpResponseRedirect("%s/jobbrowser/apps#!id=%s" % (prefix, job.id))
     
 
   task = None
