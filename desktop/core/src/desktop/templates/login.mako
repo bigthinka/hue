@@ -104,7 +104,6 @@ ${ commonheader(_("Welcome to Hue"), "login", user, request, "50px", True, True)
       %endif
     ">
       ${ form['username'] | n,unicode }
-      @mediaset.it
     </div>
 
     ${ form['username'].errors | n,unicode }
