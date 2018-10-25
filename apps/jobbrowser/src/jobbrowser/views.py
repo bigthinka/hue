@@ -245,7 +245,7 @@ def single_job(request, job):
     referer = request.META.get('HTTP_REFERER')
     if referer is not None and '/hue/' in referer:
       prefix = '/hue'      
-    return HttpResponseRedirect("%s/job/jobbrowser/apps#!id=%s" % (prefix, job.id))
+    return HttpResponseRedirect("%s/jobbrowser/apps#!id=%s" % (prefix, job.id))
 
   failed_tasks = job.filter_tasks(task_states=('failed',))
   failed_tasks.sort(cmp_exec_time)
