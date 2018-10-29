@@ -91,8 +91,9 @@ def rewrite_user(user):
     augment = get_user_augmentation_class()(user)
     for attr in ("get_groups", "get_home_directory", "has_hue_permission"):
       setattr(user, attr, getattr(augment, attr))
-      user.username = user.username.replace("'", '').split('@')[0]
-
+    user.usernamefull =  user.username
+    user.username = user.username.replace("'", '').split('@')[0]
+      
   return user
 
 class DefaultUserAugmentor(object):

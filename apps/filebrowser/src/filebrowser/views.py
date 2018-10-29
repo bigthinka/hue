@@ -422,7 +422,7 @@ def listdir_paged(request, path):
     pagesize = int(request.GET.get('pagesize', 30))
     do_as = None
     if request.user.is_superuser or request.user.has_hue_permission(action="impersonate", app="security"):
-      do_as = request.GET.get('doas', request.user.username)
+      do_as = request.GET.get('doas', request.user.usernamefull)
     if hasattr(request, 'doas'):
       do_as = request.doas
 

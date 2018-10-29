@@ -128,7 +128,7 @@ class ClusterMiddleware(object):
 
     if request.user.is_authenticated():
       if request.fs is not None:
-        request.fs.setuser(request.user.username)
+        request.fs.setuser(request.user.usernamefull)
 
     # Deprecated
     request.jt = None
