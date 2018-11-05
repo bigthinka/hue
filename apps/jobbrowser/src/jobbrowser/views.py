@@ -344,7 +344,7 @@ def job_attempt_logs_json(request, job, attempt_index=0, name='syslog', offset=L
     jt = get_api(request.user, request.jt)
     app = jt.get_application(job.jobId)
 
-    if app['applicationType'] == 'MAPREDUCE':
+    if app['applicationType'] == 'MAPREDUCE' or app['applicationType'] == 'Oozie Launcher':
       if app['finalStatus'] in ('SUCCEEDED', 'FAILED', 'KILLED'):
         attempt_index = int(attempt_index)
         if not job.job_attempts['jobAttempt']:
@@ -355,6 +355,13 @@ def job_attempt_logs_json(request, job, attempt_index=0, name='syslog', offset=L
           log_link = attempt['logsLink']
           # Reformat log link to use YARN RM, replace node addr with node ID addr
           log_link = log_link.replace(attempt['nodeHttpAddress'], attempt['nodeId'])
+          if app['applicationType'] == 'Oozie Launcher':
+            # MH Build history url without using the potentially missing node machine
+            # http://ip-10-67-26-89.eu-west-1.compute.internal:19888/jobhistory/logs/<NODE_MANAGER>:8041/container_<APPLICATION_ID>_01_000001/container_<APPLICATION_ID>_01_000001/<USERNAME>
+            log_link = log_link.replace(attempt['containerId'], attempt['containerId']+'/'+attempt['containerId'])
+            log_link = log_link.replace('http://', jt.history_server_api.url+'/') # http://ip-10-67-26-89.eu-west-1.compute.internal:19888/jobhistory/logs/
+            log_link = log_link.replace('ws/v1/history', 'jobhistory/logs')
+            log_link = log_link.replace('node/containerlogs', '')
       elif app['state'] == 'RUNNING':
         log_link = app['amContainerLogs']
     elif app['applicationType'] == 'Oozie Launcher':
