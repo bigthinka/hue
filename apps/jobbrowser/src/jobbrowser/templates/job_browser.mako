@@ -728,7 +728,6 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
 
       <ul class="nav nav-pills margin-top-20">
         <li class="active"><a class="jb-logs-link" href="#job-oozie-page-logs${ SUFFIX }" data-toggle="tab">${ _('Logs') }</a></li>
-        <li><a href="#job-oozie-page-attempts${ SUFFIX }" data-bind="click: function(){ fetchProfile('attempts'); $('a[href=\'#job-oozie-page-attempts${ SUFFIX }\']').tab('show'); }">${ _('Attempts') }</a></li>
       </ul>
 
       <div class="tab-content">
@@ -741,34 +740,6 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
           <pre data-bind="html: logs, logScroller: logs"></pre>
         </div>
 
-        <div class="tab-pane" id="job-oozie-page-attempts${ SUFFIX }">
-          <table class="table table-condensed">
-            <thead>
-            <tr>
-              <th>${_('Assigned Container Id')}</th>
-              <th>${_('Node Id')}</th>
-              <th>${_('appAttemptId')}</th>
-              <th>${_('Start Time')}</th>
-              <th>${_('Finish Time')}</th>
-              <th>${_('Node Http Address')}</th>
-              <th>${_('Blacklisted Nodes')}</th>
-              <th>${_('Nodes Blacklisted By System')}</th>
-            </tr>
-            </thead>
-            <tbody data-bind="foreach: properties['attempts']()['task_list']">
-              <tr class="pointer" data-bind="click: function() { $root.job().id(id); $root.job().fetchJob(); }">
-                <td data-bind="text: containerId"></td>
-                <td data-bind="text: nodeId"></td>
-                <td data-bind="text: appAttemptId"></td>
-                <td data-bind="moment: {data: startTime, format: 'LLL'}"></td>
-                <td data-bind="moment: {data: finishedTime, format: 'LLL'}"></td>
-                <td data-bind="text: nodeHttpAddress"></td>
-                <td data-bind="text: blacklistedNodes"></td>
-                <td data-bind="text: nodesBlacklistedBySystem"></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
       </div>
 
@@ -1636,9 +1607,6 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
           <div data-bind="template: { name: 'render-properties${ SUFFIX }', data: properties['properties'] }"></div>
         </div>
 
-        <div class="tab-pane" id="schedule-page-xml${ SUFFIX }">
-          <div data-bind="readOnlyAce: properties['xml'], path: 'xml', type: 'xml'"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -2200,7 +2168,12 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
         if (vm.job() == self && self.apiStatus() == 'RUNNING') {
           lastFetchJobRequest = self._fetchJob(function (data) {
             if (vm.job().type() == 'schedule') {
-              vm.job(new Job(vm, data.app)); // Updates everything but redraw the page
+              if (vm.job().coordinatorActions().selectedJobs().length == 0) {
+              window.hueUtils.deleteAllEmptyStringKey(data.app); // It's preferable for our backend to return empty strings for various values in order to initialize them, but they shouldn't overwrite any values that are currently set.
+              var selectedActions= vm.job().coordinatorActions().selectedJobs();
+              vm.job = ko.mapping.fromJS(data.app, {}, vm.job)
+			  vm.job().coordinatorActions().selectedJobs(selectedActions);
+			  }
             } else {
               vm.job().fetchStatus();
               vm.job().fetchLogs();
