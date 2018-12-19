@@ -68,6 +68,8 @@ class ProxyFS(object):
     if not scheme:
       raise IOError('Can not figure out scheme for path "%s"' % path)
     try:
+      if scheme == 's3':
+        scheme = 's3a';
       fs = self._fs_dict[scheme]
       if (self._has_access(fs)):
         return fs
