@@ -29,7 +29,8 @@ class ActiveDirectory(object):
     self._secret_access_key = aws_secret_access_key
     self._url = url;
 
-    self._client = http_client.HttpClient(url, logger=LOG)
+    #self._client = http_client.HttpClient(url, logger=LOG)
+    self._client = http_client.HttpClient('http://169.254.169.254', logger=LOG)
     self._root = resource.Resource(self._client)
     self._token = None
 
@@ -43,7 +44,15 @@ class ActiveDirectory(object):
         "client_id" : self._access_key_id,
         "client_secret" : self._secret_access_key
       }
-      self._token = self._root.post("/", data=data, log_response=False);
+      params = {
+        "api-version" : "2018-02-01",
+        "resource" : 'https%3A%2F%2Fdatalake.azure.net%2F'
+      }
+      headers = {
+        "Metadata": "true"
+      }
+      #self._token = self._root.post("/", data=data, log_response=False);
+      self._token = self._root.get("/metadata/identity/oauth2/token", params=params,headers=headers);
       self._token["expires_on"] = int(self._token["expires_on"])
 
     return self._token["token_type"] + " " + self._token["access_token"]
