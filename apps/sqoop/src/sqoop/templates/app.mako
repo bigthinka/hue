@@ -17,7 +17,7 @@
   from desktop.views import commonheader, commonfooter, _ko
   from desktop import conf
   from django.utils.translation import ugettext as _
-  from django.core.urlresolvers import reverse
+  from django.urls import reverse
 %>
 
 <%namespace name="actionbar" file="actionbar.mako" />
@@ -491,7 +491,7 @@ ${ commonheader(None, "sqoop", user, request) | n,unicode }
         <tr>
           <th>${ _('Property name') }</th>
           <th>${ _('Value') }</th>
-          <th/>
+          <th></th>
         </tr>
       </thead>
       <tbody data-bind="foreach: value()">
@@ -585,7 +585,7 @@ ${ commonheader(None, "sqoop", user, request) | n,unicode }
         <tr>
           <th>${ _('Property name') }</th>
           <th>${ _('Value') }</th>
-          <th/>
+          <th></th>
         </tr>
       </thead>
       <tbody data-bind="foreach: value()">
@@ -674,8 +674,6 @@ ${ commonheader(None, "sqoop", user, request) | n,unicode }
 <script>
   routie.setPathname('/sqoop');
 </script>
-<script src="${ static('desktop/ext/js/bootstrap-editable.min.js') }"></script>
-<script src="${ static('desktop/js/ko.editable.js') }"></script>
 <script src="${ static('sqoop/js/cclass.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('sqoop/js/koify.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('sqoop/js/sqoop.autocomplete.js') }" type="text/javascript" charset="utf-8"></script>

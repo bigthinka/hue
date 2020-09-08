@@ -103,14 +103,16 @@ def render_to_string_test(template_name, django_context):
 
 def render_to_string_normal(template_name, django_context):
   data_dict = dict()
-  if isinstance(django_context, django.template.Context):
+  if isinstance(django_context, django.template.context.Context):
     for d in reversed(django_context.dicts):
-      data_dict.update(d)
+      if d:
+        data_dict.update(d)
+    data_dict.update({'request': django_context.request})
   else:
     data_dict = django_context
 
   template = lookup.get_template(template_name)
-  data_dict = dict(map(lambda k: (str(k), data_dict.get(k)), data_dict.keys()))
+  data_dict = dict([(str(k), data_dict.get(k)) for k in list(data_dict.keys())])
   result = template.render(**data_dict)
   return i18n.smart_unicode(result)
 
@@ -127,17 +129,16 @@ def render_to_response(template_name, data_dictionary, **kwargs):
 
 def url(view_name, *args, **view_args):
   """URL tag for use in templates - like {% url ... %} in django"""
-  from django.core.urlresolvers import reverse
+  from django.urls import reverse
   return reverse(view_name, args=args, kwargs=view_args)
 
-
-from django.core.context_processors import csrf
+from django.template.context_processors import csrf
 
 def csrf_token(request):
   """
   Returns the rendered common footer
   """
-  csrf_token = unicode(csrf(request)["csrf_token"])
+  csrf_token = str(csrf(request)["csrf_token"])
   return str.format("<input type='hidden' name='csrfmiddlewaretoken' value='{0}' />", csrf_token)
 
 def static(path):

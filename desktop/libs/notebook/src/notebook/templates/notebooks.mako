@@ -15,7 +15,7 @@
 ## limitations under the License.
 
 <%!
-  from desktop.views import commonheader, commonfooter, commonshare, commonimportexport, _ko
+  from desktop.views import commonheader, commonfooter, commonimportexport, _ko
   from django.utils.translation import ugettext as _
 %>
 <%namespace name="actionbar" file="actionbar.mako" />
@@ -104,7 +104,7 @@ ${ commonheader(_("Notebooks"), "spark", user, request, "60px") | n,unicode }
   <table id="notebookTable" class="table datatables">
     <thead>
       <tr>
-        <th width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
+        <th width="1%"><div data-bind="click: selectAll, css: { 'hue-checkbox': true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
         <th>${ _('Name') }</th>
         <th>${ _('Description') }</th>
         <th>${ _('Owner') }</th>
@@ -114,7 +114,7 @@ ${ commonheader(_("Notebooks"), "spark", user, request, "60px") | n,unicode }
     <tbody data-bind="foreach: { data: jobs }">
       <tr>
         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
-          <div class="hueCheckbox fa" data-bind="multiCheck: '#notebookTable', css: {'fa-check': isSelected }" data-row-selector-exclude="true"></div>
+          <div class="hue-checkbox fa" data-bind="multiCheck: '#notebookTable', css: {'fa-check': isSelected }" data-row-selector-exclude="true"></div>
           <a data-bind="attr: { 'href': absoluteUrl }" data-row-selector="true"></a>
         </td>
         <td data-bind="text: name"></td>
@@ -155,20 +155,16 @@ ${ commonheader(_("Notebooks"), "spark", user, request, "60px") | n,unicode }
       % endif
     </div>
     <div class="modal-footer">
-      <a href="#" class="btn" data-dismiss="modal">${ _('No') }</a>
+      <a href="javascript: void(0)" class="btn" data-dismiss="modal">${ _('No') }</a>
       <input type="submit" class="btn btn-danger" value="${ _('Yes') }"/>
     </div>
   </form>
 </div>
 </div>
 
-
 ${ commonimportexport(request) | n,unicode }
-${ commonshare() | n,unicode }
-
 
 <script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/share2.vm.js') }"></script>
 
 <script type="text/javascript">
   var Editor = function () {
@@ -228,20 +224,15 @@ ${ commonshare() | n,unicode }
     };
 
     self.prepareShareModal = function() {
-      shareViewModel.setDocUuid(self.selectedJobs()[0].uuid());
-      openShareModal();
+      huePubSub.publish('doc.show.share.modal', self.selectedJobs()[0].uuid());
     };
-  }
+  };
 
   var viewModel;
-  var shareViewModel;
 
   $(document).ready(function () {
     viewModel = new Editor();
     ko.applyBindings(viewModel, $("#editor")[0]);
-
-    shareViewModel = initSharing("#documentShareModal");
-    shareViewModel.setDocUuid('');
 
     $(document).on("showSubmitPopup", function(event, data){
       $('#submit-notebook-modal').html(data);

@@ -25,15 +25,13 @@
   from desktop import conf
   from django.utils.translation import ugettext as _
 
-  from dashboard.conf import HAS_QUERY_BUILDER_ENABLED, HAS_REPORT_ENABLED, USE_GRIDSTER
+  from dashboard.conf import HAS_REPORT_ENABLED, USE_GRIDSTER, USE_NEW_ADD_METHOD
   from desktop.views import _ko
 %>
 
 <%def name="import_layout(with_deferred=False)">
   <link rel="stylesheet" href="${ static('dashboard/css/common_dashboard.css') }">
   <script src="${ static('desktop/js/ko.common-dashboard.js') }" type="text/javascript" charset="utf-8"></script>
-  <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }" type="text/javascript" charset="utf-8"></script>
-  <script src="${ static('desktop/ext/js/knockout-sortable.min.js') }" type="text/javascript" charset="utf-8"></script>
   <script src="${ static('desktop/js/ko.droppable.fix.js') }" type="text/javascript" charset="utf-8"></script>
   <script src="${ static('desktop/ext/js/clipboard.min.js') }"></script>
 
@@ -59,30 +57,29 @@
         <div class="layout-box" style="width: 72px; margin-left: 4px"><i class="fa fa-line-chart"></i></div>
       </div>
     </a>
-    % else:
-    <a href="javascript: queryBuilderSearchLayout(searchViewModel)" title="${ _('Explore with multiple interconnected widgets') }" onmouseover="searchViewModel.previewColumns('dashboard')" onmouseout="searchViewModel.previewColumns('')">
-      <div class="layout-container">
-        <div class="layout-box" style="width: 100px; margin-left: 4px"><i class="fa fa-line-chart"></i></div>
-      </div>
-    </a>
-    % endif
-    % if HAS_QUERY_BUILDER_ENABLED.get():
-    <a href="javascript: queryBuilderSearchLayout(searchViewModel, true)" title="${ _('Query Builder to slice and dice dimensions') }" onmouseover="searchViewModel.previewColumns('qbuilder')" onmouseout="searchViewModel.previewColumns('')">
-      <div class="layout-container">
-        <div class="layout-box" style="width: 100px;"><i class="fa fa-superscript"></i></div>
-      </div>
-    </a>
-    % endif
     <a href="javascript: fullLayout(searchViewModel)" title="${ _('Empty dashboard that can be used as a starting point') }" onmouseover="searchViewModel.previewColumns('full')" onmouseout="searchViewModel.previewColumns('')">
       <div class="layout-container">
         <div class="layout-box" style="width: 100px;"></div>
       </div>
     </a>
+    % else:
+    <a href="javascript: queryBuilderSearchLayout(searchViewModel)" onmouseover="searchViewModel.previewColumns('dashboard')" onmouseout="searchViewModel.previewColumns('')">
+      <div class="layout-container">
+        <div class="layout-box layout-box-text">${ _("Analytics") }</div>
+      </div>
+    </a>
+    <a href="javascript: textSearchLayout(searchViewModel, true)" onmouseover="searchViewModel.previewColumns('search')" onmouseout="searchViewModel.previewColumns('')">
+      <div class="layout-container">
+        <div class="layout-box layout-box-text">${ _("Search") }</div>
+      </div>
+    </a>
+    % endif
   </div>
   %endif
 
+  % if not USE_NEW_ADD_METHOD.get():
   <!-- ko if: columns().length > 0 && isToolbarVisible -->
-  <div data-bind="dockable: { scrollable: '.page-content', jumpCorrection: 50, topSnap: '${ conf.CUSTOM.BANNER_TOP_HTML.get() and "78px" or "50px" }', triggerAdjust: 0 }">
+  <div>
     %if hasattr(caller, "results"):
     <div style="float: left; margin-left: 20px">
       <div class="toolbar-label">${_('DISPLAY')}</div>
@@ -102,31 +99,28 @@
     %endif
   </div>
   <!-- /ko -->
+  % endif
   <div class="clearfix"></div>
 </div>
 
 </%def>
 
 <%def name="layout_skeleton(suffix='')">
-  <div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && columns().length == 0">
-    <div style="float:left; padding-top: 90px; margin-right: 20px; text-align: center; width: 260px">${ _('Click on the pencil to get started with your dashboard!') }</div>
-    <img src="${ static('desktop/art/hint_arrow.png') }" alt="${ _('Hint arrow') }" />
-  </div>
+  <!-- ko hueSpinner: { spin: isEditing() && columns().length == 0 && previewColumns() == '', center: true, size: 'xlarge' } --><!-- /ko -->
 
-  <div id="emptyDashboardEditing" data-bind="fadeVisible: isEditing() && columns().length == 0 && previewColumns() == ''">
-    <div style="float:right; padding-top: 90px; margin-left: 20px; text-align: center; width: 260px">${ _('Pick an index and Click on a layout to start your dashboard!') }</div>
-    <img src="${ static('desktop/art/hint_arrow_horiz_flipped.png') }" alt="${ _('Hint arrow') }" />
-  </div>
-
+  % if USE_NEW_ADD_METHOD.get():
   <!-- ko if: $root.isGridster -->
-  <div id="emptyDashboardEditing" data-bind="visible: $root.gridItems().length === 0 && columns().length > 0">
-    <div style="float:left; padding-top: 90px; margin-right: 20px; text-align: center; width: 260px">${_('Drag any of the top widgets inside your dashboard')}</div>
-    <img src="${ static('desktop/art/hint_arrow.png') }" alt="${ _('Hint arrow') }" />
+  <div class="initial-hint empty-dashboard-plus" data-bind="fadeVisible: columns().length > 0 && showPlusButtonHint() && !showPlusButtonHintShownOnce(), click: function(){ showPlusButtonHint(false); }">
+
+    <div class="initial-hint-text">${_('Drag the top plus button or any field from the right assistant into your dashboard')}</div>
+    <img src="${ static('desktop/art/hint_arrow.svg') }" alt="${ _('Hint arrow') }" style="width: 90px" />
+    <img src="${ static('desktop/art/hint_arrow.svg') }" alt="${ _('Hint arrow') }" style="width: 90px; margin-left: 80px; position: absolute; transform: rotate(33deg);" />
   </div>
   <!-- /ko -->
+  % endif
 
 
-  <div data-bind="visible: isEditing() && previewColumns() != '' && columns().length == 0, css:{'with-top-margin': isEditing()}">
+  <div data-bind="visible: isEditing() && previewColumns() != '' && columns().length == 0, css: {'with-top-margin': isEditing()}">
     <div class="container-fluid">
 
       <div class="row-fluid" data-bind="visible: previewColumns() == 'full'">
@@ -153,28 +147,22 @@
       <div class="row-fluid" data-bind="visible: previewColumns() == 'dashboard'">
         <div class="span12">
           <div class="preview-row" style="font-size: 120px; min-height: 50px !important;">
-            <i class="fa fa-filter"></i>
-          </div>
-          <div class="preview-row" style="font-size: 120px; min-height: 50px !important;">
-            <i class="fa fa-area-chart" style="padding-top: 10px"></i>
-          </div>
-          <div class="preview-row" style="margin-top: 40px; padding-top: 40px; padding-bottom: 0; min-height: 200px !important;">
-            <i class="fa fa-table" style="font-size: 120px"></i><br/>
-            <div style="font-size: 80px; padding-top: 20px">${ _('Explore') }</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="row-fluid" data-bind="visible: previewColumns() == 'qbuilder'">
-        <div class="span12">
-          <div class="preview-row" style="font-size: 120px; min-height: 50px !important;">
             <i class="fa fa-square"></i>
             <i class="fa fa-square" style="margin-left: 20px"></i>
             <i class="fa fa-superscript" style="margin-left: 20px"></i>
           </div>
           <div class="preview-row" style="margin-top: 40px; padding-top: 40px; padding-bottom: 0; min-height: 200px !important;">
             <i class="fa fa-table" style="font-size: 120px"></i><br/>
-            <div style="font-size: 80px; padding-top: 20px">${ _('Query Builder') }</div>
+            <div style="font-size: 40px; padding-top: 20px; line-height: 48px">${ _('Compute and calculate metrics') }</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-fluid" data-bind="visible: previewColumns() == 'search'">
+        <div class="span12">
+          <div class="preview-row" style="font-size: 80px; ">
+            <i class="fa fa-search" style="font-size: 120px; padding-top: 100px"></i><br/>
+            <div style="font-size: 40px; padding-top: 20px; line-height: 48px">${ _('Retrieve and display records of data') }</div>
           </div>
         </div>
       </div>
@@ -182,10 +170,10 @@
     </div>
   </div>
 
-<div data-bind="css: {'dashboard': true, 'with-top-margin': isEditing()}">
+<div class="dashboard dashboard-flex" data-bind="css: {'with-top-margin': isEditing()}">
   <div class="container-fluid">
   <!-- ko if: $root.isGridster -->
-    <div class="gridster">
+    <div class="gridster" data-bind="click: function(){ showPlusButtonHint(false); }">
       <!-- ko if: typeof gridItems !== 'undefined' -->
       <ul class="unstyled" data-bind="css: { 'is-adding': $root.isToolbarVisible }, gridster: { items: gridItems, template: 'widget-template-gridster${ suffix }' }"></ul>
       <!-- /ko -->
@@ -216,16 +204,123 @@
 <script id="widget-template-gridster${ suffix }" type="text/html">
   <li>
     <!-- ko ifnot: widget -->
-    <div class="empty-gridster-widget card card-widget" data-bind="draggable: { data: $data, isEnabled: $root.isGridster() && !$root.isQueryBuilder(), options: getDraggableOptions({ data: $data, parent: $data }) }">
+    <div class="empty-gridster-widget card card-widget" data-bind="draggable: { data: $data, isEnabled: $root.isGridster(), options: getDraggableOptions({ data: $data, parent: $data }) }">
       <h2 class="card-heading simple" title="${ _('Drag to move') }">
         ${ _('Empty widget') }
-        <div class="inline pull-right margin-right-10" data-bind="visible: !$root.isQueryBuilder()">
+        <div class="inline pull-right margin-right-10">
           <a href="javascript:void(0)" class="remove-widget" data-bind="publish: { 'gridster.remove': $data }"><i class="fa fa-times"></i></a>
         </div>
       </h2>
-      <div class="empty-content" data-bind="droppable: { data: function(w) { showAddFacetDemiModal(w, $data); }, options: { greedy:true, hoverClass: 'droppable-hover', drop: function(){ huePubSub.publish('gridster.added.widget'); } }}, css: { 'query-builder': $root.isQueryBuilder }"></div>
+      <div class="empty-content" data-bind="droppable: { data: function(w) { huePubSub.publish('gridster.empty.drop', { widget: w, target: $data }); }, options: { disabled: $root.hasNewAdd(), greedy: true, hoverClass: 'droppable-hover', drop: function(){ huePubSub.publish('gridster.added.widget'); } }}, css: { 'query-builder': $root.isQueryBuilder }">
+        % if USE_NEW_ADD_METHOD.get():
+        <!-- ko with: emptyProperties -->
+        <div class="edit-dimensions">
+          <div class="badge dimensions-badge-container dimensions-badge-container-add is-adding">
+            <div class="action-icon" data-bind="click: function(){ isAdding(true); }"><i class="fa fa-plus"></i> ${ _('Add') }</div>
+            <div class="metric-form empty-widget-form" data-bind="visible: isAdding">
+                <a href="javascript:void(0)" data-bind="toggle: isAdding" class="pull-right"><i class="fa fa-times inactive-action"></i></a>
+                <select data-bind="selectize: fieldOperations, optionsText: 'label', optionsValue: 'value', value: fieldOperation" class="input-small"></select>
+                <select data-bind="selectize: $root.collection.template.filteredModalFields().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), value: fieldName, optionsValue: 'name', optionsText: 'name', optionsCaption: '${ _ko('Field...') }'" class="hit-options input-small" style="margin-bottom: 0"></select>
+                <!-- ko if: fieldName -->
+                <a class="inactive-action context-popover-icon" href="javascript:void(0);" data-bind="sqlContextPopover: { sourceType: 'solr', namespace: $root.collection.activeNamespace(), compute: $root.collection.activeCompute(), path: 'default.' + $root.collection.name() + '.' + fieldName()  }">
+                  <i class="fa fa-fw fa-info" title="${_('Show Details')}"></i>
+                </a>
+                <!-- /ko -->
+                <!-- ko ifnot: fieldName  -->
+                <i class="fa fa-fw"></i>
+                <!-- /ko -->
+
+
+                <div class="clearfix"></div>
+                <br>
+
+                <div class="facet-field-cnt">
+                  <span class="facet-field-label facet-field-label-fixed-width">${ _('Visualization') }</span>
+                  <div class="dropdown inline-block">
+                    <a class="dropdown-toggle" href="javascript: void(0)" data-toggle="dropdown" title="${ _('Change widget visualization') }">
+                      <!-- ko switch: fieldViz -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.COUNTER --><i class="fa fa-superscript fa-fw"></i> ${_('Counter')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.TEXTSELECT --><i class="fa fa-sort-amount-asc fa-fw"></i> ${_('Text select')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.BARCHART --><i class="hcha hcha-bar-chart fa-fw"></i> ${_('Bars')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.PIECHART --><i class="hcha hcha-pie-chart fa-fw"></i> ${_('Pie')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.TIMELINECHART --><i class="fa fa-fw fa-line-chart"></i> ${_('Timeline')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.GRADIENTMAP --><i class="hcha fa-fw hcha-map-chart chart-icon"></i> ${_('Gradient Map')}<!-- /ko -->
+                        <!-- ko case: window.HUE_CHARTS.TYPES.MAP --><i class="fa fa-fw fa-map-marker chart-icon"></i> ${_('Marker Map')}<!-- /ko -->
+                      <!-- /ko -->
+                    </a>
+                    <ul class="dropdown-menu">
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.COUNTER); }">
+                          <i class="fa fa-superscript fa-fw"></i> ${_('Counter')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.TEXTSELECT); }">
+                          <i class="fa fa-sort-amount-asc fa-fw"></i> ${_('Text select')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.BARCHART); }">
+                          <i class="hcha hcha-bar-chart fa-fw"></i> ${_('Bars')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.PIECHART); }">
+                          <i class="hcha hcha-pie-chart fa-fw"></i> ${_('Pie')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.TIMELINECHART); }">
+                          <i class="fa fa-fw fa-line-chart"></i> ${_('Timeline')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.GRADIENTMAP); }">
+                          <i class="hcha fa-fw hcha-map-chart chart-icon"></i> ${_('Gradient Map')}
+                        </a>
+                      </li>
+                      <li>
+                        <a href="javascript:void(0)"
+                           data-bind="click: function(){ fieldViz(window.HUE_CHARTS.TYPES.MAP); }">
+                          <i class="fa fa-fw fa-map-marker chart-icon"></i> ${_('Marker Map')}
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="facet-field-cnt">
+                  <span class="facet-field-label facet-field-label-fixed-width">${ _('Sorting') }</span>
+                  <a href="javascript: void(0)" title="${ _('Toggle sort order') }" data-bind="click: loopThroughSorts">
+                    <i class="fa fa-fw" data-bind="css: { 'fa-caret-down': fieldSort() == 'desc', 'fa-caret-up': fieldSort() == 'asc', 'fa-sort': fieldSort() == 'default' }"></i>
+                    <span data-bind="visible: fieldSort() == 'desc'">${_('descending')}</span>
+                    <span data-bind="visible: fieldSort() == 'asc'">${_('ascending')}</span>
+                    <span data-bind="visible: fieldSort() == 'default'">${_('default')}</span>
+                  </a>
+                </div>
+
+
+                <a data-bind="visible: fieldName(), click: function() { huePubSub.publish('gridster.empty.add', { widget: $root.draggableBucket(), target: $parent }); }" class="pull-right margin-top-10" href="javascript:void(0)">
+                  <i class="fa fa-plus"></i> ${ _('Add') }
+                </a>
+                <div class="pull-right margin-top-10 muted" data-bind="visible: !fieldName()">
+                  <i class="fa fa-plus"></i> ${ _('Add') }
+                </div>
+            </div>
+          </div>
+        </div>
+        <!-- /ko -->
+        % endif
+      </div>
+      <div class="clearfix"></div>
     </div>
-    <!-- /ko -->
+  <!-- /ko -->
   <!-- ko with: widget -->
     <div data-bind="template: 'widget-template${ suffix }', css: { 'query-builder': $root.isQueryBuilder }"></div>
     <div class="clearfix"></div>
@@ -261,7 +356,7 @@
 
 <script type="text/html" id="row-template${ suffix }">
   <div class="emptyRow" data-bind="visible: widgets().length == 0 && $index() == 0 && $root.isEditing() && $parent.size() > 4 && $parent.rows().length == 1">
-    <img src="${ static('desktop/art/hint_arrow_flipped.png') }" style="float:left; margin-right: 10px" alt="${ _('Hint arrow') }"/>
+    <img src="${ static('desktop/art/hint_arrow.svg') }" style="float:left; margin-right: 10px" alt="${ _('Hint arrow') }" class="flip-both"/>
     <div style="float: left; text-align: center; width: 260px">${_('Drag any of the widgets inside your empty row')}</div>
     <div class="clearfix"></div>
   </div>
@@ -291,7 +386,23 @@
 </script>
 
 <script type="text/html" id="widget-template${ suffix }">
-  <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass, draggable: { data: $data, isEnabled: $root.isGridster() && !$root.isQueryBuilder(), options: getDraggableOptions({ data: $data, parent: $parent }) }, droppable: { data: function() { $root.collection.dropOnWidget(id()) }, options:{ greedy:true, drop: function(event, ui) { huePubSub.publish('dashboard.drop.on.page', { event: event, ui: ui } } }}">
+  <div data-bind="attr: { 'id': 'wdg_'+ id() }, css: klass,
+      draggable: {
+         data: $data,
+         isEnabled: $root.isGridster(),
+         options: getDraggableOptions({ data: $data, parent: $parent })
+      },
+      droppable: {
+        data: function() {
+          $root.collection.dropOnWidget(id())
+        },
+        options: {
+          greedy:true,
+          drop: function(event, ui) {
+            huePubSub.publish('dashboard.drop.on.page', { event: event, ui: ui })
+          }
+        }
+      }">
     <h2 class="card-heading simple" data-bind="attr: { title: $root.isGridster() ? '${ _ko('Drag to move') }' : '' }">
       <!-- ko ifnot: $root.isGridster -->
       <span data-bind="visible: $root.isEditing">
@@ -309,7 +420,7 @@
       <!-- ko if: typeof $root.collection == 'undefined' || $root.collection.getFacetById(id()) == null -->
         <span data-bind="editable: name, editableOptions: { enabled: true, placement: 'right' }" title="${ _('Click to change the widget title') }"></span>
       <!-- /ko -->
-      <div class="inline pull-right margin-right-10" data-bind="visible: !$root.isQueryBuilder()">
+      <div class="inline pull-right margin-right-10" data-bind="visible: !$root.hasNewAdd() || ($root.hasNewAdd() && widgetType() !== 'resultset-widget' && widgetType() !== 'filter-widget')">
         <a href="javascript:void(0)" class="remove-widget" data-bind="click: $root.removeWidget"><i class="fa fa-times"></i></a>
       </div>
     </h2>

@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import next, str
 import json
 import logging
 import re
@@ -22,36 +23,39 @@ import sys
 import time
 
 from django import forms
+from django.core.paginator import Paginator, EmptyPage, InvalidPage
 from django.contrib import messages
-from django.contrib.auth.models import User
 from django.db.models import Q
 from django.http import HttpResponse, QueryDict
 from django.shortcuts import redirect
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from desktop.appmanager import get_apps_dict
 from desktop.conf import ENABLE_DOWNLOAD, REDIRECT_WHITELIST
 from desktop.context_processors import get_app_name
-from desktop.lib.paginator import Paginator
+
 from desktop.lib.django_util import JsonResponse
 from desktop.lib.django_util import copy_query_dict, format_preserving_redirect, render
 from desktop.lib.django_util import login_notrequired, get_desktop_uri_prefix
 from desktop.lib.exceptions_renderable import PopupException
-from desktop.models import Document
+from desktop.models import Document, _get_apps
 from desktop.lib.parameterization import find_variables
 from desktop.views import serve_403_error
 from notebook.models import escape_rows
+from useradmin.models import User
 
 import beeswax.forms
 import beeswax.design
-import beeswax.management.commands.beeswax_install_examples
 
 from beeswax import common, data_export, models
+from beeswax.management.commands import beeswax_install_examples
 from beeswax.models import QueryHistory, SavedQuery, Session
 from beeswax.server import dbms
 from beeswax.server.dbms import expand_exception, get_query_server_config, QueryServerException
+
+from desktop.auth.backend import is_admin
 
 
 LOG = logging.getLogger(__name__)
@@ -60,6 +64,8 @@ LOG = logging.getLogger(__name__)
 HADOOP_JOBS_RE = re.compile("Starting Job = ([a-z0-9_]+?),")
 SPARK_APPLICATION_RE = re.compile("Running with YARN Application = (?P<application_id>application_\d+_\d+)")
 TEZ_APPLICATION_RE = re.compile("Executing on YARN cluster with App id ([a-z0-9_]+?)\)")
+TEZ_QUERY_RE = re.compile("\(queryId=([a-z0-9_-]+?)\)")
+
 
 
 def index(request):
@@ -152,11 +158,11 @@ def delete_design(request):
     ids = request.POST.getlist('designs_selection')
     designs = dict([(design_id, authorized_get_design(request, design_id, owner_only=True)) for design_id in ids])
 
-    if None in designs.values():
-      LOG.error('Cannot delete non-existent design(s) %s' % ','.join([key for key, name in designs.items() if name is None]))
+    if None in list(designs.values()):
+      LOG.error('Cannot delete non-existent design(s) %s' % ','.join([key for key, name in list(designs.items()) if name is None]))
       return list_designs(request)
 
-    for design in designs.values():
+    for design in list(designs.values()):
       if request.POST.get('skipTrash', 'false') == 'false':
         design.doc.get().send_to_trash()
       else:
@@ -172,11 +178,11 @@ def restore_design(request):
     ids = request.POST.getlist('designs_selection')
     designs = dict([(design_id, authorized_get_design(request, design_id)) for design_id in ids])
 
-    if None in designs.values():
-      LOG.error('Cannot restore non-existent design(s) %s' % ','.join([key for key, name in designs.items() if name is None]))
+    if None in list(designs.values()):
+      LOG.error('Cannot restore non-existent design(s) %s' % ','.join([key for key, name in list(designs.items()) if name is None]))
       return list_designs(request)
 
-    for design in designs.values():
+    for design in list(designs.values()):
       design.doc.get().restore_from_trash()
     return redirect(reverse(get_app_name(request) + ':list_designs'))
   else:
@@ -229,14 +235,18 @@ def list_designs(request):
   if search_filter is not None:
     querydict_query[ prefix + 'text' ] = search_filter
 
-  page, filter_params = _list_designs(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
+  paginator, page, filter_params = _list_designs(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
+  designs_json = []
+  if page:
+    designs_json = [query.id for query in page.object_list]
 
   return render('list_designs.mako', request, {
     'page': page,
+    'paginator': paginator,
     'filter_params': filter_params,
     'prefix': prefix,
     'user': request.user,
-    'designs_json': json.dumps([query.id for query in page.object_list])
+    'designs_json': json.dumps(designs_json)
   })
 
 
@@ -256,14 +266,18 @@ def list_trashed_designs(request):
   if search_filter is not None:
     querydict_query[ prefix + 'text' ] = search_filter
 
-  page, filter_params = _list_designs(user, querydict_query, DEFAULT_PAGE_SIZE, prefix, is_trashed=True)
+  paginator, page, filter_params = _list_designs(user, querydict_query, DEFAULT_PAGE_SIZE, prefix, is_trashed=True)
+  designs_json = []
+  if page:
+    designs_json = [query.id for query in page.object_list]
 
   return render('list_trashed_designs.mako', request, {
     'page': page,
+    'paginator': paginator,
     'filter_params': filter_params,
     'prefix': prefix,
     'user': request.user,
-    'designs_json': json.dumps([query.id for query in page.object_list])
+    'designs_json': json.dumps(designs_json)
   })
 
 
@@ -284,7 +298,7 @@ def my_queries(request):
   querydict_history[ prefix + 'user' ] = request.user
   querydict_history[ prefix + 'type' ] = app_name
 
-  hist_page, hist_filter = _list_query_history(request.user,
+  hist_paginator, hist_page, hist_filter = _list_query_history(request.user,
                                                querydict_history,
                                                DEFAULT_PAGE_SIZE,
                                                prefix)
@@ -295,7 +309,10 @@ def my_queries(request):
   querydict_query[ prefix + 'user' ] = request.user
   querydict_query[ prefix + 'type' ] = app_name
 
-  query_page, query_filter = _list_designs(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
+  query_paginator, query_page, query_filter = _list_designs(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
+  designs_json = []
+  if query_page:
+    designs_json = [query.id for query in query_page.object_list]
 
   filter_params = hist_filter
   filter_params.update(query_filter)
@@ -303,9 +320,11 @@ def my_queries(request):
   return render('my_queries.mako', request, {
     'request': request,
     'h_page': hist_page,
+    'h_paginator': hist_paginator,
     'q_page': query_page,
+    'q_paginator': query_paginator,
     'filter_params': filter_params,
-    'designs_json': json.dumps([query.id for query in query_page.object_list])
+    'designs_json': json.dumps(designs_json)
   })
 
 
@@ -327,7 +346,7 @@ def list_query_history(request):
   DEFAULT_PAGE_SIZE = 100
   prefix = 'q-'
 
-  share_queries = request.user.is_superuser
+  share_queries = is_admin(request.user)
 
   querydict_query = request.GET.copy()
   if not share_queries:
@@ -336,7 +355,7 @@ def list_query_history(request):
   app_name = get_app_name(request)
   querydict_query[prefix + 'type'] = app_name
 
-  page, filter_params = _list_query_history(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
+  paginator, page, filter_params = _list_query_history(request.user, querydict_query, DEFAULT_PAGE_SIZE, prefix)
 
   filter = request.GET.get(prefix + 'search') and request.GET.get(prefix + 'search') or ''
 
@@ -350,6 +369,7 @@ def list_query_history(request):
   return render('list_history.mako', request, {
     'request': request,
     'page': page,
+    'paginator': paginator,
     'filter_params': filter_params,
     'share_queries': share_queries,
     'prefix': prefix,
@@ -369,7 +389,7 @@ def massage_query_history_for_json(app_name, query_history):
   }
 
 
-def download(request, id, format):
+def download(request, id, format, user_agent=None):
   if not ENABLE_DOWNLOAD.get():
     return serve_403_error(request)
 
@@ -378,8 +398,8 @@ def download(request, id, format):
     db = dbms.get(request.user, query_history.get_query_server_config())
     LOG.debug('Download results for query %s: [ %s ]' % (query_history.server_id, query_history.query))
 
-    return data_export.download(query_history.get_handle(), format, db)
-  except Exception, e:
+    return data_export.download(query_history.get_handle(), format, db, user_agent=user_agent)
+  except Exception as e:
     if not hasattr(e, 'message') or not e.message:
       message = e
     else:
@@ -411,7 +431,7 @@ def execute_query(request, design_id=None, query_history_id=None):
           action = 'watch-results'
       else:
         action = 'editor-results'
-    except QueryServerException, e:
+    except QueryServerException as e:
       if 'Invalid query handle' in e.message or 'Invalid OperationHandle' in e.message:
         query_history.save_state(QueryHistory.STATE.expired)
         LOG.warn("Invalid query handle", exc_info=sys.exc_info())
@@ -427,9 +447,11 @@ def execute_query(request, design_id=None, query_history_id=None):
     design = safe_get_design(request, query_type, design_id)
     query_history = None
 
+  current_app, other_apps, apps_list = _get_apps(request.user, '')
   doc = design and design.id and design.doc.get()
   context = {
     'design': design,
+    'apps': apps_list,
     'query': query_history, # Backward
     'query_history': query_history,
     'autocomplete_base_url': reverse(get_app_name(request) + ':api_autocomplete_databases', kwargs={}),
@@ -459,7 +481,7 @@ def view_results(request, id, first_row=0):
 
   It understands the ``context`` GET parameter. (See execute_query().)
   """
-  first_row = long(first_row)
+  first_row = int(first_row)
   start_over = (first_row == 0)
   results = type('Result', (object,), {
                 'rows': 0,
@@ -500,7 +522,7 @@ def view_results(request, id, first_row=0):
       log = db.get_log(handle)
       columns = results.data_table.cols()
 
-  except Exception, ex:
+  except Exception as ex:
     LOG.exception('error fetching results')
 
     fetch_error = True
@@ -571,7 +593,7 @@ def configuration(request):
   if session:
     properties = json.loads(session.properties)
     # Redact passwords
-    for key, value in properties.items():
+    for key, value in list(properties.items()):
       if 'password' in key.lower():
         properties[key] = '*' * len(value)
   else:
@@ -589,11 +611,14 @@ def install_examples(request):
 
   if request.method == 'POST':
     try:
-      app_name = get_app_name(request)
+      dialect = get_app_name(request)
+      if dialect == 'beeswax':
+        dialect = 'hive'
       db_name = request.POST.get('db_name', 'default')
-      beeswax.management.commands.beeswax_install_examples.Command().handle(app_name=app_name, db_name=db_name, user=request.user)
+      connector_id = request.POST.get('connector_id')
+      beeswax_install_examples.Command().handle(dialect=dialect, db_name=db_name, user=request.user, request=request)
       response['status'] = 0
-    except Exception, err:
+    except Exception as err:
       LOG.exception(err)
       response['message'] = str(err)
   else:
@@ -629,16 +654,18 @@ def query_done_cb(request, server_id):
     if design:
       subject += ": %s" % (design.name,)
 
-    link = "%s%s" % \
-              (get_desktop_uri_prefix(),
-               reverse(get_app_name(request) + ':watch_query_history', kwargs={'query_history_id': query_history.id}))
-    body = _("%(subject)s. See the results here: %(link)s\n\nQuery:\n%(query)s") % {
-               'subject': subject, 'link': link, 'query': query_history.query
-             }
+    link = "%s%s" % (
+        get_desktop_uri_prefix(),
+        reverse(get_app_name(request) + ':watch_query_history', kwargs={'query_history_id': query_history.id})
+    )
+    body = _(
+      "%(subject)s. See the results here: %(link)s\n\nQuery:\n%(query)s") % {
+          'subject': subject, 'link': link, 'query': query_history.query
+      }
 
     user.email_user(subject, body)
     message['message'] = 'sent'
-  except Exception, ex:
+  except Exception as ex:
     msg = "Failed to send query completion notification via e-mail: %s" % (ex)
     LOG.error(msg)
     message['message'] = msg
@@ -693,7 +720,7 @@ def authorized_get_query_history(request, query_history_id, owner_only=False, mu
 
   # Some queries don't have a design so are not linked to Document Model permission
   if query_history.design is None or not query_history.design.doc.exists():
-    if not request.user.is_superuser and request.user != query_history.owner:
+    if not is_admin(request.user) and request.user != query_history.owner:
       raise PopupException(_('Permission denied to read QueryHistory %(id)s') % {'id': query_history_id})
   else:
     query_history.design.doc.get().can_read_or_exception(request.user)
@@ -727,7 +754,7 @@ def make_parameterization_form(query_str):
   if len(variables) > 0:
     class Form(forms.Form):
       for name in sorted(variables):
-        locals()[name] = forms.CharField(required=True)
+        locals()[name] = forms.CharField(widget=forms.TextInput(attrs={'required': True}))
     return Form
   else:
     return None
@@ -824,7 +851,7 @@ def _list_designs(user, querydict, page_size, prefix="", is_trashed=False):
 
   # Design type
   d_type = querydict.get(prefix + 'type')
-  if d_type and d_type in SavedQuery.TYPES_MAPPING.keys():
+  if d_type and d_type in list(SavedQuery.TYPES_MAPPING.keys()):
     db_queryset = db_queryset.filter(extra=str(SavedQuery.TYPES_MAPPING[d_type]))
 
   # Text search
@@ -840,7 +867,7 @@ def _list_designs(user, querydict, page_size, prefix="", is_trashed=False):
     else:
       sort_dir, sort_attr = '', sort_key
 
-    if not SORT_ATTR_TRANSLATION.has_key(sort_attr):
+    if sort_attr not in SORT_ATTR_TRANSLATION:
       LOG.warn('Bad parameter to list_designs: sort=%s' % (sort_key,))
       sort_dir, sort_attr = DEFAULT_SORT
   else:
@@ -850,14 +877,17 @@ def _list_designs(user, querydict, page_size, prefix="", is_trashed=False):
   designs = [job.content_object for job in db_queryset.all() if job.content_object and job.content_object.is_auto == False]
 
   pagenum = int(querydict.get(prefix + 'page', 1))
-  paginator = Paginator(designs, page_size)
-  page = paginator.page(pagenum)
+  paginator = Paginator(designs, page_size, allow_empty_first_page=True)
+  try:
+    page = paginator.page(pagenum)
+  except EmptyPage:
+    page = None
 
   # We need to pass the parameters back to the template to generate links
   keys_to_copy = [ prefix + key for key in ('user', 'type', 'sort', 'text') ]
   filter_params = copy_query_dict(querydict, keys_to_copy)
 
-  return page, filter_params
+  return paginator, page, filter_params
 
 
 def _get_query_handle_and_state(query_history):
@@ -929,11 +959,51 @@ def parse_out_jobs(log, engine='mr', with_state=False):
 
   return ret
 
+def parse_out_queries(log, engine=None, with_state=False):
+  """
+  Ideally, Hive would tell us what jobs it has run directly from the Thrift interface.
+
+  with_state: If True, will return a list of dict items with 'job_id', 'started', 'finished'
+  """
+  ret = []
+
+  if engine.lower() == 'tez':
+    start_pattern = TEZ_QUERY_RE
+  else:
+    return ret
+
+  for match in start_pattern.finditer(log):
+    job_id = match.group(1)
+
+    if with_state:
+      if job_id not in list(job['job_id'] for job in ret):
+        ret.append({'job_id': job_id, 'started': False, 'finished': False})
+      start_pattern = 'Executing command(queryId=%s' % job_id
+      end_pattern = 'Completed executing command(queryId=%s' % job_id
+
+      if start_pattern in log:
+        job = next((job for job in ret if job['job_id'] == job_id), None)
+        if job is not None:
+          job['started'] = True
+        else:
+          ret.append({'job_id': job_id, 'started': True, 'finished': False})
+
+      if end_pattern in log:
+        job = next((job for job in ret if job['job_id'] == job_id), None)
+        if job is not None:
+          job['finished'] = True
+        else:
+          ret.append({'job_id': job_id, 'started': True, 'finished': True})
+    else:
+      if job_id not in ret:
+        ret.append(job_id)
+
+  return ret
 
 def _copy_prefix(prefix, base_dict):
   """Copy keys starting with ``prefix``"""
   querydict = QueryDict(None, mutable=True)
-  for key, val in base_dict.iteritems():
+  for key, val in base_dict.items():
     if key.startswith(prefix):
       querydict[key] = val
   return querydict
@@ -985,7 +1055,7 @@ def _list_query_history(user, querydict, page_size, prefix=""):
   # Design type
   d_type = querydict.get(prefix + 'type')
   if d_type:
-    if d_type not in SavedQuery.TYPES_MAPPING.keys():
+    if d_type not in list(SavedQuery.TYPES_MAPPING.keys()):
       LOG.warn('Bad parameter to list_query_history: type=%s' % (d_type,))
     else:
       db_queryset = db_queryset.filter(design__type=SavedQuery.TYPES_MAPPING[d_type])
@@ -1002,7 +1072,7 @@ def _list_query_history(user, querydict, page_size, prefix=""):
     if sort_key[0] == '-':
       sort_dir, sort_attr = '-', sort_key[1:]
 
-    if not SORT_ATTR_TRANSLATION.has_key(sort_attr):
+    if sort_attr not in SORT_ATTR_TRANSLATION:
       LOG.warn('Bad parameter to list_query_history: sort=%s' % (sort_key,))
       sort_dir, sort_attr = DEFAULT_SORT
   else:
@@ -1017,19 +1087,24 @@ def _list_query_history(user, querydict, page_size, prefix=""):
   if pagenum < 1:
     pagenum = 1
   db_queryset = db_queryset[ page_size * (pagenum - 1) : page_size * pagenum ]
-  paginator = Paginator(db_queryset, page_size, total=total_count)
-  page = paginator.page(pagenum)
+  paginator = Paginator(db_queryset, page_size, allow_empty_first_page=True)
+
+  try:
+    page = paginator.page(pagenum)
+  except EmptyPage:
+    page = None
 
   # We do slicing ourselves, rather than letting the Paginator handle it, in order to
   # update the last_state on the running queries
-  for history in page.object_list:
-    _update_query_state(history.get_full_object())
+  if page:
+    for history in page.object_list:
+      _update_query_state(history.get_full_object())
 
   # We need to pass the parameters back to the template to generate links
   keys_to_copy = [ prefix + key for key in ('user', 'type', 'sort', 'design_id', 'auto_query', 'search') ]
   filter_params = copy_query_dict(querydict, keys_to_copy)
 
-  return page, filter_params
+  return paginator, page, filter_params
 
 
 def _update_query_state(query_history):
@@ -1041,13 +1116,13 @@ def _update_query_state(query_history):
   Note that there is a transition from available/failed to expired. That occurs lazily
   when the user attempts to view results that have expired.
   """
-  if query_history.last_state <= models.QueryHistory.STATE.running.index:
+  if query_history.last_state <= models.QueryHistory.STATE.running.value:
     try:
       state_enum = dbms.get(query_history.owner, query_history.get_query_server_config()).get_state(query_history.get_handle())
       if state_enum is None:
         # Error was logged at the source
         return False
-    except Exception, e:
+    except Exception as e:
       LOG.error(e)
       state_enum = models.QueryHistory.STATE.failed
     query_history.save_state(state_enum)

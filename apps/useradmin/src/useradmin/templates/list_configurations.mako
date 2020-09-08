@@ -14,27 +14,24 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 <%!
-from desktop.views import commonheader, commonfooter
-from django.utils.translation import ugettext as _
-from desktop.views import _ko
-from useradmin.models import group_permissions
 from django.contrib.auth.models import Group
+from django.utils.translation import ugettext as _
+
+from desktop.views import commonheader, commonfooter
+from desktop.views import _ko
+
+from useradmin.models import group_permissions
 %>
 
 <%namespace name="actionbar" file="actionbar.mako" />
 <%namespace name="configKoComponents" file="/config_ko_components.mako" />
 <%namespace name="layout" file="layout.mako" />
-%if not is_embeddable:
-${commonheader(_('Configurations'), "useradmin", user, request) | n,unicode}
-%endif
-${layout.menubar(section='configurations')}
 
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }"></script>
-<script src="${ static('desktop/ext/js/selectize.min.js') }"></script>
-<script src="${ static('metastore/js/metastore.ko.js') }"></script>
-<script src="${ static('desktop/ext/js/knockout-sortable.min.js') }"></script>
-<script src="${ static('desktop/js/ko.selectize.js') }"></script>
-<script src="${ static('desktop/js/ko.editable.js') }"></script>
+% if not is_embeddable:
+  ${ commonheader(_('Configurations'), "useradmin", user, request) | n,unicode }
+% endif
+
+${layout.menubar(section='configurations')}
 
 <script id="app-list" type="text/html">
   <div class="card card-small">
@@ -176,9 +173,7 @@ ${ configKoComponents.config() }
 
     var ConfigurationsViewModel = function () {
       var self = this;
-      self.apiHelper = ApiHelper.getInstance({
-        user: '${ user.username }'
-      });
+      self.apiHelper = window.apiHelper;
       self.hasErrors = ko.observable(false);
       self.loading = ko.observable(false);
       self.apps = ko.observableArray();
@@ -302,7 +297,8 @@ ${ configKoComponents.config() }
   })();
 </script>
 
-${layout.commons()}
-%if not is_embeddable:
-${ commonfooter(request, messages) | n,unicode }
-%endif
+${ layout.commons() }
+
+% if not is_embeddable:
+  ${ commonfooter(request, messages) | n,unicode }
+% endif

@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import str
 import json
 import logging
 import time
@@ -99,11 +100,11 @@ def _fetch_collections(request):
 
 def list_sentry_roles_by_group(request):
   result = {'status': -1, 'message': 'Error'}
-  component = request.POST['component']
+  component = request.POST.get('component')
 
   try:
     if request.POST.get('groupName'):
-      groupName = request.POST['groupName']
+      groupName = request.POST.get('groupName')
     else:
       # Admins can see everything, other only the groups they belong too
       groupName = None if request.user.groups.filter(name__in=get_sentry_server_admin_groups()).exists() else '*'
@@ -111,14 +112,14 @@ def list_sentry_roles_by_group(request):
     result['roles'] = sorted(roles, key=lambda role: role['name'])
     result['message'] = ''
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not retrieve roles")
 
     if "couldn't be retrieved." in str(e):
       result['roles'] = []
       result['status'] = 0
     else:
-      result['message'] = unicode(str(e), "utf8")
+      result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -127,19 +128,19 @@ def list_sentry_privileges_by_role(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    serviceName = request.POST['server']
-    component = request.POST['component']
-    roleName = request.POST['roleName']
+    serviceName = request.POST.get('server')
+    component = request.POST.get('component')
+    roleName = request.POST.get('roleName')
 
     sentry_privileges = get_api(request.user, component).list_sentry_privileges_by_role(serviceName, roleName)
 
     result['sentry_privileges'] = sorted(sentry_privileges, key=lambda privilege: '.'.join([auth['name'] for auth in privilege['authorizables']]))
     result['message'] = ''
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not list sentry privileges")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -212,8 +213,8 @@ def create_role(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    role = json.loads(request.POST['role'])
-    component = request.POST['component']
+    role = json.loads(request.POST.get('role'))
+    component = request.POST.get('component')
 
     api = get_api(request.user, component)
 
@@ -227,10 +228,10 @@ def create_role(request):
 
     result['message'] = _('Role created!')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not create role")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -239,8 +240,8 @@ def update_role_groups(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    role = json.loads(request.POST['role'])
-    component = request.POST['component']
+    role = json.loads(request.POST.get('role'))
+    component = request.POST.get('component')
 
     new_groups = set(role['groups']) - set(role['originalGroups'])
     deleted_groups = set(role['originalGroups']) - set(role['groups'])
@@ -254,10 +255,10 @@ def update_role_groups(request):
 
     result['message'] = ''
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not update role groups")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -266,8 +267,8 @@ def save_privileges(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    role = json.loads(request.POST['role'])
-    component = request.POST['component']
+    role = json.loads(request.POST.get('role'))
+    component = request.POST.get('component')
 
     new_privileges = [privilege for privilege in role['privilegesChanged'] if privilege['status'] == 'new']
     result['privileges'] = _hive_add_privileges(request.user, role, new_privileges, component)
@@ -285,10 +286,10 @@ def save_privileges(request):
 
     result['message'] = _('Privileges updated')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not save privileges")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -297,18 +298,18 @@ def grant_privilege(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    roleName = json.loads(request.POST['roleName'])
-    privilege = json.loads(request.POST['privilege'])
-    component = request.POST['component']
+    roleName = json.loads(request.POST.get('roleName'))
+    privilege = json.loads(request.POST.get('privilege'))
+    component = request.POST.get('component')
 
     result['privileges'] = _hive_add_privileges(request.user, {'name': roleName}, [privilege], component)
 
     result['message'] = _('Privilege granted successfully to %s.') % roleName
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not grant privileges")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -317,16 +318,16 @@ def create_sentry_role(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    roleName = request.POST['roleName']
-    component = request.POST['component']
+    roleName = request.POST.get('roleName')
+    component = request.POST.get('component')
 
     get_api(request.user, component).create_sentry_role(roleName)
     result['message'] = _('Role and privileges created.')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not create role")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -335,16 +336,16 @@ def drop_sentry_role(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    roleName = request.POST['roleName']
-    component = request.POST['component']
+    roleName = request.POST.get('roleName')
+    component = request.POST.get('component')
 
     get_api(request.user, component).drop_sentry_role(roleName)
     result['message'] = _('Role and privileges deleted.')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not drop role")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -353,15 +354,15 @@ def list_sentry_privileges_by_authorizable(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    groups = [request.POST['groupName']] if request.POST['groupName'] else None
-    serviceName = request.POST['server']
-    authorizableSet = [json.loads(request.POST['authorizableHierarchy'])]
-    component = request.POST['component']
+    groups = [request.POST.get('groupName')] if request.POST.get('groupName') else None
+    serviceName = request.POST.get('server')
+    authorizableSet = [json.loads(request.POST.get('authorizableHierarchy'))]
+    component = request.POST.get('component')
 
     _privileges = []
 
     for authorizable, roles in get_api(request.user, component).list_sentry_privileges_by_authorizable(serviceName=serviceName, authorizableSet=authorizableSet, groups=groups):
-      for role, privileges in roles.iteritems():
+      for role, privileges in roles.items():
         for privilege in privileges:
           privilege['roleName'] = role
           _privileges.append(privilege)
@@ -370,10 +371,10 @@ def list_sentry_privileges_by_authorizable(request):
 
     result['message'] = ''
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not list privileges by authorizable")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -382,9 +383,9 @@ def bulk_delete_privileges(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    checkedPaths = json.loads(request.POST['checkedPaths'])
-    authorizableHierarchy = json.loads(request.POST['authorizableHierarchy'])
-    component = request.POST['component']
+    checkedPaths = json.loads(request.POST.get('checkedPaths'))
+    authorizableHierarchy = json.loads(request.POST.get('authorizableHierarchy'))
+    component = request.POST.get('component')
 
     for path in [path['path'] for path in checkedPaths]:
       db, table, column = _get_splitted_path(path)
@@ -396,10 +397,10 @@ def bulk_delete_privileges(request):
       get_api(request.user, component).drop_sentry_privileges(authorizableHierarchy)
     result['message'] = _('Privileges deleted.')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not bulk delete privileges")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -408,10 +409,10 @@ def bulk_add_privileges(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    privileges = json.loads(request.POST['privileges'])
-    checkedPaths = json.loads(request.POST['checkedPaths'])
-    authorizableHierarchy = json.loads(request.POST['authorizableHierarchy'])
-    component = request.POST['component']
+    privileges = json.loads(request.POST.get('privileges'))
+    checkedPaths = json.loads(request.POST.get('checkedPaths'))
+    authorizableHierarchy = json.loads(request.POST.get('authorizableHierarchy'))
+    component = request.POST.get('component')
 
     privileges = [privilege for privilege in privileges if privilege['status'] == '']
 
@@ -434,10 +435,10 @@ def bulk_add_privileges(request):
 
     result['message'] = _('Privileges added.')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not bulk add privileges")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -446,17 +447,17 @@ def rename_sentry_privilege(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    oldAuthorizable = json.loads(request.POST['oldAuthorizable'])
-    newAuthorizable = json.loads(request.POST['newAuthorizable'])
-    component = request.POST['component']
+    oldAuthorizable = json.loads(request.POST.get('oldAuthorizable'))
+    newAuthorizable = json.loads(request.POST.get('newAuthorizable'))
+    component = request.POST.get('component')
 
     get_api(request.user, component).rename_sentry_privilege(oldAuthorizable, newAuthorizable)
     result['message'] = _('Privilege deleted.')
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not rename privilege")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)
 
@@ -465,18 +466,18 @@ def list_sentry_privileges_for_provider(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    groups = json.loads(request.POST['groups'])
-    roleSet = json.loads(request.POST['roleSet'])
-    authorizableHierarchy = json.loads(request.POST['authorizableHierarchy'])
-    component = request.POST['component']
+    groups = json.loads(request.POST.get('groups'))
+    roleSet = json.loads(request.POST.get('roleSet'))
+    authorizableHierarchy = json.loads(request.POST.get('authorizableHierarchy'))
+    component = request.POST.get('component')
 
     sentry_privileges = get_api(request.user, component).list_sentry_privileges_for_provider(groups=groups, roleSet=roleSet, authorizableHierarchy=authorizableHierarchy)
     result['sentry_privileges'] = sentry_privileges
     result['message'] = ''
     result['status'] = 0
-  except Exception, e:
+  except Exception as e:
     LOG.exception("could not list privileges for provider")
 
-    result['message'] = unicode(str(e), "utf8")
+    result['message'] = str(e)
 
   return JsonResponse(result)

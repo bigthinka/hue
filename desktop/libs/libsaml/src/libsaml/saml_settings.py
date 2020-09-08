@@ -79,7 +79,9 @@ def config_settings_loader(request):
         'optional_attributes': libsaml.conf.OPTIONAL_ATTRIBUTES.get(),
 
         'logout_requests_signed': str(libsaml.conf.LOGOUT_REQUESTS_SIGNED.get()).lower(),
-        'authn_requests_signed': str(libsaml.conf.AUTHN_REQUESTS_SIGNED.get()).lower()
+        'authn_requests_signed': str(libsaml.conf.AUTHN_REQUESTS_SIGNED.get()).lower(),
+        'want_response_signed': str(libsaml.conf.WANT_RESPONSE_SIGNED.get()).lower(),
+        'want_assertions_signed': str(libsaml.conf.WANT_ASSERTIONS_SIGNED.get()).lower()
       },
     },
 
@@ -91,16 +93,24 @@ def config_settings_loader(request):
     # set to 1 to output debugging information
     'debug': 1,
 
-    # certificate
+    # Signing
     'key_file': libsaml.conf.KEY_FILE.get(),
     'key_file_passphrase': libsaml.conf.get_key_file_password(),
-    'cert_file': libsaml.conf.CERT_FILE.get()
+    'cert_file': libsaml.conf.CERT_FILE.get(),
+
+    # Encryption
+    'encryption_keypairs': [{
+      'key_file': libsaml.conf.KEY_FILE.get(),  # private part
+      'key_file_passphrase': libsaml.conf.get_key_file_password(),
+      'cert_file': libsaml.conf.CERT_FILE.get(),  # public part
+    }],
   })
 
   return conf
 
 
 SAML_CONFIG_LOADER = 'libsaml.saml_settings.config_settings_loader'
+SAML_ACS_FAILURE_RESPONSE_FUNCTION = 'desktop.views.serve_403_error'
 
 SAML_ATTRIBUTE_MAPPING = libsaml.conf.USER_ATTRIBUTE_MAPPING.get()
 SAML_CREATE_UNKNOWN_USER = libsaml.conf.CREATE_USERS_ON_LOGIN.get()

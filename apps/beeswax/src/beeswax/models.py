@@ -15,27 +15,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import range
+from builtins import object
 import base64
 import datetime
-import logging
 import json
+import logging
+import sys
 
 from django.db import models
-from django.contrib.auth.models import User
-from django.contrib.contenttypes import generic
-from django.core.urlresolvers import reverse
+from django.contrib.contenttypes.fields import GenericRelation
+from django.urls import reverse
 from django.utils.translation import ugettext as _, ugettext_lazy as _t
 
 from enum import Enum
+from TCLIService.ttypes import TSessionHandle, THandleIdentifier, TOperationState, TOperationHandle, TOperationType
 
-from librdbms.server import dbms as librdbms_dbms
-
-from desktop.redaction import global_redaction_engine
 from desktop.lib.exceptions_renderable import PopupException
-from desktop.models import Document
-
-from TCLIService.ttypes import TSessionHandle, THandleIdentifier,\
-  TOperationState, TOperationHandle, TOperationType
+from desktop.models import Document, Document2
+from desktop.redaction import global_redaction_engine
+from librdbms.server import dbms as librdbms_dbms
+from useradmin.models import User
 
 from beeswax.design import HQLdesign
 
@@ -47,14 +47,19 @@ QUERY_SUBMISSION_TIMEOUT = datetime.timedelta(0, 60 * 60)               # 1 hour
 # Constants for DB fields, hue ini
 BEESWAX = 'beeswax'
 HIVE_SERVER2 = 'hiveserver2'
-QUERY_TYPES = (HQL, IMPALA, RDBMS, SPARK) = range(4)
-
+QUERY_TYPES = (HQL, IMPALA, RDBMS, SPARK) = list(range(4))
 
 class QueryHistory(models.Model):
   """
   Holds metadata about all queries that have been executed.
   """
-  STATE = Enum('submitted', 'running', 'available', 'failed', 'expired')
+  class STATE(Enum):
+    submitted = 0
+    running = 1
+    available = 2
+    failed = 3
+    expired = 4
+
   SERVER_TYPE = ((BEESWAX, 'Beeswax'), (HIVE_SERVER2, 'Hive Server 2'),
                  (librdbms_dbms.MYSQL, 'MySQL'), (librdbms_dbms.POSTGRESQL, 'PostgreSQL'),
                  (librdbms_dbms.SQLITE, 'sqlite'), (librdbms_dbms.ORACLE, 'oracle'))
@@ -86,7 +91,7 @@ class QueryHistory(models.Model):
   extra = models.TextField(default='{}')                   # Json fields for extra properties
   is_cleared = models.BooleanField(default=False)
 
-  class Meta:
+  class Meta(object):
     ordering = ['-submission_date']
 
   @staticmethod
@@ -149,28 +154,28 @@ class QueryHistory(models.Model):
       return is_statement_finished
 
   def is_running(self):
-    return self.last_state in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index)
+    return self.last_state in (QueryHistory.STATE.running.value, QueryHistory.STATE.submitted.value)
 
   def is_success(self):
-    return self.last_state in (QueryHistory.STATE.available.index,)
+    return self.last_state in (QueryHistory.STATE.available.value,)
 
   def is_failure(self):
-    return self.last_state in (QueryHistory.STATE.expired.index, QueryHistory.STATE.failed.index)
+    return self.last_state in (QueryHistory.STATE.expired.value, QueryHistory.STATE.failed.value)
 
   def is_expired(self):
-    return self.last_state in (QueryHistory.STATE.expired.index,)
+    return self.last_state in (QueryHistory.STATE.expired.value,)
 
   def set_to_running(self):
-    self.last_state = QueryHistory.STATE.running.index
+    self.last_state = QueryHistory.STATE.running.value
 
   def set_to_failed(self):
-    self.last_state = QueryHistory.STATE.failed.index
+    self.last_state = QueryHistory.STATE.failed.value
 
   def set_to_available(self):
-    self.last_state = QueryHistory.STATE.available.index
+    self.last_state = QueryHistory.STATE.available.value
 
   def set_to_expired(self):
-    self.last_state = QueryHistory.STATE.expired.index
+    self.last_state = QueryHistory.STATE.expired.value
 
   def save(self, *args, **kwargs):
     """
@@ -227,7 +232,7 @@ class HiveServerQueryHistory(QueryHistory):
 
   node_type = HIVE_SERVER2
 
-  class Meta:
+  class Meta(object):
     proxy = True
 
   def get_handle(self):
@@ -240,7 +245,7 @@ class HiveServerQueryHistory(QueryHistory):
                                  modified_row_count=self.modified_row_count)
 
   def save_state(self, new_state):
-    self.last_state = new_state.index
+    self.last_state = new_state.value
     self.save()
 
   @classmethod
@@ -275,9 +280,9 @@ class SavedQuery(models.Model):
 
   is_redacted = models.BooleanField(default=False)
 
-  doc = generic.GenericRelation(Document, related_name='hql_doc')
+  doc = GenericRelation(Document, related_query_name='hql_doc')
 
-  class Meta:
+  class Meta(object):
     ordering = ['-mtime']
 
   def get_design(self):
@@ -328,7 +333,7 @@ class SavedQuery(models.Model):
     """
     try:
       design = SavedQuery.objects.get(id=id)
-    except SavedQuery.DoesNotExist, err:
+    except SavedQuery.DoesNotExist as err:
       msg = _('Cannot retrieve query id %(id)s.') % {'id': id}
       raise err
 
@@ -392,14 +397,60 @@ class SessionManager(models.Manager):
       if filter_open:
         q = q.filter(status_code=0)
       return q.latest("last_used")
-    except Session.DoesNotExist, e:
+    except Session.DoesNotExist as e:
       return None
 
   def get_n_sessions(self, user, n, application='beeswax', filter_open=True):
     q = self.filter(owner=user, application=application).exclude(guid='').exclude(secret='')
     if filter_open:
       q = q.filter(status_code=0)
-    return q.order_by("-last_used")[0:n]
+    q = q.order_by("-last_used")
+    if n > 0:
+      return q[0:n]
+    else:
+      return q
+
+  def get_tez_session(self, user, application, n_sessions):
+    # Get 2 + n_sessions sessions and filter out the busy ones
+    sessions = Session.objects.get_n_sessions(user, n=2 + n_sessions, application=application)
+    LOG.debug('%s sessions found' % len(sessions))
+    if sessions:
+      # Include trashed documents to keep the query lazy and avoid retrieving all documents
+      docs = Document2.objects.get_history(doc_type='query-hive', user=user, include_trashed=True)
+      busy_sessions = set()
+
+      # Only check last 40 documents for performance
+      for doc in docs[:40]:
+        try:
+          snippet_data = json.loads(doc.data)['snippets'][0]
+        except (KeyError, IndexError):
+          # data might not contain a 'snippets' field or it might be empty
+          LOG.warn('No snippets in Document2 object of type query-hive')
+          continue
+        session_guid = snippet_data.get('result', {}).get('handle', {}).get('session_guid')
+        status = snippet_data.get('status')
+
+        if status in (QueryHistory.STATE.submitted.name, QueryHistory.STATE.running.name):
+          if session_guid is not None and session_guid not in busy_sessions:
+            busy_sessions.add(session_guid)
+
+      n_busy_sessions = 0
+      available_sessions = []
+      for session in sessions:
+        if session.guid not in busy_sessions:
+          available_sessions.append(session)
+        else:
+          n_busy_sessions += 1
+
+      if n_sessions > 0 and n_busy_sessions == n_sessions:
+        raise Exception('Too many open sessions. Stop a running query before starting a new one')
+
+      if available_sessions:
+        session = available_sessions[0]
+      else:
+        session = None # No available session found
+
+      return session
 
 
 class Session(models.Model):
@@ -427,14 +478,14 @@ class Session(models.Model):
     return json.loads(self.properties) if self.properties else {}
 
   def get_formatted_properties(self):
-    return [dict({'key': key, 'value': value}) for key, value in self.get_properties().items()]
+    return [dict({'key': key, 'value': value}) for key, value in list(self.get_properties().items())]
 
   def __str__(self):
     return '%s %s' % (self.owner, self.last_used)
 
 
 class QueryHandle(object):
-  def __init__(self, secret=None, guid=None, operation_type=None, has_result_set=None, modified_row_count=None, log_context=None, session_guid=None):
+  def __init__(self, secret=None, guid=None, operation_type=None, has_result_set=None, modified_row_count=None, log_context=None, session_guid=None, session_id=None):
     self.secret = secret
     self.guid = guid
     self.operation_type = operation_type
@@ -462,6 +513,7 @@ class HiveServerQueryHandle(QueryHandle):
     super(HiveServerQueryHandle, self).__init__(**kwargs)
     self.secret, self.guid = self.get_encoded()
     self.session_guid = kwargs.get('session_guid')
+    self.session_id = kwargs.get('session_id')
 
   def get(self):
     return self.secret, self.guid
@@ -469,18 +521,30 @@ class HiveServerQueryHandle(QueryHandle):
   def get_rpc_handle(self):
     secret, guid = self.get_decoded(self.secret, self.guid)
 
-    operation = getattr(TOperationType, TOperationType._NAMES_TO_VALUES.get(self.operation_type, 'EXECUTE_STATEMENT'))
-    return TOperationHandle(operationId=THandleIdentifier(guid=guid, secret=secret),
-                            operationType=operation,
-                            hasResultSet=self.has_result_set,
-                            modifiedRowCount=self.modified_row_count)
+    operation = getattr(
+      TOperationType,
+      TOperationType._VALUES_TO_NAMES.get(self.operation_type, 'EXECUTE_STATEMENT')
+    )
+
+    return TOperationHandle(
+        operationId=THandleIdentifier(guid=guid, secret=secret),
+        operationType=operation,
+        hasResultSet=self.has_result_set,
+        modifiedRowCount=self.modified_row_count
+    )
 
   @classmethod
   def get_decoded(cls, secret, guid):
-    return base64.decodestring(secret), base64.decodestring(guid)
+    if sys.version_info[0] > 2:
+      return base64.b64decode(secret), base64.b64decode(guid)
+    else:
+      return base64.decodestring(secret), base64.decodestring(guid)
 
   def get_encoded(self):
-    return base64.encodestring(self.secret), base64.encodestring(self.guid)
+    if sys.version_info[0] > 2:
+      return base64.b64encode(self.secret), base64.b64encode(self.guid)
+    else:
+      return base64.encodestring(self.secret), base64.encodestring(self.guid)
 
 
 # Deprecated. Could be removed.
@@ -509,7 +573,7 @@ class MetaInstall(models.Model):
   """
   Metadata about the installation. Should have at most one row.
   """
-  installed_example = models.BooleanField()
+  installed_example = models.BooleanField(default=False)
 
   @staticmethod
   def get():

@@ -21,7 +21,6 @@
   from desktop.views import commonheader, commonfooter, commonshare, commonimportexport, _ko
 %>
 
-<%namespace name="assist" file="/assist.mako" />
 <%namespace name="actionbar" file="actionbar.mako" />
 
 <%
@@ -30,10 +29,8 @@ MAIN_SCROLLABLE = is_embeddable and ".page-content" or ".content-panel"
 
 %if not is_embeddable:
 ${ commonheader(_("Index Browser"), "search", user, request, "60px") | n,unicode }
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }"></script>
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery.mousewheel.min.js') }"></script>
 
-${ assist.assistJSModels() }
 <link rel="stylesheet" href="${ static('notebook/css/notebook-layout.css') }">
 <style type="text/css">
 % if conf.CUSTOM.BANNER_TOP_HTML.get():
@@ -45,29 +42,26 @@ ${ assist.assistJSModels() }
   }
 % endif
 </style>
-
-${ assist.assistPanel() }
 %endif
 
 <link rel="stylesheet" href="${ static('notebook/css/notebook.css') }" type="text/css">
 <link rel="stylesheet" href="${ static('indexer/css/indexes.css') }" type="text/css">
-<script src="${ static('desktop/js/hue.json.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('dashboard/js/search.ko.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/html" id="indexes-breadcrumbs">
   <h1>
     <!-- ko with: index() -->
     <div class="inline-block pull-right">
-      <a class="inactive-action" data-bind="hueLink: '/search/browse/' + name(), tooltip: { placement: 'bottom', delay: 750 }" title="${_('Search the index')}" href="javascript:void(0)">
-        <i class="fa fa-search fa-fw"></i>
+      <a class="btn btn-default" data-bind="hueLink: '/search/browse/' + name(), tooltip: { placement: 'bottom', delay: 750 }" title="${_('Query in a Dashboard')}" href="javascript:void(0)">
+        <i class="fa fa-search fa-fw"></i> ${_('Query')}
       </a>
 
-      <a class="inactive-action" href="javascript:void(0)" data-bind="hueLink: '/indexer/importer/prefill/all/index/' + name(), tooltip: { placement: 'bottom', delay: 750 }" title="${_('Add Data')}">
-        <i class="fa fa-upload fa-fw"></i>
+      <a class="btn btn-default" href="javascript:void(0)" data-bind="hueLink: '/indexer/importer/prefill/all/index/' + name(), tooltip: { placement: 'bottom', delay: 750 }" title="${_('Add data to the index')}">
+        <i class="fa fa-upload fa-fw"></i> ${_('Index')}
       </a>
 
-      <a class="inactive-action" href="javascript:void(0)" data-toggle="modal" data-bind="click: function() { $('#deleteIndex').modal('show') }, tooltip: { placement: 'bottom', delay: 750 }">
-        <i class="fa fa-times fa-fw"></i>
+      <a class="btn btn-default" href="javascript:void(0)" data-toggle="modal" data-bind="click: function() { $('#deleteIndex').modal('show') }, tooltip: { placement: 'bottom', delay: 750 }" title="${_('Delete the index')}">
+        <i class="fa fa-times fa-fw"></i> ${_('Delete')}
       </a>
     </div>
     <!-- /ko -->
@@ -94,7 +88,7 @@ ${ assist.assistPanel() }
         <div class="nav-collapse">
           <ul class="nav">
             <li class="app-header">
-              <a href="/${app_name}">
+              <a href="/indexer">
                 ${ _('Index Browser') }
               </a>
             </li>
@@ -136,11 +130,11 @@ ${ assist.assistPanel() }
         </div>
         <div class="resizer" data-bind="visible: $root.isLeftPanelVisible() && $root.assistAvailable(), splitDraggable : { appName: 'notebook', leftPanelVisible: $root.isLeftPanelVisible }"><div class="resize-bar">&nbsp;</div></div>
         % endif
-        <div class="content-panel" ${ not is_embeddable and 'data-bind="niceScroll"' or ''}>
+        <div class="content-panel">
 
 
           <div class="indexer-main">
-            <!-- ko template: { name: 'indexes-breadcrumbs' }--><!-- /ko -->
+            <!-- ko template: { name: 'indexes-breadcrumbs' } --><!-- /ko -->
 
             <!-- ko if: section() === 'list-indexes' -->
             <%actionbar:render>
@@ -190,7 +184,7 @@ ${ assist.assistPanel() }
                 </ul>
               </div>
               <div class="modal-footer">
-                <a href="#" class="btn" data-dismiss="modal">${ _('No') }</a>
+                <a href="javascript: void(0)" class="btn" data-dismiss="modal">${ _('No') }</a>
                 <input type="submit" class="btn btn-danger" value="${ _('Yes') }"/>
               </div>
             </form>
@@ -209,7 +203,7 @@ ${ assist.assistPanel() }
                 <!-- /ko -->
               </div>
               <div class="modal-footer">
-                <a href="#" class="btn" data-dismiss="modal">${ _('No') }</a>
+                <a href="javascript: void(0)" class="btn" data-dismiss="modal">${ _('No') }</a>
                 <input type="submit" class="btn btn-danger" value="${ _('Yes') }"/>
               </div>
             </form>
@@ -227,7 +221,7 @@ ${ assist.assistPanel() }
                 <thead>
                   <tr>
                     <th style="width: 1%">
-                      <div class="hueCheckbox fa" data-bind="hueCheckAll: { allValues: alias.availableCollections, selectedValues: alias.chosenCollections }"></div>
+                      <div class="hue-checkbox fa" data-bind="hueCheckAll: { allValues: alias.availableCollections, selectedValues: alias.chosenCollections }"></div>
                     </th>
                     <th>${_('Collection')}</th>
                   </tr>
@@ -236,7 +230,7 @@ ${ assist.assistPanel() }
                 <!-- ko foreach: alias.availableCollections -->
                 <tr>
                   <td>
-                    <div class="hueCheckbox fa" data-bind="multiCheck: '#indexesChecksTable', value: $data, hueChecked: $parent.alias.chosenCollections"></div>
+                    <div class="hue-checkbox fa" data-bind="multiCheck: '#indexesChecksTable', value: $data, hueChecked: $parent.alias.chosenCollections"></div>
                   </td>
                   <td data-bind="text: name"></td>
                 </tr>
@@ -245,7 +239,7 @@ ${ assist.assistPanel() }
               </table>
             </div>
             <div class="modal-footer">
-              <a href="#" class="btn" data-dismiss="modal">${ _('Cancel') }</a>
+              <a href="javascript: void(0)" class="btn" data-dismiss="modal">${ _('Cancel') }</a>
               <button class="btn btn-primary disable-feedback" data-bind="click: alias.create, enable: alias.chosenCollections().length > 0 && alias.name() !== ''">
                  ${ _('Create') }
               </button>
@@ -265,7 +259,7 @@ ${ assist.assistPanel() }
   <table class="table table-condensed datatables" id="list-indexes-table">
     <thead>
       <tr>
-        <th class="vertical-align-middle" width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
+        <th class="vertical-align-middle" width="1%"><div data-bind="click: selectAll, css: { 'hue-checkbox': true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
         <th>${ _('Name') }</th>
         <th>${ _('Type') }</th>
         <th>${ _('Collections') }</th>
@@ -274,7 +268,7 @@ ${ assist.assistPanel() }
     <tbody data-bind="foreach: { data: filteredIndexes }">
       <tr>
         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default">
-          <div data-bind="multiCheck: '#list-indexes-table', css: {'hueCheckbox': true, 'fa': true, 'fa-check': isSelected}"></div>
+          <div data-bind="multiCheck: '#list-indexes-table', css: { 'hue-checkbox': true, 'fa': true, 'fa-check': isSelected}"></div>
         </td>
         <td><a class="pointer" data-bind="text: name, click: function() { $root.fetchIndex($data); }"></a></td>
         <td data-bind="text: type"></td>
@@ -645,11 +639,20 @@ ${ assist.assistPanel() }
     var IndexesViewModel = function (options) {
       var self = this;
 
-      self.baseURL = (IS_HUE_4 ? '/hue' : '') + '/indexer/indexes/';
+      self.baseURL = '/hue/indexer/indexes/';
+
+      self.activeNamespace = ko.observable();
+      self.activeCompute = ko.observable();
+
+      // TODO: Use connectors in indexes
+      contextCatalog.getNamespaces({ connector: { id: 'solr' }}).done(function (context) {
+        // TODO: Namespace selection
+        self.activeNamespace(context.namespaces[0]);
+        self.activeCompute(context.namespaces[0].computes[0]);
+      });
 
       self.assistAvailable = ko.observable(true);
-      self.apiHelper = ApiHelper.getInstance();
-      self.isHue4 = ko.observable(options.hue4);
+      self.apiHelper = window.apiHelper;
       self.isLeftPanelVisible = ko.observable();
       self.apiHelper.withTotalStorage('assist', 'assist_panel_visible', self.isLeftPanelVisible, true);
 
@@ -802,7 +805,7 @@ ${ assist.assistPanel() }
           }
         });
         return found;
-      }
+      };
 
       self.fetchIndex = function (index) {
         $.post("${ url('indexer:list_index') }", {
@@ -854,6 +857,8 @@ ${ assist.assistPanel() }
               ko.mapping.toJS(field)
             ]
           },
+          namespace: self.activeNamespace(),
+          compute: self.activeCompute(),
           showInAssistEnabled: true,
           orientation: 'right',
           pinEnabled: false,
@@ -876,9 +881,6 @@ ${ assist.assistPanel() }
     $(document).ready(function () {
       var options = {
         user: '${ user.username }',
-        % if is_embeddable:
-          hue4: true,
-        % endif
         index: '${ index }'
       };
       var viewModel = new IndexesViewModel(options);

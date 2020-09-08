@@ -30,25 +30,7 @@ default: env-install
 
 .PHONY: clean default distclean install
 
-APPS := about \
-  beeswax \
-  metastore \
-  filebrowser \
-  help \
-  jobbrowser \
-  jobsub \
-  oozie \
-  proxy \
-  useradmin \
-  impala \
-  pig \
-  search \
-  hbase \
-  sqoop \
-  zookeeper \
-  rdbms \
-  spark \
-  security
+APPS := $(shell find . -maxdepth 2 -name "src" -type d|cut -d"/" -f2|sort)
 
 ################################################
 # Install all applications into the Desktop environment
@@ -124,10 +106,10 @@ I18N_APPS := about \
   sqoop \
   zookeeper \
   rdbms \
-  spark
+  spark \
+  hive
 
 COMPILE_LOCALE_TARGETS := $(I18N_APPS:%=.recursive-compile-locales/%)
 compile-locales: $(COMPILE_LOCALE_TARGETS)
 .recursive-compile-locales/%:
 	@$(MAKE) -C $* compile-locale
-

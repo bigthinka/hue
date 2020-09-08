@@ -26,7 +26,6 @@ ${ commonheader(_('Search Indexes'), "indexer", user, request, "90px") | n,unico
 %endif
 
 <div id="indexesComponents">
-<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
 <link rel="stylesheet" href="${ static('indexer/css/admin.css') }">
 
 <style type="text/css">
@@ -181,7 +180,7 @@ ${ commonheader(_('Search Indexes'), "indexer", user, request, "90px") | n,unico
             <thead>
               <tr>
                 <th>
-                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(displayCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
+                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(displayCollections(), function(collection) {return !collection.selected()}).length}" class="hue-checkbox fa"></span>
                 </th>
                 <th width="60%">${_('Name')}</th>
                 <th width="40%">${_('Collections')}</th>
@@ -190,7 +189,7 @@ ${ commonheader(_('Search Indexes'), "indexer", user, request, "90px") | n,unico
             <tbody data-bind="foreach: displayCollections">
               <tr data-bind="routie: 'edit/' + name()" class="pointer">
                 <td data-bind="click: $parent.toggleCollectionSelect.bind($parent), clickBubble: false">
-                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected(), 'hueCheckbox fa': ! isAlias()}"></span>
+                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected(), 'hue-checkbox fa': ! isAlias()}"></span>
                 </td>
                 <td data-bind="text: name" style="cursor: pointer"></td>
                 <td data-bind="text: collections" style="cursor: pointer"></td>
@@ -479,19 +478,16 @@ ${ commonheader(_('Search Indexes'), "indexer", user, request, "90px") | n,unico
 
 </div>
 
-<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/hue.routie.js') }" type="text/javascript" charset="utf-8"></script>
 <script>
   routie.setPathname('/indexer');
 </script>
-<script src="${ static('desktop/ext/js/knockout-sortable.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('indexer/js/lib.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('indexer/js/collections.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript">
 function afterRender() {
-  $(".fileChooser:not(:has(~ button))").after(getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
+  $(".fileChooser:not(:has(~ button))").after(hueUtils.getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
 }
 
 function validateAndUpdateCollection() {

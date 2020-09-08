@@ -170,7 +170,7 @@ ${ layout.menubar(section='bundles') }
                     % if bundle.is_editable(user):
                       <a href="javascript:void(0)" class="editBundledCoordinator"
                          data-url="${ url('oozie:edit_bundled_coordinator', bundle=bundle.id, bundled_coordinator=form.instance.id) }" data-row-selector="true"
-                         />
+                      ></a>
                     % endif
                     ${ form.instance.coordinator.description }
                   </td>
@@ -447,7 +447,7 @@ ${ layout.menubar(section='bundles') }
           $("#nextBtn").addClass("disabled");
         }
         $("a.step").parent().removeClass("active");
-        $("a.step[href=#" + step + "]").parent().addClass("active");
+        $("a.step[href='#" + step + "']").parent().addClass("active");
         $(".stepDetails").hide();
         $("#" + step).show();
       }

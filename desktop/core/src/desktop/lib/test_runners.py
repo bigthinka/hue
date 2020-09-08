@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 import sys
 import threading
 
@@ -85,9 +86,9 @@ class HueTestRunner(NoseTestSuiteRunner):
 
     # Skip over 'manage.py test' and any arguments handled by django.
     django_opts = ['--noinput', '--liveserver', '-p', '--pattern']
-    for opt in BaseCommand.option_list:
-      django_opts.extend(opt._long_opts)
-      django_opts.extend(opt._short_opts)
+    #for opt in BaseCommand.option_list:
+    #  django_opts.extend(opt._long_opts)
+    #  django_opts.extend(opt._short_opts)
 
     nose_argv.extend(translate_option(opt) for opt in sys.argv[1:]
     if opt.startswith('-') and not any(opt.startswith(d) for d in django_opts))

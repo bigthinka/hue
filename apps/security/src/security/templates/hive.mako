@@ -58,11 +58,11 @@ ${ layout.menubar(section='hive1', is_embeddable=is_embeddable) }
     </div>
 
     <div class="inline-block" style="vertical-align: middle">
-      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('db'); action($root.availableActions()[0]) }">
+      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('db'); action($root.availableActions(privilegeScope())[0]) }">
         <i class="fa fa-fw fa-1halfx muted" data-bind="css: {'fa-circle-o': privilegeType() != 'db' , 'fa-check-circle-o': privilegeType() == 'db'}"></i>
       </a>
     </div>
-    <input type="text" data-bind="hivechooser: $data.path, enable: privilegeType() == 'db', apiHelperUser: '${ user }', apiHelperType: 'hive'" placeholder="dbName.tableName <CTRL+SPACE>">
+    <input type="text" data-bind="hiveChooser: $data.path, enable: privilegeType() == 'db', apiHelperUser: '${ user }', apiHelperType: 'hive'" placeholder="dbName.tableName <CTRL+SPACE>">
 
     <div class="inline-block" style="vertical-align: middle">
       <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('uri'); action('ALL'); }">
@@ -71,7 +71,7 @@ ${ layout.menubar(section='hive1', is_embeddable=is_embeddable) }
     </div>
     <input type="text" data-bind="filechooser: $data.URI, enable: privilegeType() == 'uri', valueUpdate: 'afterkeydown'" placeholder="URI">
 
-    <select data-bind="options: $root.availableActions, value: $data.action, enable: (privilegeType() == 'db')" style="width: 100px; margin-bottom: 0"></select>
+    <select data-bind="options: $root.availableActions(privilegeScope()), value: $data.action, enable: (privilegeType() == 'db')" style="width: 100px; margin-bottom: 0"></select>
 
     <div class="new-line-if-small">
       <label class="checkbox"><input type="checkbox" data-bind="checked: grantOption"> ${ _('With grant') }</label>
@@ -228,6 +228,7 @@ ${ layout.menubar(section='hive1', is_embeddable=is_embeddable) }
                 </div>
                 <div data-bind="visible: $root.assist.privileges().length == 0 && $root.isLoadingPrivileges()"><i class="fa fa-spinner fa-spin" data-bind="visible: $root.isLoadingPrivileges()"></i> <em class="muted">${ _('Loading privileges...')}</em></div>
                 <h4 style="margin-top: 4px" data-bind="visible: $root.assist.privileges().length > 0 && ! $root.isLoadingPrivileges()">${ _('Privileges') } &nbsp;</h4>
+
                 <div data-bind="visible: $root.assist.privileges().length == 0 && ! $root.isLoadingPrivileges()">
                   <div class="span10 offset1 center" style="cursor: pointer" data-bind="click: function(){ if ($root.is_sentry_admin) { $root.showCreateRole(true); $('#createRoleModal').modal('show'); } }">
                     <i data-bind="visible: $root.is_sentry_admin" class="fa fa-plus-circle waiting"></i>
@@ -288,7 +289,7 @@ ${ layout.menubar(section='hive1', is_embeddable=is_embeddable) }
           <table class="card-marginbottom" data-bind="visible: $root.roles().length > 0 && ! $root.isLoadingRoles()">
             <thead>
               <tr>
-                <th width="1%"><div data-bind="click: $root.selectAllRoles, css: { hueCheckbox: true, 'fa': true, 'fa-check': allRolesSelected }"></div></th>
+                <th width="1%"><div data-bind="click: $root.selectAllRoles, css: { 'hue-checkbox': true, 'fa': true, 'fa-check': allRolesSelected }"></div></th>
                 <th width="2%"></th>
                 <th width="20%" style="text-align:left">${ _('Name') }</th>
                 <th width="74%" style="text-align:left">${ _('Groups') }</th>
@@ -298,7 +299,7 @@ ${ layout.menubar(section='hive1', is_embeddable=is_embeddable) }
             <tbody data-bind="foreach: $root.filteredRoles">
               <tr>
                 <td class="center" data-bind="click: handleSelect" style="cursor: default">
-                  <div data-bind="css: { hueCheckbox: true, 'fa': true, 'fa-check': selected }"></div>
+                  <div data-bind="css: { 'hue-checkbox': true, 'fa': true, 'fa-check': selected }"></div>
                 </td>
                 <td class="center">
                   <a href="javascript:void(0);" title="${ _('Show privileges') }">
@@ -550,7 +551,6 @@ ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assi
 
 
 <script src="${ static('security/js/hive.ko.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/jquery.filechooser.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript">
   (function () {
@@ -778,8 +778,10 @@ ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assi
 
       huePubSub.subscribe('app.gained.focus', function (app) {
         if (app === 'security_hive') {
-          window.location.hash = viewModel.lastHash;
-          showMainSection(viewModel.getSectionHash());
+          window.setTimeout(function () {
+            window.location.hash = viewModel.lastHash;
+            showMainSection(viewModel.getSectionHash());
+          }, 0);
         }
       }, 'security_hive');
     });

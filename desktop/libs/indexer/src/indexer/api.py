@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import next
+from builtins import zip
 import itertools
 import json
 import logging
@@ -24,7 +26,6 @@ from django.utils.translation import ugettext as _
 
 from desktop.lib.django_util import JsonResponse
 from desktop.lib.exceptions_renderable import PopupException
-from search.models import Collection
 
 from indexer.controller import CollectionManagerController
 from indexer.solr_client import SolrClient
@@ -51,11 +52,11 @@ def parse_fields(request):
         file_obj = request.fs.open(request.POST.get('path'))
         field_list = field_values_from_separated_file(file_obj, delimiter, quote)
         row = next(field_list)
-        field_names = row.keys()
-        field_types = get_field_types((row.values() for row in itertools.chain([row], field_list)), iterations=51)
+        field_names = list(row.keys())
+        field_types = get_field_types((list(row.values()) for row in itertools.chain([row], field_list)), iterations=51)
         file_obj.close()
 
-        result['data'] = zip(field_names, field_types)
+        result['data'] = list(zip(field_names, field_types))
         result['status'] = 0
       elif content_type == 'morphlines':
         morphlines = json.loads(request.POST.get('morphlines'))
@@ -80,7 +81,7 @@ def parse_fields(request):
       else:
         result['status'] = 1
         result['message'] = _('Type %s not supported.') % content_type
-    except Exception, e:
+    except Exception as e:
       LOG.exception(e.message)
       result['message'] = e.message
   else:
@@ -166,7 +167,7 @@ def collections_create(request):
 
       response['status'] = 0
       response['message'] = _('Collection created!')
-    except Exception, e:
+    except Exception as e:
       LOG.error(e)
       raise
   else:

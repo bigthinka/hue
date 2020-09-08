@@ -16,8 +16,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
 import ldap
 
+from django.conf import settings
+from django.urls import reverse
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_true, assert_equal, assert_false
@@ -25,19 +28,15 @@ from nose.tools import assert_true, assert_equal, assert_false
 import desktop.conf
 from desktop.lib.test_utils import grant_access
 from desktop.lib.django_test_util import make_logged_in_client
-from django.conf import settings
-from django.contrib.auth.models import User, Group
-from django.core.urlresolvers import reverse
-
-from useradmin.models import LdapGroup, UserProfile, get_profile
-
 from hadoop import pseudo_hdfs4
 from hadoop.pseudo_hdfs4 import is_live_cluster
-from views import sync_ldap_users, sync_ldap_groups, import_ldap_users, import_ldap_groups, \
-                  add_ldap_users, add_ldap_groups, sync_ldap_users_groups
+from useradmin.models import LdapGroup, UserProfile, get_profile, User, Group
+from useradmin.views import sync_ldap_users, sync_ldap_groups, import_ldap_users, import_ldap_groups, \
+    add_ldap_users, add_ldap_groups, sync_ldap_users_groups
 
-import ldap_access
-from tests import BaseUserAdminTests, LdapTestConnection, reset_all_groups, reset_all_users
+from useradmin import ldap_access
+from useradmin.tests import BaseUserAdminTests, LdapTestConnection, reset_all_groups, reset_all_users
+
 
 class TestUserAdminLdapDeprecated(BaseUserAdminTests):
   def test_useradmin_ldap_user_group_membership_sync(self):
@@ -377,7 +376,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
       assert_true(larry.first_name == 'Larry')
       assert_true(larry.last_name == 'Stooge')
       assert_true(larry.email == 'larry@stooges.com')
-      assert_true(get_profile(larry).creation_method == str(UserProfile.CreationMethod.EXTERNAL))
+      assert_true(get_profile(larry).creation_method == UserProfile.CreationMethod.EXTERNAL.name)
 
       # Should be a noop
       sync_ldap_users(ldap_access.CACHED_LDAP_CONN)
@@ -390,7 +389,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
       hue_user = User.objects.create(username='otherguy', first_name='Different', last_name='Guy')
       import_ldap_users(ldap_access.CACHED_LDAP_CONN, 'otherguy', sync_groups=False, import_by_dn=False)
       hue_user = User.objects.get(username='otherguy')
-      assert_equal(get_profile(hue_user).creation_method, str(UserProfile.CreationMethod.HUE))
+      assert_equal(get_profile(hue_user).creation_method, UserProfile.CreationMethod.HUE.name)
       assert_equal(hue_user.first_name, 'Different')
 
       # Make sure LDAP groups exist or they won't sync
@@ -402,7 +401,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
       assert_equal(curly.first_name, 'Curly')
       assert_equal(curly.last_name, 'Stooge')
       assert_equal(curly.email, 'curly@stooges.com')
-      assert_equal(get_profile(curly).creation_method, str(UserProfile.CreationMethod.EXTERNAL))
+      assert_equal(get_profile(curly).creation_method, UserProfile.CreationMethod.EXTERNAL.name)
       assert_equal(2, curly.groups.all().count(), curly.groups.all())
 
       reset_all_users()
@@ -412,6 +411,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
         finish()
 
 
+  @attr('integration')
   def test_useradmin_ldap_case_sensitivity(self):
     if is_live_cluster():
       raise SkipTest('HUE-2897: Cannot yet guarantee database is case sensitive')
@@ -465,7 +465,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
       assert_true('/useradmin/users' in response['Location'], response)
 
       response = c.post(URL, dict(username_pattern='bad_name', password1='test', password2='test'))
-      assert_true('Could not' in response.context['form'].errors['username_pattern'][0], response)
+      assert_true('Could not' in response.context[0]['form'].errors['username_pattern'][0], response)
 
       # Test wild card
       response = c.post(URL, dict(username_pattern='*rr*', password1='test', password2='test'))
@@ -473,13 +473,16 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
 
       # Test regular with spaces (should fail)
       response = c.post(URL, dict(username_pattern='user with space', password1='test', password2='test'))
-      assert_true("Username must not contain whitespaces and ':'" in response.context['form'].errors['username_pattern'][0], response)
+      assert_true("Username must not contain whitespaces and ':'" in response.context[0]['form'].errors['username_pattern'][0], response)
 
       # Test dn with spaces in username and dn (should fail)
       response = c.post(URL, dict(username_pattern='uid=user with space,ou=People,dc=example,dc=com', password1='test', password2='test', dn=True))
-      assert_true("Could not get LDAP details for users in pattern" in response.content, response)
+      assert_true(b"Could not get LDAP details for users in pattern" in response.content, response)
       response = c.get(reverse(desktop.views.log_view))
-      assert_true("{username}: Username must not contain whitespaces".format(username='user with space') in response.content, response.content)
+      whitespaces_message = "{username}: Username must not contain whitespaces".format(username='user with space')
+      if not isinstance(whitespaces_message, bytes):
+        whitespaces_message = whitespaces_message.encode('utf-8')
+      assert_true(whitespaces_message in response.content, response.content)
 
       # Test dn with spaces in dn, but not username (should succeed)
       response = c.post(URL, dict(username_pattern='uid=user without space,ou=People,dc=example,dc=com', password1='test', password2='test', dn=True))
@@ -490,6 +493,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
         finish()
 
 
+  @attr('integration')
   def test_add_ldap_users_case_sensitivity(self):
     if is_live_cluster():
       raise SkipTest('HUE-2897: Cannot yet guarantee database is case sensitive')
@@ -556,7 +560,7 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
                                                   'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'
                                                   'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'
                                                   'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'))
-    assert_true('Ensure this value has at most 256 characters' in response.context['form'].errors['groupname_pattern'][0], response)
+    assert_true('Ensure this value has at most 256 characters' in response.context[0]['form'].errors['groupname_pattern'][0], response)
 
     # Test wild card
     response = c.post(URL, dict(groupname_pattern='*r*'))
@@ -583,10 +587,11 @@ class TestUserAdminLdapDeprecated(BaseUserAdminTests):
     c = make_logged_in_client('test', is_superuser=True)
 
     response = c.post(reverse(add_ldap_users), dict(username_pattern='moe', password1='test', password2='test'), follow=True)
-    assert_true('There was an error when communicating with LDAP' in response.content, response)
+    assert_true(b'There was an error when communicating with LDAP' in response.content, response)
 
 class TestUserAdminLdapDeprecatedWithHadoop(BaseUserAdminTests):
   requires_hadoop = True
+  integration = True
 
   def test_ensure_home_directory_add_ldap_users(self):
     try:
@@ -611,7 +616,7 @@ class TestUserAdminLdapDeprecatedWithHadoop(BaseUserAdminTests):
       assert_true(cluster.fs.exists('/user/curly'))
 
       response = c.post(URL, dict(username_pattern='bad_name', password1='test', password2='test'))
-      assert_true('Could not' in response.context['form'].errors['username_pattern'][0])
+      assert_true('Could not' in response.context[0]['form'].errors['username_pattern'][0])
       assert_false(cluster.fs.exists('/user/bad_name'))
 
       # See if moe, who did not ask for his home directory, has a home directory.

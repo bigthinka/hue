@@ -39,7 +39,6 @@ ${ commonheader(_('Metrics'), "about", user, request) | n,unicode }
   (function () {
     var MetricsViewModel = function () {
       var self = this;
-      self.apiHelper = ApiHelper.getInstance();
       self.metricsFilter = ko.observable();
       self.metrics = ko.observableArray();
       self.selectedMetric = ko.observable('All');
@@ -76,14 +75,16 @@ ${ commonheader(_('Metrics'), "about", user, request) | n,unicode }
       });
       var successCallback = function (data) {
         self.metrics(data.metric);
-      }
+      };
       self.fetchMetrics = function () {
-        self.apiHelper.simpleGet('/desktop/metrics/', {}, {successCallback: successCallback});
+        window.simpleGet('/desktop/metrics/', {}, {
+          successCallback: successCallback
+        });
       };
       self.isUnusedMetric = function (metricKey) {
         return metricKey.startsWith("auth") || metricKey.startsWith("multiprocessing") || metricKey.startsWith("python.gc");
       }
-    }
+    };
 
     $(document).ready(function () {
       var viewModel = new MetricsViewModel();
@@ -125,44 +126,44 @@ ${layout.menubar(section='metrics')}
         </thead>
         <tfoot>
           <tr>
-             <td colspan="2">${ _('There are no metrics matching your filter') }</td>
+              <td colspan="2">${ _('There are no metrics matching your filter') }</td>
           </tr>
         </tfoot>
       </table>
       <!-- /ko -->
       <div data-bind="foreach: {data: Object.keys($root.filteredMetrics()).sort(), as: '_masterkey'}">
-       <!-- ko if: ($root.selectedMetric() === 'All' && $root.filteredMetrics()[_masterkey]) || $root.selectedMetric() === _masterkey-->
-       <!-- ko ifnot: $root.isUnusedMetric(_masterkey)-->
-       <h4 data-bind="text: _masterkey"></h4>
-       <table class="table table-condensed">
-         <thead>
-           <tr>
+      <!-- ko if: ($root.selectedMetric() === 'All' && $root.filteredMetrics()[_masterkey]) || $root.selectedMetric() === _masterkey-->
+      <!-- ko ifnot: $root.isUnusedMetric(_masterkey)-->
+      <h4 data-bind="text: _masterkey"></h4>
+      <table class="table table-condensed">
+        <thead>
+          <tr>
             <th width="30%">${ _('Name') }</th>
             <th>${ _('Value') }</th>
-           </tr>
-         </thead>
-         <!-- ko if: $root.filteredMetrics()[_masterkey] -->
-         <tbody data-bind="foreach: {'data': Object.keys($root.filteredMetrics()[_masterkey])}">
-           <tr>
+          </tr>
+        </thead>
+        <!-- ko if: $root.filteredMetrics()[_masterkey] -->
+        <tbody data-bind="foreach: {'data': Object.keys($root.filteredMetrics()[_masterkey])}">
+          <tr>
             <td data-bind="text: $data"></td>
             <td data-bind="text: $root.filteredMetrics()[_masterkey][$data]"></td>
-           </tr>
-         </tbody>
-         <!-- /ko -->
-         <!-- ko ifnot: $root.filteredMetrics()[_masterkey] -->
-         <tfoot>
-           <tr>
+          </tr>
+        </tbody>
+        <!-- /ko -->
+        <!-- ko ifnot: $root.filteredMetrics()[_masterkey] -->
+        <tfoot>
+          <tr>
             <td colspan="2">${ _('There are no metrics matching your filter') }</td>
-           </tr>
-           </tfoot>
-         <!-- /ko -->
+          </tr>
+          </tfoot>
+        <!-- /ko -->
         </table>
         <!-- /ko -->
         <!-- /ko -->
       </div>
-  </div>
+    </div>
   <!-- /ko -->
- </div>
+  </div>
 </div>
 
 

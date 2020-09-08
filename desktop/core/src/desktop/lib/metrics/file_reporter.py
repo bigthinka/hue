@@ -18,13 +18,14 @@ import json
 import logging
 import os
 import tempfile
-import threading
 
 from pyformance.reporters.reporter import Reporter
 
 from desktop.lib.metrics import global_registry
 
+
 LOG = logging.getLogger(__name__)
+
 
 class FileReporter(Reporter):
   def __init__(self, location, *args, **kwargs):
@@ -37,8 +38,9 @@ class FileReporter(Reporter):
     if not os.path.exists(dirname):
       try:
         os.makedirs(dirname)
-      except OSError, e:
+      except OSError as e:
         LOG.error('failed to make the directory %s: %s' % (dirname, e))
+      return
 
     # Write the metrics to a temporary file, then atomically
     # rename the file to the real location.

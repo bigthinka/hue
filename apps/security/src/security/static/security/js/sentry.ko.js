@@ -864,14 +864,27 @@ var SentryViewModel = (function () {
     self.isApplyingBulk = ko.observable(false);
 
     self.availablePrivileges = ko.observableArray();
-    self.availableActions = ko.observableArray();
     self.availableSolrConfigActions = ko.observableArray();
     if (initial.component == 'solr') {
-      self.availableActions(['QUERY', 'UPDATE', 'ALL']);
+      self.availableActions = function () {
+        return ko.observableArray(['QUERY', 'UPDATE', 'ALL']);
+      }
       self.availableSolrConfigActions(['ALL']);
     } else {
-      self.availableActions(['SELECT', 'INSERT', 'ALL']);
+      self.availableActions = function (authorizables) {
+        var actions = ['SELECT', 'INSERT', 'ALL'];
+        var databaseActions = ['CREATE'];
+        var tableActions = ['REFRESH']; // 'ALTER', 'DROP'
+        if (authorizables.length < 2) { // server and database
+          actions = actions.concat(databaseActions).concat(tableActions);
+        }
+        else {
+          actions = actions.concat(tableActions);
+        }
+        return ko.observableArray(actions.sort());
+      }
     }
+
 
     self.privilegeFilter = ko.observable("");
 
@@ -1130,7 +1143,7 @@ var SentryViewModel = (function () {
         'timestamp': privilege.timestamp,
         'grantorPrincipal': privilege.grantorPrincipal,
         'grantOption': privilege.grantOption,
-        'id': UUID()
+        'id': hueUtils.UUID()
       });
       return _privilege;
     }
@@ -1344,6 +1357,7 @@ var SentryViewModel = (function () {
 
     self.fetchUsers = function () {
       var data = {
+        'count': 2000,
         'include_myself': true,
         'extend_user': true
       };

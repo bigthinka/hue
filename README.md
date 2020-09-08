@@ -1,57 +1,85 @@
-![alt text](https://raw.githubusercontent.com/cloudera/hue/master/docs/images/hue_logo.png "Hue Logo")
+[![CircleCI](https://img.shields.io/circleci/build/github/cloudera/hue/master.svg)](https://circleci.com/gh/cloudera/hue/tree/master)
+[![DockerPulls](https://img.shields.io/docker/pulls/gethue/hue.svg)](https://registry.hub.docker.com/u/gethue/hue/)
+![GitHub contributors](https://img.shields.io/github/contributors-anon/cloudera/hue.svg)
+
+![Hue Logo](https://raw.githubusercontent.com/cloudera/hue/master/docs/images/hue_logo.png)
 
 
-Query. Explore. Repeat.
------------------------
+Query. Explore. Share.
+----------------------
 
-Hue is an open source Analytic Workbench for browsing, querying and visualizing data with focus on SQL and Search: [gethue.com](http://gethue.com)
+Hue is a mature open source SQL Assistant for [querying](https://docs.gethue.com/user/querying/) any [Databases & Data Warehouses](https://docs.gethue.com/administrator/configuration/connectors/) and collaborating: [gethue.com](http://gethue.com)
 
-It features:
+Many companies and organizations use Hue to quickly answer questions via self-service querying e.g.:
 
-   * [Editors](http://gethue.com/sql-editor/) to query with SQL and submit jobs.
-   * [Dashboards](http://gethue.com/search-dashboards/) to dynamically interact and visualize data.
-   * [Scheduler](http://gethue.com/scheduling/) of jobs and workflows.
-   * [Browsers](http://gethue.com/browsers/) for data and a Data Catalog.
+* 1000+ customers
+* Top Fortune 500
 
+are executing 100s of 1000s of queries daily. It also [ships](https://docs.gethue.com/administrator/installation/) in Cloudera Data Platform, Amazon AWS, Open Data Hub...
 
-![alt text](https://raw.githubusercontent.com/cloudera/hue/master/docs/images/sql-editor.png "Hue Editor")
-
-![alt text](https://raw.githubusercontent.com/cloudera/hue/master/docs/images/dashboard.png "Hue Dashboard")
+Hue is also ideal for building your own [Cloud SQL Editor](https://docs.gethue.com/developer/api/) and any [contributions](https://docs.gethue.com/developer/) are welcome.
 
 
-Who is using Hue
-----------------
-Thousands of companies and organizations use Hue to open-up and query their data in order to make smarter decisions. Just at Cloudera, Hue is heavily used by hundreds of customers executing millions of queries daily. Hue directly ships in Cloudera, Amazon, MapR, BigTop and is compatible with the other distributions.
-
+![Hue Editor](https://cdn.gethue.com/uploads/2020/04/hue-4.7.png)
 
 Getting Started
 ---------------
-Add the development packages, build and get the development server running:
+
+You can start Hue in 3 ways - From source, Docker or Kubernetes. Once setup you would have to configure Hue to point to the desired databases you want to query.
+
+The [Forum](https://discourse.gethue.com/) is here in case you are looking for help.
+
+Building From Source
+-----------
+
+First, clone Hue repo, install the [dependencies](https://docs.gethue.com/administrator/installation/dependencies/), build and get the development server running.
+
 ```
+# Install dependencies
 git clone https://github.com/cloudera/hue.git
 cd hue
 make apps
 build/env/bin/hue runserver
 ```
-Now Hue should be running on [http://localhost:8000](http://localhost:8000) ! The configuration in development mode is ``desktop/conf/pseudo-distributed.ini``.
 
-Read more in the [installation documentation](http://cloudera.github.io/hue/latest/admin-manual/manual.html#installation).
+Now Hue should be running on [http://localhost:8000](http://localhost:8000)!
 
+Read more about configurations in the [development documentations](https://docs.gethue.com/developer/development/).
 
 Docker
 ------
-Start Hue in a single click with the [Docker Guide](https://github.com/cloudera/hue/tree/master/tools/docker) or the
+Start Hue in a single click with the [Docker Guide](https://github.com/cloudera/hue/tree/master/tools/docker/hue) or the
 [video blog post](http://gethue.com/getting-started-with-hue-in-2-minutes-with-docker/).
+
+    docker run -it -p 8888:8888 gethue/hue:latest
+
+Now Hue should be up and running on your default Docker IP on the port 8888 [http://localhost:8888](http://localhost:8888)!
+
+Read more about [configurations](https://github.com/cloudera/hue/tree/master/tools/docker/hue#configuration) then.
+
+Development Docker
+------------------
+
+For a very Quick Start and not even bother with installing a dev environment, go with the [Dev Docker](https://docs.gethue.com/developer/development/#dev-docker).
+
+Kubernetes
+----------
+
+    helm repo add gethue https://helm.gethue.com
+    helm repo update
+    helm install gethue/hue
+
+Read more about configurations at [``tools/kubernetes``](tools/kubernetes/).
 
 
 Community
 -----------
-   * User group: http://groups.google.com/a/cloudera.org/group/hue-user
+   * How to [contribute](CONTRIBUTING.md)
+   * Help Forum: https://discourse.gethue.com/
+   * High level [roadmap](docs/ROADMAP.md)
    * Jira: https://issues.cloudera.org/browse/HUE
-   * Reviews: https://review.cloudera.org/dashboard/?view=to-group&group=hue (repo 'hue-rw')
 
 
 License
 -----------
-Apache License, Version 2.0
-http://www.apache.org/licenses/LICENSE-2.0
+[Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)

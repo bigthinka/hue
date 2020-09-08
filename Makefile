@@ -95,7 +95,7 @@ default:
 	@echo '  clean       : Remove desktop build products'
 	@echo '  distclean   : Remove desktop and thirdparty build products'
 # <<<< DEV ONLY
-	@echo '  docs        : Build documentation'
+	@echo '  doc 	       : Build documentation'
 	@echo '  prod        : Generate a tar file for production distribution'
 	@echo '  locales     : Extract strings and update dictionary of each locale'
 	@echo '  ace         : Builds the Ace Editor tool'
@@ -108,7 +108,7 @@ all: default
 include Makefile.tarball
 
 ###################################
-# Build docs
+# Build docs (unused)
 ###################################
 .PHONY: docs
 docs:
@@ -119,7 +119,9 @@ docs:
 # Install parent POM
 ###################################
 parent-pom:
+ifneq (,$(BUILD_DB_PROXY))
 	cd $(ROOT)/maven && mvn install $(MAVEN_OPTIONS)
+endif
 
 .PHONY: parent-pom
 
@@ -147,12 +149,15 @@ desktop: parent-pom
 desktop: virtual-env
 	@$(MAKE) -C desktop
 
+
 ###################################
 # Build apps
 ###################################
 .PHONY: apps
 apps: desktop
+	@$(MAKE) npm-install
 	@$(MAKE) -C $(APPS_DIR) env-install
+	@$(MAKE) create-static
 
 ###################################
 # Install binary dist
@@ -162,8 +167,9 @@ INSTALL_CORE_FILES = \
 	ext \
 	tools/app_reg \
 	tools/virtual-bootstrap \
+	tools/enable-python27.sh \
 	tools/relocatable.sh \
-	VERS* LICENSE* README*
+	VERS* LICENSE* README* webpack-stats*.json
 
 .PHONY: install
 install: virtual-env install-check install-core-structure install-desktop install-apps install-env
@@ -205,8 +211,44 @@ install-env:
 	$(MAKE) -C $(INSTALL_DIR)/desktop env-install
 	@echo --- Setting up Applications
 	$(MAKE) -C $(INSTALL_DIR)/apps env-install
-	@echo --- Setting up Desktop database
-	$(MAKE) -C $(INSTALL_DIR)/desktop syncdb
+	@echo --- Setting up Frontend assets
+	cp $(ROOT)/package.json $(INSTALL_DIR)
+	cp $(ROOT)/webpack.config*.js $(INSTALL_DIR)
+	cp $(ROOT)/.babelrc $(INSTALL_DIR)
+	cp $(ROOT)/tsconfig.json $(INSTALL_DIR)
+	$(MAKE) -C $(INSTALL_DIR) npm-install
+	@if [ "$(MAKECMDGOALS)" = "install" ]; then \
+	  $(MAKE) -C $(INSTALL_DIR) create-static; \
+	fi
+
+
+###################################
+# Frontend and static assets
+###################################
+
+.PHONY: npm-install
+npm-install:
+	npm --version
+	node --version
+	npm install
+	npm run webpack
+	npm run webpack-login
+	npm run webpack-workers
+	node_modules/.bin/removeNPMAbsolutePaths .
+	@if [ "$(MAKECMDGOALS)" = "install" ]; then \
+	  rm -rf node_modules; \
+	fi
+
+.PHONY: create-static
+create-static:
+	./build/env/bin/hue collectstatic --noinput
+
+# <<<< DEV ONLY
+.PHONY: doc
+doc:
+	hugo --source docs/docs-site
+# END DEV ONLY >>>>
+
 
 ###################################
 # Internationalization
@@ -238,35 +280,35 @@ ace:
 # <<<< DEV ONLY
 .PHONY: global-search-parser
 global-search-parser:
-	@cd tools/jison && ./hue-global-search.sh
+	@pushd tools/jison/ && npm install && node generateParsers.js globalSearchParser && popd
 
 .PHONY: solr-all-parsers
 solr-all-parsers:
-	@cd tools/jison && ./hue-solr-query.sh && ./hue-solr-formula.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js solrQueryParser solrFormulaParser && popd
 
 .PHONY: solr-query-parser
 solr-query-parser:
-	@cd tools/jison && ./hue-solr-query.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js solrQueryParser && popd
 
 .PHONY: solr-formula-parser
 solr-formula-parser:
-	@cd tools/jison && ./hue-solr-formula.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js solrFormulaParser && popd
 
 .PHONY: sql-all-parsers
 sql-all-parsers:
-	@cd tools/jison && ./hue-sql-autocomplete.sh && ./hue-sql-statement.sh && ./hue-sql-syntax.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js generic hive impala && popd
 
 .PHONY: sql-autocomplete-parser
 sql-autocomplete-parser:
-	@cd tools/jison && ./hue-sql-autocomplete.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js genericAutocomp hiveAutocomp impalaAutocomp && popd
 
 .PHONY: sql-statement-parser
 sql-statement-parser:
-	@cd tools/jison && ./hue-sql-statement.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js sqlStatementsParser && popd
 
 .PHONY: sql-syntax-parser
 sql-syntax-parser:
-	@cd tools/jison && ./hue-sql-syntax.sh
+	@pushd tools/jison/ && npm install  && node generateParsers.js genericSyntax hiveSyntax impalaSyntax && popd
 # END DEV ONLY >>>>
 
 ###################################
@@ -303,9 +345,6 @@ ext-clean:
 ###############################################
 # Misc (some used by automated test scripts)
 ###############################################
-
-js-test:
-	$(ROOT)/tools/jasmine/phantomjs.runner.sh $(ROOT)/desktop/core/src/desktop/templates/jasmineRunner.html
 
 test:
 	DESKTOP_DEBUG=1 $(ENV_PYTHON) $(BLD_DIR_BIN)/hue test fast --with-xunit

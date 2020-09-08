@@ -16,29 +16,31 @@
  limitations under the License.
 */
 
-.dataTables_wrapper:hover > .hue-scrollbar-x-rail, .hue-scrollbar-x-rail:hover {
+.dataTables_wrapper:hover > .hue-scrollbar-x-rail,
+.hue-scrollbar-x-rail:hover {
   opacity: 1;
 }
 
 .hue-scrollbar-x-rail {
   position: fixed;
   z-index: 1039;
-  padding: 2px;
-  background-color: @cui-gray-050;
-  border: 1px solid @cui-purple-gray-050;
-  &>.hue-scrollbar-x {
+  padding: 0;
+  background-color: transparent;
+  overflow: hidden;
+  opacity: 0;
+
+  .hue-linear-transition(opacity);
+
+  & > .hue-scrollbar-x {
     position: absolute;
-    background-color: @cui-gray-400;
-    -webkit-border-radius: 5px;
-    -moz-border-radius: 5px;
+    background-color: @cui-gray-300;
     border-radius: 5px;
-    .hue-linear-transition(background-color);
-    height: 8px;
+    border: 1px solid @cui-white;
+    height: 7px;
     z-index: 1039;
-  }
-  &:hover {
-    &>.hue-scrollbar-x {
-      background-color: @cui-gray-700;
+
+    &:hover {
+      background-color: @cui-gray-500;
     }
   }
 }

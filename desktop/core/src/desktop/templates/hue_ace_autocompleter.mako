@@ -22,7 +22,7 @@ from desktop.views import _ko
 <%def name="hueAceAutocompleter()">
   <script type="text/html" id="hue-ace-autocompleter">
     <!-- ko if: active() && (suggestions.filtered().length !== 0 || suggestions.loading()) -->
-    <div class="hue-ace-autocompleter" data-bind="style: { top: top() + 'px', left: left() + 'px' }, event: { mousewheel: function (data, event) { event.stopPropagation(); }}">
+    <div class="hue-ace-autocompleter" data-bind="style: { top: top() + 'px', left: left() + 'px' }">
       <div class="autocompleter-suggestions">
         <!-- ko if: suggestions.availableCategories().length > 1 || suggestions.loading() -->
         <div class="autocompleter-header">
@@ -191,20 +191,36 @@ from desktop.views import _ko
 
   <script type="text/html" id="autocomplete-details-hdfs">
     <div class="autocompleter-details">
-      <div class="autocompleter-details-contents-inner">
-        <div class="autocompleter-header"><i class="fa fa-fw" data-bind="css: { 'fa-folder-o': details.type === 'dir', 'fa-file-o': details.type !== 'dir' }"></i> <span data-bind="text: details.name"></span></div>
-        <div class="autocompleter-details-contents" data-bind="template: { name: 'hdfs-details-content', data: { definition: details } }"></div>
+      <div class="autocompleter-header">
+        <i class="fa fa-fw" data-bind="css: { 'fa-folder-o': details.type === 'dir', 'fa-file-o': details.type !== 'dir' }"></i>
+        <span data-bind="text: details.name"></span>
+      </div>
+      <div class="autocompleter-details-contents">
+        <div class="autocompleter-details-contents-inner">
+          <!-- ko with: details -->
+          <div class="assist-details-wrap">
+            <div><div class="assist-details-header">${ _('Size') }</div><div class="assist-details-value" data-bind="text: humansize"></div></div>
+            <!-- ko with: stats -->
+            <div><div class="assist-details-header">${ _('User') }</div><div class="assist-details-value" data-bind="text: user"></div></div>
+            <div><div class="assist-details-header">${ _('Group') }</div><div class="assist-details-value" data-bind="text: group"></div></div>
+            <!-- /ko -->
+            <div><div class="assist-details-header">${ _('Permissions') }</div><div class="assist-details-value" data-bind="text: rwx"></div></div>
+            <div><div class="assist-details-header">${ _('Date') }</div><div class="assist-details-value" data-bind="text: mtime"></div></div>
+          </div>
+          <!-- /ko -->
+        </div>
       </div>
     </div>
   </script>
 
   <script type="text/html" id="autocomplete-details-join">
     <div class="autocompleter-details">
-      <div class="autocompleter-header"><i class="fa fa-fw fa-star-o"></i> ${ _('Popular join')}</div>
+      <div class="autocompleter-header"><i class="fa fa-fw fa-star-o"></i> ${ _('Popular join') }</div>
       <div class="autocompleter-details-contents">
         <div class="autocompleter-details-contents-inner">
-          <div class="details-code" data-bind="text: value"></div>
-          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }"><i class="fa fa-fw fa-star-o popular-color"></i>
+          <div class="details-code" data-bind="highlight: { value: value, formatted: false, dialect: $parent.snippet.dialect() }"></div>
+          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }">
+            <i class="fa fa-fw fa-star-o popular-color"></i>
             <div class="progress">
               <div class="bar" data-bind="style: { 'width': details.relativePopularity + '%' }"></div>
             </div>
@@ -216,11 +232,12 @@ from desktop.views import _ko
 
   <script type="text/html" id="autocomplete-details-join-condition">
     <div class="autocompleter-details">
-      <div class="autocompleter-header"><i class="fa fa-fw fa-star-o"></i> ${ _('Popular join condition')}</div>
+      <div class="autocompleter-header"><i class="fa fa-fw fa-star-o"></i> ${ _('Popular join condition') }</div>
       <div class="autocompleter-details-contents">
         <div class="autocompleter-details-contents-inner">
           <div class="details-code" data-bind="text: value"></div>
-          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }"><i class="fa fa-fw fa-star-o popular-color"></i>
+          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }">
+            <i class="fa fa-fw fa-star-o popular-color"></i>
             <div class="progress">
               <div class="bar" data-bind="style: { 'width': details.relativePopularity + '%' }"></div>
             </div>
@@ -232,11 +249,12 @@ from desktop.views import _ko
 
   <script type="text/html" id="autocomplete-details-agg-udf">
     <div class="autocompleter-details">
-      <div class="autocompleter-header"><i class="fa fa-fw fa-superscript"></i> ${ _('Popular aggregate')} - <span data-bind="text: details.aggregateFunction"></span></div>
+      <div class="autocompleter-header"><i class="fa fa-fw fa-superscript"></i> ${ _('Popular aggregate') } - <span data-bind="text: details.aggregateFunction"></span></div>
       <div class="autocompleter-details-contents">
         <div class="autocompleter-details-contents-inner">
           <div class="details-code" data-bind="text: value"></div>
-          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }"><i class="fa fa-fw fa-star-o popular-color"></i>
+          <div class="details-popularity margin-top-10" data-bind="tooltip: { title: '${ _ko('Popularity') } ' + details.relativePopularity + '%', placement: 'bottom' }">
+            <i class="fa fa-fw fa-star-o popular-color"></i>
             <div class="progress">
               <div class="bar" data-bind="style: { 'width': details.relativePopularity + '%' }"></div>
             </div>
@@ -375,7 +393,7 @@ from desktop.views import _ko
         self.snippet = params.snippet || {};
         self.foreachVisible = ko.observable();
 
-        self.autocompleter = params.autocompleter || new SqlAutocompleter3(params);
+        self.autocompleter = params.autocompleter || new SqlAutocompleter(params);
         self.suggestions = self.autocompleter.suggestions;
 
         self.active = ko.observable(false).extend({ rateLimit: 10 }); // to prevent flickering on empty result
@@ -569,18 +587,22 @@ from desktop.views import _ko
           var newBase = session.doc.createAnchor(pos.row, pos.column - prefix.length);
           self.top(data.position.top + data.lineHeight + 3);
           self.left(data.position.left);
-          var newAutocomp = false;
+
+          var afterAutocomp = function () {
+            newBase.$insertRight = true;
+            self.base = newBase;
+            self.suggestions.filter(prefix);
+            self.active(true);
+            self.selectedIndex(0);
+          };
+
           if (!self.active() || (!self.base || newBase.column !== self.base.column || newBase.row !== self.base.row)) {
-            self.autocompleter.autocomplete();
-            newAutocomp = true;
-          }
-          newBase.$insertRight = true;
-          self.base = newBase;
-          self.suggestions.filter(prefix);
-          self.active(true);
-          self.selectedIndex(0);
-          if (newAutocomp) {
-            self.attach();
+            self.autocompleter.autocomplete().then(function () {
+              afterAutocomp();
+              self.attach();
+            }).catch(afterAutocomp);
+          } else {
+            afterAutocomp();
           }
         });
 
@@ -673,6 +695,9 @@ from desktop.views import _ko
     <!-- ko if: catalogEntry.isPrimaryKey() -->
     <div class="details-attribute" ><i class="fa fa-key fa-fw"></i> ${ _('Primary key') }</div>
     <!-- /ko -->
+    <!-- ko if: catalogEntry.isForeignKey() -->
+    <div class="details-attribute" ><i class="fa fa-key fa-fw"></i> ${ _('Foreign key') }</div>
+    <!-- /ko -->
     <!-- /ko -->
     <!-- ko if: loading -->
     <div class="details-comment" ><!-- ko hueSpinner: { spin: loading, size: 'small', inline: true } --><!-- /ko --></div>
@@ -717,8 +742,8 @@ from desktop.views import _ko
           }, COMMENT_LOAD_DELAY);
         }
 
-        if (self.catalogEntry.navOptPopularity && self.catalogEntry.navOptPopularity.relativePopularity) {
-          self.popularity(self.catalogEntry.navOptPopularity.relativePopularity);
+        if (self.catalogEntry.optimizerPopularity && self.catalogEntry.optimizerPopularity.relativePopularity) {
+          self.popularity(self.catalogEntry.optimizerPopularity.relativePopularity);
         }
       }
 

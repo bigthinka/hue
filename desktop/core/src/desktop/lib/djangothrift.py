@@ -39,12 +39,13 @@
 # been through this dirtying, and that's bad.
 # So, don't use JSON serialization, and use XML serialization instead.
 
+from __future__ import absolute_import
+from past.builtins import basestring
 import json
 
-import thrift_util
+from . import thrift_util
 
 from django.db import models
-from south.modelsinspector import add_introspection_rules
 
 class ThriftField(models.TextField):
   """
@@ -56,7 +57,6 @@ class ThriftField(models.TextField):
   An alternative approach is to store the bytes, but the
   JSON representation is nicer for loading up readable initial data.
   """
-  __metaclass__ = models.SubfieldBase
 
   def __init__(self, thrift_class, *args, **kwargs):
     self.thrift_class = thrift_class
@@ -84,16 +84,3 @@ class ThriftField(models.TextField):
     Used by XML serialization.
     """
     return json.dumps(thrift_util.thrift2json(self._get_val_from_obj(obj)))
-
-
-# See http://south.aeracode.org/docs/customfields.html#extending-introspection
-_rules = [
-  (
-    (ThriftField,),
-    [],
-    {
-      "thrift_class": [ "thrift_class", {} ],
-    }
-  )
-]
-add_introspection_rules(_rules, ["^desktop\.lib\.djangothrift\.ThriftField"])

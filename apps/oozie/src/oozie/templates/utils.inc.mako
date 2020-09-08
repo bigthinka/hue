@@ -25,6 +25,7 @@
 <%!
   import logging
   import posixpath
+  import sys
   import time
 
   from django.template.defaultfilters import date, time as dtime
@@ -33,6 +34,9 @@
   from desktop.lib.view_util import format_duration_in_millis
   from hadoop.fs.hadoopfs import Hdfs
   from liboozie.utils import format_time
+
+  if sys.version_info[0] > 2:
+    unicode = str
 
   LOG = logging.getLogger(__name__)
 %>
@@ -346,70 +350,13 @@
         $(".pathChooser").each(function(){
           var self = $(this);
           % if select_folder:
-              self.after(getFileBrowseButton(self, true));
+              self.after(hueUtils.getFileBrowseButton(self, true));
           % else:
-              self.after(getFileBrowseButton(self));
+              self.after(hueUtils.getFileBrowseButton(self));
           % endif
         });
       % endif
     });
-
-    function getFileBrowseButton(inputElement, selectFolder) {
-      return $("<button>").addClass("btn").addClass("fileChooserBtn").text("..").click(function (e) {
-        e.preventDefault();
-        // check if it's a relative path
-        var pathAddition = "";
-        if ($.trim(inputElement.val()) != "") {
-          var checkPath = "/filebrowser/view=${ workflow.deployment_dir }" + "/" + inputElement.val();
-          $.getJSON(checkPath, function (data) {
-            pathAddition = "${ workflow.deployment_dir }/";
-            callFileChooser();
-          }).error(function () {
-            callFileChooser();
-          });
-        }
-        else {
-          callFileChooser();
-        }
-
-        function callFileChooser() {
-          $("#fileChooserModal").jHueFileChooser({
-            selectFolder:(selectFolder) ? true : false,
-            onFolderChoose:function (filePath) {
-              handleChoice(filePath);
-              if (selectFolder) {
-                $("#chooseFileModal").modal("hide");
-              }
-            },
-            onFileChoose:function (filePath) {
-              handleChoice(filePath);
-              $("#chooseFileModal").modal("hide");
-            },
-            createFolder:false,
-            uploadFile:true,
-            initialPath:$.trim(inputElement.val()) != "" ? pathAddition + inputElement.val() : "${ workflow.deployment_dir }",
-            errorRedirectPath:"",
-            forceRefresh:true
-          });
-          $("#chooseFileModal").modal("show");
-        }
-
-        function handleChoice(filePath) {
-          var _deployDir = $.trim("${ workflow.deployment_dir }");
-          if (_deployDir != "" && filePath.indexOf(_deployDir) > -1) {
-            filePath = filePath.substring(_deployDir.length + 1);
-            if (filePath == "") {
-              filePath = "./";
-            }
-            if (filePath.indexOf("//") == 0){
-              filePath = filePath.substr(1);
-            }
-          }
-          inputElement.val(filePath);
-          inputElement.change();
-        }
-      });
-    }
   </script>
 </%def>
 
@@ -627,10 +574,10 @@ function renderCrons() {
     });
 
     function toggleBulkButtons() {
-      if ($(".hueCheckbox.fa-check:not(.select-all)").length > 0){
+      if ($(".hue-checkbox.fa-check:not(.select-all)").length > 0){
         var _allResume = true;
         var _allSuspended = true;
-        $(".hueCheckbox.fa-check:not(.select-all)").each(function(){
+        $(".hue-checkbox.fa-check:not(.select-all)").each(function(){
           if (['RUNNING', 'PREP', 'WAITING'].indexOf($(this).parents("tr").find(".label").text()) > -1){
             _allResume = false;
           }
@@ -668,7 +615,7 @@ function renderCrons() {
 
     function bulkOperation(what) {
       var _ids = [];
-      $(".hueCheckbox.fa-check:not(.select-all)").each(function(){
+      $(".hue-checkbox.fa-check:not(.select-all)").each(function(){
         _ids.push($(this).parents("tr").find("a[data-row-selector='true']").text());
       });
 
@@ -694,21 +641,21 @@ function renderCrons() {
           else {
             $.jHueNotify.info(_messages[what]);
           }
-          $(".hueCheckbox").removeClass("fa-check");
+          $(".hue-checkbox").removeClass("fa-check");
           toggleBulkButtons();
           $(".btn-toolbar").find(".loader").addClass("hide");
           $(".bulkToolbarBtn").show();
       });
     }
 
-    $(document).on("click", ".hueCheckbox", function(){
+    $(document).on("click", ".hue-checkbox", function(){
       var _check = $(this);
       if (_check.hasClass("select-all")){
         if (_check.hasClass("fa-check")){
-          $(".hueCheckbox").removeClass("fa-check");
+          $(".hue-checkbox").removeClass("fa-check");
         }
         else {
-          $(".hueCheckbox").addClass("fa-check");
+          $(".hue-checkbox").addClass("fa-check");
         }
       }
       else {

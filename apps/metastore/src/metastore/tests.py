@@ -16,22 +16,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 import json
 import logging
-import urllib
+import sys
+import urllib.request, urllib.parse, urllib.error
 
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_true, assert_equal, assert_false
 
 from django.utils.encoding import smart_str
-from django.contrib.auth.models import User, Group
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from desktop.lib.django_test_util import make_logged_in_client, assert_equal_mod_whitespace
 from desktop.lib.test_utils import add_permission, grant_access
 from hadoop.pseudo_hdfs4 import is_live_cluster
 from metastore import parser
-from useradmin.models import HuePermission, GroupPermission
+from useradmin.models import HuePermission, GroupPermission, User, Group
 
 from beeswax.conf import LIST_PARTITIONS_LIMIT
 from beeswax.views import collapse_whitespace
@@ -40,6 +43,10 @@ from beeswax.models import QueryHistory
 from beeswax.server import dbms
 from beeswax.test_base import BeeswaxSampleProvider
 
+if sys.version_info[0] > 2:
+  from unittest.mock import patch, Mock
+else:
+  from mock import patch, Mock
 
 LOG = logging.getLogger(__name__)
 
@@ -61,8 +68,44 @@ def _make_query(client, query, submission_type="Execute",
   return res
 
 
+class TestApi():
+
+  def setUp(self):
+    self.client = make_logged_in_client(username="test", groupname="default", recreate=True, is_superuser=False)
+
+    self.user = User.objects.get(username="test")
+
+
+  def test_show_tables(self):
+    grant_access("test", "default", "metastore")
+    with patch('beeswax.server.dbms.get') as get:
+      get.return_value=Mock(
+        get_databases=Mock(
+          return_value=['sfdc']
+        ),
+        get_database=Mock(
+          return_value={}
+        ),
+        get_tables_meta=Mock(
+          return_value=[{'name': 'customer'}, {'name': 'opportunities'}]
+        ),
+        server_name='hive'
+      )
+
+      response = self.client.post('/metastore/tables/sfdc?format=json')
+
+      get.assert_called()
+
+    assert_equal(response.status_code, 200)
+    data = json.loads(response.content)
+    assert_equal(data['status'], 0)
+    assert_equal(data['table_names'], ['customer', 'opportunities'])
+    assert_equal(data['tables'], [{'name': 'customer'}, {'name': 'opportunities'}])
+
+
 class TestMetastoreWithHadoop(BeeswaxSampleProvider):
   requires_hadoop = True
+  integration = True
 
   def setUp(self):
     user = User.objects.get(username='test')
@@ -73,7 +116,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
   def test_basic_flow(self):
     # Default database should exist
     response = self.client.get("/metastore/databases")
-    assert_true(self.db_name in response.context["databases"])
+    assert_true(self.db_name in response.context[0]["databases"])
 
     # Table should have been created
     response = self.client.get("/metastore/tables/")
@@ -90,7 +133,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     assert_equal(200, response.status_code)
 
     # And have detail
-    response = self.client.get("/metastore/table/%s/test?format=json" % self.db_name)
+    response = self.client.post("/metastore/table/%s/test/?format=json" % self.db_name, {'format': 'json'})
     data = json.loads(response.content)
     assert_true("foo" in [col['name'] for col in data['cols']])
     assert_true("SerDe Library:" in [prop['col_name'] for prop in data['properties']], data)
@@ -100,7 +143,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
 
     # Show table data.
     response = self.client.get("/metastore/table/%s/test/read" % self.db_name, follow=True)
-    response = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': response.context['query'].id}), follow=True)
+    response = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': response.context[0]['query'].id}), follow=True)
     response = wait_for_query_to_finish(self.client, response, max=30.0)
     # Note that it may not return all rows at once. But we expect at least 10.
     results = fetch_query_result_data(self.client, response)
@@ -154,18 +197,18 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     assert_false('test_index' in data['tables'])
 
   def test_describe_view(self):
-    resp = self.client.get('/metastore/table/%s/myview?format=json' % self.db_name)
+    resp = self.client.post('/metastore/table/%s/myview' % self.db_name, data={'format': 'json'})
     assert_equal(200, resp.status_code, resp.content)
     data = json.loads(resp.content)
     assert_true(data['is_view'])
     assert_equal("myview", data['name'])
 
   def test_describe_partitions(self):
-    response = self.client.get("/metastore/table/%s/test_partitions?format=json" % self.db_name)
+    response = self.client.post("/metastore/table/%s/test_partitions" % self.db_name, data={'format': 'json'})
     data = json.loads(response.content)
     assert_equal(2, len(data['partition_keys']), data)
 
-    response = self.client.get("/metastore/table/%s/test_partitions/partitions?format=json" % self.db_name, follow=True)
+    response = self.client.post("/metastore/table/%s/test_partitions/partitions" % self.db_name, data={'format': 'json'}, follow=True)
     data = json.loads(response.content)
     partition_columns = [col for cols in data['partition_values_json'] for col in cols['columns']]
     assert_true("baz_one" in partition_columns)
@@ -182,7 +225,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     finish = LIST_PARTITIONS_LIMIT.set_for_testing("1")
     try:
       response = self.client.get("/metastore/table/%s/test_partitions/partitions" % self.db_name)
-      partition_values_json = json.loads(response.context['partition_values_json'])
+      partition_values_json = json.loads(response.context[0]['partition_values_json'])
       assert_equal(1, len(partition_values_json))
     finally:
       finish()
@@ -190,7 +233,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     finish = LIST_PARTITIONS_LIMIT.set_for_testing("3")
     try:
       response = self.client.get("/metastore/table/%s/test_partitions/partitions" % self.db_name)
-      partition_values_json = json.loads(response.context['partition_values_json'])
+      partition_values_json = json.loads(response.context[0]['partition_values_json'])
       assert_equal(2, len(partition_values_json))
     finally:
       finish()
@@ -201,7 +244,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
 
     partition_spec = "baz='baz_one',boom=12345"
     response = self.client.get("/metastore/table/%s/test_partitions/partitions/%s/read" % (self.db_name, partition_spec), follow=True)
-    response = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': response.context['query'].id}), follow=True)
+    response = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': response.context[0]['query'].id}), follow=True)
     response = wait_for_query_to_finish(self.client, response, max=30.0)
     results = fetch_query_result_data(self.client, response)
     assert_true(len(results['results']) > 0, results)
@@ -213,7 +256,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
       path = '/user/hive/warehouse/%s.db/test_partitions/baz=baz_one/boom=12345' % self.db_name
     else:
       path = '/user/hive/warehouse/test_partitions/baz=baz_one/boom=12345'
-    filebrowser_path = urllib.unquote(reverse("filebrowser.views.view", kwargs={'path': path}))
+    filebrowser_path = urllib.parse.unquote(reverse("filebrowser.views.view", kwargs={'path': path}))
     assert_equal(response.request['PATH_INFO'], filebrowser_path)
 
   def test_drop_partition(self):
@@ -248,7 +291,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     # Drop them
     resp = self.client.get('/metastore/tables/drop/%s' % self.db_name, follow=True)
     assert_true('want to delete' in resp.content, resp.content)
-    resp = self.client.post('/metastore/tables/drop/%s' % self.db_name, {u'table_selection': [u'test_drop_1', u'test_drop_2', u'test_drop_3']})
+    resp = self.client.post('/metastore/tables/drop/%s' % self.db_name, {u'table_selection': [u'test_drop_1', u'test_drop_2', u'test_drop_3'], 'is_embeddable': True})
     assert_equal(resp.status_code, 302)
 
   def test_drop_multi_tables_with_skip_trash(self):
@@ -263,7 +306,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
     # Drop them
     resp = self.client.get('/metastore/tables/drop/%s' % self.db_name, follow=True)
     assert_true('want to delete' in resp.content, resp.content)
-    resp = self.client.post('/metastore/tables/drop/%s' % self.db_name, {u'table_selection': [u'test_drop_multi_tables_with_skip_trash_1', u'test_drop_multi_tables_with_skip_trash_2', u'test_drop_multi_tables_with_skip_trash_3'], u'skip_trash': u'on'})
+    resp = self.client.post('/metastore/tables/drop/%s' % self.db_name, {u'table_selection': [u'test_drop_multi_tables_with_skip_trash_1', u'test_drop_multi_tables_with_skip_trash_2', u'test_drop_multi_tables_with_skip_trash_3'], u'skip_trash': u'on', 'is_embeddable': True})
     assert_equal(resp.status_code, 302)
 
     response = self.client.get("/metastore/tables/%s?format=json" % self.db_name)
@@ -296,7 +339,7 @@ class TestMetastoreWithHadoop(BeeswaxSampleProvider):
       # Drop them
       resp = self.client.get('/metastore/databases/drop', follow=True)
       assert_true('want to delete' in resp.content, resp.content)
-      resp = self.client.post('/metastore/databases/drop', {u'database_selection': [db1, db2, db3]})
+      resp = self.client.post('/metastore/databases/drop', {u'database_selection': [db1, db2, db3], 'is_embeddable': True})
       assert_equal(resp.status_code, 302)
     finally:
       make_query(self.client, 'DROP DATABASE IF EXISTS %(db)s' % {'db': db1}, wait=True)
@@ -465,6 +508,15 @@ class TestParser(object):
     name = 'simple'
     type = 'string'
     comment = 'test_parse_simple'
+    column = {'name': name, 'type': type, 'comment': comment}
+    parse_tree = parser.parse_column(name, type, comment)
+    assert_equal(parse_tree, column)
+
+
+  def test_parse_varchar(self):
+    name = 'varchar'
+    type = 'varchar(1000)'
+    comment = 'test_parse_varchar'
     column = {'name': name, 'type': type, 'comment': comment}
     parse_tree = parser.parse_column(name, type, comment)
     assert_equal(parse_tree, column)

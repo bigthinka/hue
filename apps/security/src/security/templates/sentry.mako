@@ -61,11 +61,11 @@ ${ layout.menubar(section=component, is_embeddable=is_embeddable) }
 
     <!-- ko if: $root.component() == 'hive' -->
       <div class="inline-block" style="vertical-align: middle">
-        <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('DATABASE'); action($root.availableActions()[0]) }">
+        <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('DATABASE'); action($root.availableActions(authorizables())[0]) }">
           <i class="fa fa-fw fa-1halfx muted" data-bind="css: {'fa-circle-o': privilegeType() != 'DATABASE', 'fa-check-circle-o': privilegeType() == 'DATABASE'}"></i>
         </a>
       </div>
-      <input type="text" data-bind="hivechooser: $data.path, enable: privilegeType() == 'DATABASE', apiHelperUser: '${ user }', apiHelperType: 'hive'" placeholder="dbName.tableName <CTRL+SPACE>">
+      <input type="text" data-bind="hiveChooser: $data.path, enable: privilegeType() == 'DATABASE', apiHelperUser: '${ user }', apiHelperType: 'hive'" placeholder="dbName.tableName <CTRL+SPACE>">
 
       <div class="inline-block" style="vertical-align: middle">
         <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('URI'); action('ALL'); }">
@@ -75,12 +75,12 @@ ${ layout.menubar(section=component, is_embeddable=is_embeddable) }
 
       <input type="text" data-bind="filechooser: 'URI TODO', enable: privilegeType() == 'URI'" placeholder="URI">
 
-      <select data-bind="options: $root.availableActions, value: $data.action, enable: (privilegeType() == 'DATABASE')" style="width: 100px; margin-bottom: 0"></select>
+      <select data-bind="options: $root.availableActions(authorizables()), value: $data.action, enable: (privilegeType() == 'DATABASE')" style="width: 100px; margin-bottom: 0"></select>
     <!-- /ko -->
 
     <!-- ko if: $root.component() == 'solr' -->
-      <input type="text" class="input-xxlarge" data-bind="solrchooser: $data.path" placeholder="collection or config name <CTRL+SPACE>">
-      <select data-bind="options: privilegeType() == 'CONFIG' ? $root.availableSolrConfigActions : $root.availableActions, value: $data.action, enable: privilegeType() != 'CONFIG'" style="width: 100px; margin-bottom: 0"></select>
+      <input type="text" class="input-xxlarge" data-bind="solrChooser: $data.path" placeholder="collection or config name <CTRL+SPACE>">
+      <select data-bind="options: privilegeType() == 'CONFIG' ? $root.availableSolrConfigActions : $root.availableActions(authorizables()), value: $data.action, enable: privilegeType() != 'CONFIG'" style="width: 100px; margin-bottom: 0"></select>
     <!-- /ko -->
 
     <div class="new-line-if-small">
@@ -341,7 +341,7 @@ ${ layout.menubar(section=component, is_embeddable=is_embeddable) }
           <table class="card-marginbottom" data-bind="visible: $root.roles().length > 0 && ! $root.isLoadingRoles()">
             <thead>
               <tr>
-                <th width="1%"><div data-bind="click: $root.selectAllRoles, css: { hueCheckbox: true, 'fa': true, 'fa-check': allRolesSelected }"></div></th>
+                <th width="1%"><div data-bind="click: $root.selectAllRoles, css: { 'hue-checkbox': true, 'fa': true, 'fa-check': allRolesSelected }"></div></th>
                 <th width="2%"></th>
                 <th width="20%" style="text-align:left">${ _('Name') }</th>
                 <th width="74%" style="text-align:left">${ _('Groups') }</th>
@@ -351,7 +351,7 @@ ${ layout.menubar(section=component, is_embeddable=is_embeddable) }
             <tbody data-bind="foreach: $root.filteredRoles">
               <tr>
                 <td class="center" data-bind="click: handleSelect" style="cursor: default">
-                  <div data-bind="css: { hueCheckbox: true, 'fa': true, 'fa-check': selected }"></div>
+                  <div data-bind="css: { 'hue-checkbox': true, 'fa': true, 'fa-check': selected }"></div>
                 </td>
                 <td class="center">
                   <a href="javascript:void(0);" title="${ _('Show privileges') }">
@@ -606,7 +606,6 @@ ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assi
 
 
 <script src="${ static('security/js/sentry.ko.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/jquery.filechooser.js') }" type="text/javascript" charset="utf-8"></script>
 
 
 <script type="text/javascript">

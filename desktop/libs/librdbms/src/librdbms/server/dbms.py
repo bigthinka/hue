@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import object
 import logging
 
 from desktop.lib.python_util import force_dict_to_strings
@@ -54,7 +55,7 @@ def get(user, query_server=None):
 
 def get_query_server_config(server=None):
   if not server or server not in DATABASES:
-    keys = DATABASES.keys()
+    keys = list(DATABASES.keys())
     name = keys and keys[0] or None
   else:
     name = server
@@ -114,7 +115,7 @@ class Rdbms(object):
       server_port='%(server_port)d' % self.client.query_server,
       server_name='%(server_name)s' % self.client.query_server,
       server_type=self.server_type,
-      last_state=QueryHistory.STATE.available.index,
+      last_state=QueryHistory.STATE.available.value,
       design=design,
       notify=False,
       query_type=query.query['type'],

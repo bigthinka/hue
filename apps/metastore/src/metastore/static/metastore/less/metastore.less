@@ -19,10 +19,59 @@
 @import (reference) "hue-mixins.less";
 @import (reference) "hue-helpers.less";
 
+@keyframes erd-slide-in {
+  from {
+    margin-left: 100px;
+    opacity: 0;
+  }
+  to {
+    margin-left: 0px;
+    opacity: 1;
+  }
+}
+
+
+.table-erd {
+  .erd-container .entity-group:first-child .entity-container:first-child .table-entity .table-name span {
+    cursor: auto;
+  }
+
+  .table-entity.hide-db {
+    .db-name {
+      display: none;
+    }
+  }
+}
+
+.erd-animated {
+  .erd-container {
+    animation: erd-slide-in 0.25s;
+  }
+}
+
 #metastoreComponents {
   .divider {
     padding-left: 12px;
     color: @cui-gray-400;
+  }
+
+  .entries-table-container {
+    margin: 0 10px;
+    position:relative;
+
+    .entries-table-header {
+      margin-bottom: 15px;
+    }
+
+    .entries-table-no-header {
+      padding-top: 40px;
+    }
+
+    .actionbar-actions {
+      position:absolute;
+      right:0;
+      top: 0;
+    }
   }
 
   .sidebar-nav {
@@ -43,9 +92,9 @@
   }
 
   h2.card-heading {
-    border-bottom: 1px solid @cui-gray-100!important;
-    font-size: 12px!important;
-    font-weight: bold!important;
+    border-bottom: 1px solid @cui-gray-100 !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
   }
 
   .filter-box {
@@ -130,7 +179,7 @@
   }
 
   .editable-breadcrumb-input {
-    padding: 0!important;
+    padding: 0 !important;
   }
 
   .editable-breadcrumb-input input {
@@ -218,13 +267,14 @@
     color: @cui-gray-600;
   }
 
+  .editable-unsaved {
+    font-weight: normal;
+  }
+
   .show-inactive-on-hover {
     .inactive-action {
       opacity: 0;
       vertical-align: top;
-    }
-    .editable-unsaved {
-      font-weight: normal;
     }
     &:hover {
       .inactive-action {
@@ -244,6 +294,15 @@
     top: 2px;
   }
 
+  .editable-inline-empty {
+    cursor: pointer;
+    font-style: italic;
+    display: inline-block;
+    font-size: 13px;
+    color: @cui-gray-700;
+    margin-right: 4px;
+  }
+
   .metastore-description-col .editable-container,
   .hue-table-browser-desc .editable-container,
   .metastore-description-col .editable-input,
@@ -255,10 +314,22 @@
   .hue-table-browser-desc {
     width: 100%;
     margin: 5px 14px 14px 14px;
+
+    .editable:not(.editable-open) {
+      margin-left: 9px;
+
+      &:focus {
+        outline: none;
+      }
+    }
+
+    .editable-inline-empty {
+      font-size: 13px;
+    }
   }
 
-  .hue-tags {
-    margin: 5px 7px 0 7px;
+  .metastore-nav-tags {
+    margin: 5px 0 0 14px;
   }
 
   .metastore-description-col .control-group > div,
@@ -288,6 +359,27 @@
 
     div:last-child {
       display: inline-block;
+    }
+  }
+
+  .metastore-view-more {
+    margin-left: 5px;
+  }
+
+  .metastore-table {
+    margin-bottom: 5px;
+  }
+
+  .metastore-join-column-table {
+    tr {
+      td {
+        border: none !important;
+        padding: 0;
+      }
+
+      td.metastore-join-arrow {
+        padding: 0 15px;
+      }
     }
   }
 }

@@ -23,8 +23,6 @@
   from notebook.conf import ENABLE_QUERY_BUILDER
 %>
 
-<%namespace name="assist" file="/assist.mako" />
-<%namespace name="charting" file="/charting.mako" />
 <%namespace name="comps" file="beeswax_components.mako" />
 <%namespace name="layout" file="layout.mako" />
 
@@ -53,8 +51,6 @@ ${ layout.menubar(section='query') }
                 user: HIVE_AUTOCOMPLETE_USER,
                 onlySql: true,
                 sql: {
-                  sourceTypes: editorViewModel.sqlSourceTypes,
-                  activeSourceType: snippetType,
                   navigationSettings: {
                     openItem: false,
                     showPreview: true,
@@ -793,23 +789,12 @@ ${ commonshare() | n,unicode }
   var SqlAutocompleter2 = {};
 </script>
 
-<script src="${ static('desktop/js/hue.json.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.custom.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/js/hue.routie.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/sqlAutocompleter2.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/hdfsAutocompleter.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('desktop/js/sqlFunctions.js') }" type="text/javascript" charset="utf-8"></script>
-
-${ assist.assistJSModels() }
-
-<script src="${ static('desktop/js/autocompleter.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('beeswax/js/beeswax.vm.js') }"></script>
 <script src="${ static('desktop/js/share.vm.js') }"></script>
 %if ENABLE_QUERY_BUILDER.get():
 <!-- For query builder -->
 <link rel="stylesheet" href="${ static('desktop/ext/css/jquery.contextMenu.min.css') }">
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery.contextMenu.min.js') }"></script>
-<script src="${ static('desktop/ext/js/jquery/plugins/jquery.ui.position.min.js') }"></script>
 <script src="${ static('desktop/js/queryBuilder.js') }"></script>
 <script>
   // query-builder-menu is the class to use
@@ -856,14 +841,8 @@ ${ assist.assistJSModels() }
 <script src="${ static('desktop/js/codemirror-show-hint.js') }"></script>
 
 <link href="${ static('desktop/ext/css/bootstrap-editable.css') }" rel="stylesheet">
-<script src="${ static('desktop/ext/js/bootstrap-editable.min.js') }"></script>
 
 <script src="${ static('beeswax/js/stats.utils.js') }"></script>
-
-<link rel="stylesheet" href="${ static('desktop/ext/select2/select2.css') }">
-<script src="${ static('desktop/ext/select2/select2.min.js') }" type="text/javascript" charset="utf-8"></script>
-
-${ assist.assistPanel() }
 
 <style type="text/css">
   h1 {
@@ -1132,15 +1111,8 @@ ${ assist.assistPanel() }
 </style>
 
 <link rel="stylesheet" href="${ static('desktop/ext/css/hue-filetypes.css') }">
-<link rel="stylesheet" href="${ static('desktop/ext/css/hue-charts.css') }">
 
 <script src="${ static('desktop/ext/js/jquery/plugins/jquery-fieldselection.js') }" type="text/javascript"></script>
-
-<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
-<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
-
-${ charting.import_charts() }
-
 
 <script type="text/javascript">
 
@@ -1175,7 +1147,7 @@ editorViewModelOptions.languages.push({
   name: HIVE_AUTOCOMPLETE_APP == "impala" ? "Impala" : "Hive"
 });
 
-var apiHelper = ApiHelper.getInstance();
+var apiHelper = window.apiHelper;
 
 var editorViewModel = {
   sqlSourceTypes: [{
@@ -1187,26 +1159,18 @@ var editorViewModel = {
 var snippet = {
   type: ko.observable(snippetType),
   isSqlDialect: ko.observable(true),
-  getApiHelper: function() {
-    return apiHelper;
-  },
   database: ko.observable()
 };
 
-var autocompleter = new Autocompleter({
+var autocompleter = new AceAutocompleteWrapper({
   snippet: snippet,
   user: HIVE_AUTOCOMPLETE_USER,
   oldEditor: true,
   optEnabled: false,
-  timeout: AUTOCOMPLETE_TIMEOUT,
-  useNewAutocompleter: false
+  timeout: AUTOCOMPLETE_TIMEOUT
 });
 
 var totalStorageUserPrefix = apiHelper.getTotalStorageUserPrefix(snippetType);
-
-var escapeOutput = function (str) {
-  return $('<span>').text(str).html().trim();
-};
 
 var truncateOutput = function (obj) {
   //default to 20 characters (column output displays first 21 chars so we need to consider the length of both column name and type
@@ -1221,7 +1185,7 @@ var truncateOutput = function (obj) {
     type = type.slice(0, Math.abs(type.length - trim));
     suffix = '&hellip;';
   }
-  return escapeOutput(type) + suffix;
+  return hueUtils.escapeOutput(type) + suffix;
 };
 
 var reinitTimeout = -1;
@@ -1798,7 +1762,7 @@ var editables = function() {
     emptytext: "${ _('Empty description') }"
   });
 
-  $(".fileChooser:not(:has(~ button))").after(getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
+  $(".fileChooser:not(:has(~ button))").after(hueUtils.getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
 };
 
 $(document).one('fetched.design', editables);
@@ -1806,11 +1770,11 @@ $(document).one('fetched.design', editables);
 $(document).one('fetched.query', editables);
 
 function isNumericColumn(type) {
-  return $.inArray(type, ['TINYINT_TYPE', 'SMALLINT_TYPE', 'INT_TYPE', 'BIGINT_TYPE', 'FLOAT_TYPE', 'DOUBLE_TYPE', 'DECIMAL_TYPE', 'TIMESTAMP_TYPE', 'DATE_TYPE']) > -1;
+  return $.inArray(type, ['TINYINT_TYPE', 'SMALLINT_TYPE', 'INT_TYPE', 'BIGINT_TYPE', 'FLOAT_TYPE', 'DOUBLE_TYPE', 'DECIMAL_TYPE', 'TIMESTAMP_TYPE', 'DATE_TYPE', 'DATETIME_TYPE']) > -1;
 }
 
 function isDateTimeColumn(type) {
-  return $.inArray(type, ['TIMESTAMP_TYPE', 'DATE_TYPE']) > -1;
+  return $.inArray(type, ['TIMESTAMP_TYPE', 'DATE_TYPE', 'DATETIME_TYPE']) > -1;
 }
 
 function isStringColumn(type) {
@@ -1833,7 +1797,7 @@ function generateGraph(graphType) {
   $("#chart .alert").addClass("hide");
   if (graphType != "") {
     $("#blueprint").attr("class", "").attr("style", "").empty();
-    if (graphType == ko.HUE_CHARTS.TYPES.MAP) {
+    if (graphType == window.HUE_CHARTS.TYPES.MAP) {
       if ($("#blueprintLat").val() != "-1" && $("#blueprintLng").val() != "-1") {
         var _latCol = $("#blueprintLat").val() * 1;
         var _lngCol = $("#blueprintLng").val() * 1;
@@ -1902,16 +1866,16 @@ function generateGraph(graphType) {
 function getGraphType() {
   var _type = "";
   if ($("#blueprintBars").hasClass("active")) {
-    _type = ko.HUE_CHARTS.TYPES.BARCHART;
+    _type = window.HUE_CHARTS.TYPES.BARCHART;
   }
   if ($("#blueprintLines").hasClass("active")) {
-    _type = ko.HUE_CHARTS.TYPES.LINECHART;
+    _type = window.HUE_CHARTS.TYPES.LINECHART;
   }
   if ($("#blueprintMap").hasClass("active")) {
-    _type = ko.HUE_CHARTS.TYPES.MAP;
+    _type = window.HUE_CHARTS.TYPES.MAP;
   }
   if ($("#blueprintPie").hasClass("active")) {
-    _type = ko.HUE_CHARTS.TYPES.PIECHART;
+    _type = window.HUE_CHARTS.TYPES.PIECHART;
   }
   viewModel.chartType(_type);
   return _type;
@@ -1983,26 +1947,26 @@ $(document).ready(function () {
   $("#blueprintBars").on("click", function () {
     $("#blueprintAxis").removeClass("hide");
     $("#blueprintLatLng").addClass("hide");
-    viewModel.chartType(ko.HUE_CHARTS.TYPES.BARCHART);
-    generateGraph(ko.HUE_CHARTS.TYPES.BARCHART)
+    viewModel.chartType(window.HUE_CHARTS.TYPES.BARCHART);
+    generateGraph(window.HUE_CHARTS.TYPES.BARCHART)
   });
   $("#blueprintLines").on("click", function () {
     $("#blueprintAxis").removeClass("hide");
     $("#blueprintLatLng").addClass("hide");
-    viewModel.chartType(ko.HUE_CHARTS.TYPES.LINECHART);
-    generateGraph(ko.HUE_CHARTS.TYPES.LINECHART)
+    viewModel.chartType(window.HUE_CHARTS.TYPES.LINECHART);
+    generateGraph(window.HUE_CHARTS.TYPES.LINECHART)
   });
   $("#blueprintPie").on("click", function () {
     $("#blueprintAxis").removeClass("hide");
     $("#blueprintLatLng").addClass("hide");
-    viewModel.chartType(ko.HUE_CHARTS.TYPES.PIECHART);
-    generateGraph(ko.HUE_CHARTS.TYPES.PIECHART)
+    viewModel.chartType(window.HUE_CHARTS.TYPES.PIECHART);
+    generateGraph(window.HUE_CHARTS.TYPES.PIECHART)
   });
   $("#blueprintMap").on("click", function () {
     $("#blueprintAxis").addClass("hide");
     $("#blueprintLatLng").removeClass("hide");
-    viewModel.chartType(ko.HUE_CHARTS.TYPES.MAP);
-    generateGraph(ko.HUE_CHARTS.TYPES.MAP)
+    viewModel.chartType(window.HUE_CHARTS.TYPES.MAP);
+    generateGraph(window.HUE_CHARTS.TYPES.MAP)
   });
 
   $("#blueprintNoSort").on("click", function () {
@@ -2425,7 +2389,7 @@ $(document).on('server.unmanageable_error', function (e, responseText) {
 $(document).on('saved.design', function (e, id) {
   $('#saveAs').modal('hide');
   $(document).trigger('info', "${_('Query saved.')}");
-  window.location.href = "/${ app_name }/execute/design/" + id;
+  huePubSub.publish('open.link', "/${ app_name }/execute/design/" + id);
 });
 $(document).on('error_save.design', function (e, message) {
   var _message = "${_('Could not save design')}";
@@ -2480,7 +2444,7 @@ function updateSidebarTooltips(selector) {
     $(this).tooltip({
       placement: "right",
       title: $(this).val()
-    }).attr('data-original-title', escapeOutput($(this).val())).tooltip('fixTitle');
+    }).attr('data-original-title', hueUtils.escapeOutput($(this).val())).tooltip('fixTitle');
   });
 }
 
@@ -2840,9 +2804,9 @@ function setupCodeMirrorSubscription() {
 viewModel = new BeeswaxViewModel("${app_name}", apiHelper);
 ko.applyBindings(viewModel, $("#beeswax-execute")[0]);
 
-var handleAssistSelection = function (databaseDef) {
-  if (databaseDef.source === snippetType && snippet.database() !== databaseDef.name) {
-    snippet.database(databaseDef.name);
+var handleAssistSelection = function (entry) {
+  if (entry.getConnector().id === snippetType && snippet.database() !== entry.name) {
+    snippet.database(entry.name);
   }
 };
 
@@ -2850,7 +2814,7 @@ huePubSub.subscribe("assist.database.set", handleAssistSelection);
 huePubSub.subscribe("assist.database.selected", handleAssistSelection);
 
 if (! snippet.database()) {
-  huePubSub.publish("assist.get.database", snippetType);
+  huePubSub.publish("assist.get.database", { connector: { id: snippetType }, callback: handleAssistSelection });
 }
 
 shareViewModel = initSharing("#documentShareModal");
@@ -2875,7 +2839,7 @@ $('.left-panel').on('mousewheel', function(e){
 % endif
 viewModel.design.fileResources.values.subscribe(function() {
   // File chooser button for file resources.
-  $(".fileChooser:not(:has(~ button))").after(getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
+  $(".fileChooser:not(:has(~ button))").after(hueUtils.getFileBrowseButton($(".fileChooser:not(:has(~ button))")));
 });
 
 % if action == 'watch-results':
@@ -2894,12 +2858,12 @@ viewModel.design.fileResources.values.subscribe(function() {
     var successUrl = "${request.GET['on_success_url']}";
     if (viewModel.design.watch.errors().length != 0) {
       window.setTimeout(function(){
-        window.location.href = successUrl + (successUrl.indexOf("?") > -1 ? "&" : "?") + "error=" + encodeURIComponent(viewModel.design.watch.errors().join("\n"));
+        huePubSub.publish('open.link', successUrl + (successUrl.indexOf("?") > -1 ? "&" : "?") + "error=" + encodeURIComponent(viewModel.design.watch.errors().join("\n")));
       }, 200);
     }
     else if (viewModel.design.results.errors().length == 0) {
       window.setTimeout(function(){
-        window.location.href = successUrl + (successUrl.indexOf("?") > -1 ? "&" : "?") + "refresh=true";
+        huePubSub.publish('open.link', successUrl + (successUrl.indexOf("?") > -1 ? "&" : "?") + "refresh=true");
       }, 1000);
     }
   });

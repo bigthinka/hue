@@ -15,12 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import str
 import json
 import logging
 import shutil
 import time
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.db.models import Q
 from django.forms.formsets import formset_factory
 from django.forms.models import inlineformset_factory
@@ -57,6 +58,7 @@ from oozie.forms import WorkflowForm, CoordinatorForm, DatasetForm,\
                         BundleForm, BundledCoordinatorForm, design_form_by_type,\
                         ImportWorkflowForm, ImportCoordinatorForm
 
+from desktop.auth.backend import is_admin
 
 LOG = logging.getLogger(__name__)
 
@@ -177,7 +179,7 @@ def import_workflow(request):
         _import_workflow(fs=request.fs, workflow=workflow, workflow_definition=workflow_definition)
         request.info(_('Workflow imported'))
         return redirect(reverse('oozie:edit_workflow', kwargs={'workflow': workflow.id}))
-      except Exception, e:
+      except Exception as e:
         request.error(_('Could not import workflow: %s' % e))
         Workflow.objects.destroy(workflow, request.fs)
         raise PopupException(_('Could not import workflow.'), detail=e)
@@ -208,7 +210,7 @@ def import_coordinator(request):
         coordinator.managed = True
         coordinator.name = coordinator_form.cleaned_data.get('name')
         coordinator.save()
-      except Exception, e:
+      except Exception as e:
         request.error(_('Could not import coordinator: %s' % e))
         raise PopupException(_('Could not import coordinator.'), detail=e)
 
@@ -280,8 +282,8 @@ def edit_workflow(request, workflow):
     'default_link_form': DefaultLinkForm(action=workflow.start),
     'node_form': NodeForm(),
     'action_forms': [(node_type, design_form_by_type(node_type, request.user, workflow)())
-                     for node_type in ACTION_TYPES.iterkeys()],
-    'credentials': json.dumps(credentials.credentials.keys())
+                     for node_type in ACTION_TYPES.keys()],
+    'credentials': json.dumps(list(credentials.credentials.keys()))
   })
 
 
@@ -363,6 +365,8 @@ def submit_workflow(request, workflow):
                    'params_form': params_form,
                    'action': reverse('oozie:submit_workflow', kwargs={'workflow': workflow.id})
                  }, force_template=True).content
+  if not isinstance(popup, str):
+    popup = popup.decode('utf-8')
   return JsonResponse(popup, safe=False)
 
 
@@ -372,7 +376,7 @@ def _submit_workflow(user, fs, jt, workflow, mapping):
     job_id = submission.run()
     History.objects.create_from_submission(submission)
     return job_id
-  except RestException, ex:
+  except RestException as ex:
     detail = ex._headers.get('oozie-error-message', ex)
     if 'Max retries exceeded with url' in str(detail):
       detail = '%s: %s' % (_('The Oozie server is not running'), detail)
@@ -385,7 +389,7 @@ def _submit_workflow(user, fs, jt, workflow, mapping):
 @check_job_access_permission()
 def schedule_workflow(request, workflow):
   data = Document.objects.available(Coordinator, request.user)
-  data = [coordinator for coordinator in data if coordinator.workflow == workflow]
+  data = [coordinator for coordinator in data if coordinator.coordinatorworkflow == workflow]
   if data:
     request.info(_('You already have some coordinators for this workflow. Submit one or create a new one.'))
     return list_coordinators(request, workflow_id=workflow.id)
@@ -396,7 +400,7 @@ def schedule_workflow(request, workflow):
 @check_job_access_permission()
 def create_coordinator(request, workflow=None):
   if workflow is not None:
-    coordinator = Coordinator(owner=request.user, schema_version="uri:oozie:coordinator:0.2", workflow=workflow)
+    coordinator = Coordinator(owner=request.user, schema_version="uri:oozie:coordinator:0.2", coordinatorworkflow=workflow)
   else:
     coordinator = Coordinator(owner=request.user, schema_version="uri:oozie:coordinator:0.2")
 
@@ -661,6 +665,8 @@ def submit_coordinator(request, coordinator):
                  'params_form': params_form,
                  'action': reverse('oozie:submit_coordinator',  kwargs={'coordinator': coordinator.id})
                 }, force_template=True).content
+  if not isinstance(popup, str):
+    popup = popup.decode('utf-8')
   return JsonResponse(popup, safe=False)
 
 
@@ -677,7 +683,7 @@ def _submit_coordinator(request, coordinator, mapping):
     History.objects.create_from_submission(submission)
 
     return job_id
-  except RestException, ex:
+  except RestException as ex:
     raise PopupException(_("Error submitting coordinator %s") % (coordinator,),
                          detail=ex._headers.get('oozie-error-message', ex))
 
@@ -870,6 +876,8 @@ def submit_bundle(request, bundle):
                  'params_form': params_form,
                  'action': reverse('oozie:submit_bundle',  kwargs={'bundle': bundle.id})
                 }, force_template=True).content
+  if not isinstance(popup, str):
+    popup = popup.decode('utf-8')
   return JsonResponse(popup, safe=False)
 
 
@@ -878,8 +886,8 @@ def _submit_bundle(request, bundle, properties):
     deployment_dirs = {}
 
     for bundled in bundle.coordinators.all():
-      wf_dir = Submission(request.user, bundled.coordinator.workflow, request.fs, request.jt, properties).deploy()
-      deployment_dirs['wf_%s_dir' % bundled.coordinator.workflow.id] = request.fs.get_hdfs_path(wf_dir)
+      wf_dir = Submission(request.user, bundled.coordinator.coordinatorworkflow, request.fs, request.jt, properties).deploy()
+      deployment_dirs['wf_%s_dir' % bundled.coordinator.coordinatorworkflow.id] = request.fs.get_hdfs_path(wf_dir)
       coord_dir = Submission(request.user, bundled.coordinator, request.fs, request.jt, properties).deploy()
       deployment_dirs['coord_%s_dir' % bundled.coordinator.id] = coord_dir
 
@@ -890,7 +898,7 @@ def _submit_bundle(request, bundle, properties):
     History.objects.create_from_submission(submission)
 
     return job_id
-  except RestException, ex:
+  except RestException as ex:
     raise PopupException(_("Error submitting bundle %s") % (bundle,),
                          detail=ex._headers.get('oozie-error-message', ex))
 
@@ -902,7 +910,7 @@ def list_history(request):
   """
   history = History.objects
 
-  if not request.user.is_superuser:
+  if not is_admin(request.user):
     history = history.filter(submitter=request.user)
   history = history.order_by('-submission_date')
 
@@ -918,7 +926,7 @@ def list_history_record(request, record_id):
   """
   history = History.objects
 
-  if not request.user.is_superuser:
+  if not is_admin(request.user):
     history.filter(submitter=request.user)
   history = history.get(id=record_id)
 
@@ -934,10 +942,10 @@ def install_examples(request):
     result['message'] = _('A POST request is required.')
   else:
     try:
-      oozie_setup.Command().handle_noargs()
+      oozie_setup.Command().handle()
       activate_translation(request.LANGUAGE_CODE)
       result['status'] = 0
-    except Exception, e:
+    except Exception as e:
       LOG.exception(e)
       result['message'] = str(e)
 

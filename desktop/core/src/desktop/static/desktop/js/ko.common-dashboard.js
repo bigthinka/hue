@@ -14,21 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function s4() {
-  return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-}
-
-function UUID() {
-  return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
-}
-
 var Column = function (size, rows, vm) {
   var self = this;
 
   self.rowPrototype = Row;
-  self.id = ko.observable(UUID());
+  self.id = ko.observable(hueUtils.UUID());
   self.size = ko.observable(size);
   self.rows = ko.observableArray(rows);
 
@@ -128,7 +118,7 @@ var Row = function (widgets, vm, columns) {
   var self = this;
 
   self.columnPrototype = Column;
-  self.id = ko.observable(UUID());
+  self.id = ko.observable(hueUtils.UUID());
   self.widgets = ko.observableArray(widgets);
   self.columns = ko.observableArray(columns ? columns : []);
   self.columns.subscribe(function (val) {
@@ -236,7 +226,8 @@ var Widget = function (params) {
   self.widgetType = ko.observable(typeof params.widgetType != "undefined" && params.widgetType != null ? params.widgetType : "empty-widget");
   self.properties = ko.observable(typeof params.properties != "undefined" && params.properties != null ? params.properties : {});
   self.offset = ko.observable(typeof params.offset != "undefined" && params.offset != null ? params.offset : 0).extend({ numeric: 0 });
-  self.isLoading = ko.observable(typeof params.isLoading != "undefined" && params.isLoading != null ? params.isLoading : false);
+  self.isLoading = ko.observable(!!params.isLoading);
+  self.isEditing = ko.observable(!!params.isEditing);
 
   self.klass = ko.computed(function () {
     return "card card-widget span" + self.size() + (self.offset() * 1 > 0 ? " offset" + self.offset() : "");
@@ -271,7 +262,7 @@ var Widget = function (params) {
 Widget.prototype.clone = function () {
   return new Widget({
     size: this.size(),
-    id: UUID(),
+    id: hueUtils.UUID(),
     name: this.name(),
     widgetType: this.widgetType()
   });

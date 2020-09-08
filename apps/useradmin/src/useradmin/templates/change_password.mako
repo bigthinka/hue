@@ -16,7 +16,7 @@
 <%!
 from desktop.views import commonheader, commonfooter
 from django.utils.translation import ugettext as _
-from useradmin.password_policy import is_password_policy_enabled, get_password_hint
+from useradmin.hue_password_policy import is_password_policy_enabled, get_password_hint
 %>
 
 <%namespace name="layout" file="layout.mako" />
@@ -97,7 +97,7 @@ $(document).ready(function(){
     }
 
     $("a.step").parent().removeClass("active");
-    $("a.step[href=#" + step + "]").parent().addClass("active");
+    $("a.step[href='#" + step + "']").parent().addClass("active");
     $(".stepDetails").hide();
     $("#" + step).show();
   }

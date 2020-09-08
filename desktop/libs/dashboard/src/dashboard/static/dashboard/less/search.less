@@ -27,6 +27,7 @@
   .search-bar, .card-toolbar {
     position: static !important;
     width: auto !important;
+    z-index: auto !important;
   }
   .card-toolbar-fixed {
     position: fixed !important;
@@ -80,7 +81,7 @@
     width: 100%;
     position: fixed;
     top: 28px;
-    z-index: 1010;
+    z-index: 999;
   }
 
   .search-bar .app-header {
@@ -100,6 +101,7 @@
     .display-flex();
     width: 100%;
     height: 100%;
+    position: relative;
 
     .search-bar-logo {
       .flex(1 0 160px);
@@ -109,6 +111,7 @@
       .flex(1 1 100%);
       padding: 0;
       white-space: nowrap;
+      position: relative;
 
       .search-bar-query-container {
         .display-flex();
@@ -116,23 +119,44 @@
         height: 100%;
 
         .search-bar-collection {
-          .flex(1 1 120px);
+          .flex(1 0 200px);
           white-space: nowrap;
+          min-width: 200px;
+          position: relative;
 
           > div {
             border-radius: 4px 0 0 4px;
             border-right: none;
           }
+
+          .selectize-control {
+            width: 100% !important;
+          }
+
+          &.report-mode {
+            .flex(none);
+            > div {
+              border-right: 1px solid @cui-gray-400;
+              border-radius: 4px;
+            }
+          }
         }
 
         .search-bar-query-operations {
-          .flex(1);
+          .flex(0 0 200px);
           white-space: nowrap;
-          padding-right: 85px;
+          padding-right: 45px;
         }
 
         .search-bar-query {
           .flex(1 1 100%);
+          position: relative;
+          white-space: nowrap;
+
+          > div {
+            width: 100%;
+            position: relative;
+          }
 
           .simple-ace-single-line {
             height: 30px;
@@ -152,7 +176,7 @@
     }
 
     .search-bar-operations {
-      .flex(none);
+      .flex(0 0 165px);
     }
   }
 
@@ -277,7 +301,7 @@
   .fields-chooser li {
     cursor: pointer;
     margin-bottom: 10px;
-    padding: 0px;
+    padding: 0;
   }
 
   .fields-chooser li .badge {
@@ -286,12 +310,12 @@
   }
 
   .badge-left {
-    border-radius: 9px 0px 0px 9px;
+    border-radius: 9px 0 0 9px;
     padding-right: 5px;
   }
 
   .badge-right {
-    border-radius: 0px 9px 9px 0px;
+    border-radius: 0 9px 9px 0;
     padding-left: 5px;
   }
 
@@ -305,6 +329,12 @@
     &:hover {
       border-bottom-color: @cui-blue-700 !important;
     }
+  }
+
+  .colorpanel {
+    background-color: @cui-white;
+    padding: 4px;
+    border-radius: 0;
   }
 
   .CodeMirror {
@@ -344,8 +374,7 @@
 
   .editor-title {
     font-weight: bold;
-    color: @cui-gray-900;
-    border-bottom: 1px solid @hue-primary-color-dark;
+    color: @hue-primary-color-dark;
   }
 
   .document-details-actions {
@@ -793,7 +822,6 @@
   }
 
   .card-widget .selectize-control {
-    width: 200px;
     display: inline-block;
     vertical-align: middle;
   }
@@ -834,6 +862,13 @@
   .selectize-control {
     height: 37px;
     max-height: 37px;
+  }
+
+  .query-chooser {
+    float: right;
+    .selectize-control {
+      min-width: 300px;
+    }
   }
 
   @media screen and (max-width: 1000px) {

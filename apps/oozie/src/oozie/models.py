@@ -15,11 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import range
+from past.builtins import basestring
+from builtins import object
 import json
 import copy
 import logging
 import re
-import StringIO
+import sys
 import time
 import zipfile
 
@@ -29,33 +34,40 @@ from itertools import chain
 
 from django.db import models, transaction
 from django.db.models import Q
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.core.validators import RegexValidator
-from django.contrib.auth.models import User
-from django.contrib.contenttypes import generic
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.forms.models import inlineformset_factory
-from django.utils.encoding import force_unicode, smart_str
+from django.utils.encoding import smart_str
 from django.utils.translation import ugettext as _, ugettext_lazy as _t
+import django.utils.timezone as dtz
 
+from desktop.auth.backend import is_admin
 from desktop.log.access import access_warn
 from desktop.lib import django_mako
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.json_utils import JSONEncoderForHTML
 from desktop.models import Document
 from hadoop.fs.exceptions import WebHdfsException
-
 from hadoop.fs.hadoopfs import Hdfs
 from liboozie.submittion import Submission
 from liboozie.submittion import create_directories
+from useradmin.models import User
 
 from oozie.conf import REMOTE_SAMPLE_DIR
 from oozie.utils import utc_datetime_format
 from oozie.timezones import TIMEZONES
 
+if sys.version_info[0] > 2:
+  from io import BytesIO as string_io
+  from django.utils.encoding import force_text as force_unicode
+else:
+  from cStringIO import StringIO as string_io
+  from django.utils.encoding import force_unicode
+
 
 LOG = logging.getLogger(__name__)
-
 
 PATH_MAX = 512
 name_validator = RegexValidator(regex='^[a-zA-Z_][\-_a-zA-Z0-9]{1,39}$',
@@ -125,7 +137,7 @@ class Job(models.Model):
                                 help_text=_t('Parameters used at the submission time (e.g. market=US, oozie.use.system.libpath=true).'))
   is_trashed = models.BooleanField(default=False, db_index=True, verbose_name=_t('Is trashed'), blank=True, # Deprecated
                                    help_text=_t('If this job is trashed.'))
-  doc = generic.GenericRelation(Document, related_name='oozie_doc')
+  doc = GenericRelation(Document, related_query_name='oozie_doc')
   data = models.TextField(blank=True, default=json.dumps({}))  # e.g. data=json.dumps({'sla': [python data], ...})
 
   objects = JobManager()
@@ -212,17 +224,17 @@ class Job(models.Model):
     for param in self.get_parameters():
       params[param['name'].strip()] = param['value']
 
-    return  [{'name': name, 'value': value} for name, value in params.iteritems()]
+    return  [{'name': name, 'value': value} for name, value in params.items()]
 
   def can_read(self, user):
     try:
       return self.doc.get().can_read(user)
-    except Exception, e:
+    except Exception as e:
       LOG.error('can_read failed because the object has more than one document: %s' % self.doc.all())
       raise e
 
   def is_editable(self, user):
-    return user.is_superuser or self.owner == user or self.doc.get().can_write(user)
+    return is_admin(user) or self.owner == user or self.doc.get().can_write(user)
 
   @property
   def data_dict(self):
@@ -263,6 +275,7 @@ class WorkflowManager(models.Manager):
 
   def new_workflow(self, owner):
     workflow = Workflow(owner=owner, schema_version=WorkflowManager.SCHEMA_VERSION['0.4'])
+    workflow.save()
 
     kill = Kill(name='kill', workflow=workflow, node_type=Kill.node_type)
     end = End(name='end', workflow=workflow, node_type=End.node_type)
@@ -272,14 +285,16 @@ class WorkflowManager(models.Manager):
     related = Link(parent=start, child=end, name='related')
 
     workflow.start = start
+    workflow.start.save()
     workflow.end = end
+    workflow.end.save()
 
     return workflow
 
   def initialize(self, workflow, fs=None):
     Kill.objects.create(name='kill', workflow=workflow, node_type=Kill.node_type)
-    end = End.objects.create(name='end', workflow=workflow, node_type=End.node_type)
-    start = Start.objects.create(name='start', workflow=workflow, node_type=Start.node_type)
+    end = End.objects.get(workflow=workflow)
+    start = Start.objects.get(workflow=workflow)
 
     link = Link(parent=start, child=end, name='to')
     link.save()
@@ -300,9 +315,9 @@ class WorkflowManager(models.Manager):
     create_directories(fs)
 
     if workflow.is_shared:
-      perms = 0755
+      perms = 0o755
     else:
-      perms = 0711
+      perms = 0o711
 
     Submission(workflow.owner, workflow, fs, None, {})._create_dir(workflow.deployment_dir, perms=perms)
 
@@ -372,6 +387,7 @@ class Workflow(Job):
         name=copy.name,
         description=copy.description)
 
+    copy_doc.save()
     copy.doc.all().delete()
     copy.doc.add(copy_doc)
 
@@ -399,11 +415,11 @@ class Workflow(Job):
 
     try:
       if copy.is_shared:
-        perms = 0755
+        perms = 0o755
       else:
-        perms = 0711
+        perms = 0o711
       fs.copy_remote_dir(source_deployment_dir, copy.deployment_dir, owner=copy.owner, dir_mode=perms)
-    except WebHdfsException, e:
+    except WebHdfsException as e:
       msg = _('The copy of the deployment directory failed: %s.') % e
       LOG.error(msg)
       raise PopupException(msg)
@@ -452,7 +468,7 @@ class Workflow(Job):
 
   @property
   def actions(self):
-    return Action.objects.filter(workflow=self, node_type__in=Action.types)
+    return Node.objects.filter(workflow=self, node_type__in=Action.types)
 
   @property
   def node_list(self):
@@ -554,7 +570,7 @@ class Workflow(Job):
         node_list = workflow.node_list
         workflow.delete(skip_trash=True)
         return graph, node_list
-    except Exception, e:
+    except Exception as e:
       LOG.warn('Workflow %s could not be converted to a graph: %s' % (oozie_workflow.id, e))
 
     return None, []
@@ -566,7 +582,7 @@ class Workflow(Job):
     xml = re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {'workflow': self, 'mapping': mapping}))
     return force_unicode(xml)
 
-  def compress(self, mapping=None, fp=StringIO.StringIO()):
+  def compress(self, mapping=None, fp=string_io()):
     metadata = {
       'version': Workflow.METADATA_FORMAT_VERSION,
       'nodes': {},
@@ -587,7 +603,7 @@ class Workflow(Job):
 
     zfile = zipfile.ZipFile(fp, 'w')
     zfile.writestr("workflow.xml", smart_str(xml))
-    zfile.writestr("workflow-metadata.json", smart_str(json.dumps(metadata)))
+    zfile.writestr("workflow-metadata.json", smart_str(json.dumps(metadata, sort_keys=True)))
     zfile.close()
 
     return fp
@@ -619,6 +635,9 @@ class Link(models.Model):
 
   name = models.CharField(max_length=40)
   comment = models.CharField(max_length=1024, default='', blank=True)
+
+  def __str__(self):
+    return self.__unicode__()
 
   def __unicode__(self):
     return '%s %s %s' % (self.parent, self.child, self.name)
@@ -695,6 +714,9 @@ class Node(models.Model):
 
   def find_parameters(self):
     return find_parameters(self, self.PARAM_FIELDS)
+
+  def __str__(self):
+    return self.__unicode__()
 
   def __unicode__(self):
     if self.name != '':
@@ -820,7 +842,7 @@ class Node(models.Model):
 class Action(Node):
   types = ()
 
-  class Meta:
+  class Meta(object):
     # Cloning does not work anymore if not abstract
     abstract = True
 
@@ -1235,7 +1257,7 @@ class ControlFlow(Node):
   """
   http://incubator.apache.org/oozie/docs/3.2.0-incubating/docs/WorkflowFunctionalSpec.html#a3.1_Control_Flow_Nodes
   """
-  class Meta:
+  class Meta(object):
     abstract = True
 
   def get_xml(self):
@@ -1379,7 +1401,7 @@ FREQUENCY_UNITS = (('minutes', _('Minutes')),
                    ('hours', _('Hours')),
                    ('days', _('Days')),
                    ('months', _('Months')))
-FREQUENCY_NUMBERS = [(i, i) for i in xrange(1, 61)]
+FREQUENCY_NUMBERS = [(i, i) for i in range(1, 61)]
 DATASET_FREQUENCY = ['MINUTE', 'HOUR', 'DAY', 'MONTH', 'YEAR']
 
 
@@ -1391,11 +1413,11 @@ class Coordinator(Job):
                                     help_text=_t('The unit of the rate at which data is periodically created.')) # unused
   timezone = models.CharField(max_length=24, choices=TIMEZONES, default='America/Los_Angeles', verbose_name=_t('Timezone'),
                               help_text=_t('The timezone of the coordinator. Only used for managing the daylight saving time changes when combining several coordinators.'))
-  start = models.DateTimeField(default=datetime.today(), verbose_name=_t('Start'),
+  start = models.DateTimeField(auto_now=True, verbose_name=_t('Start'),
                                help_text=_t('When to start the first workflow.'))
-  end = models.DateTimeField(default=datetime.today() + timedelta(days=3), verbose_name=_t('End'),
+  end = models.DateTimeField(auto_now=True, verbose_name=_t('End'),
                              help_text=_t('When to start the last workflow.'))
-  workflow = models.ForeignKey(Workflow, null=True, verbose_name=_t('Workflow'),
+  coordinatorworkflow = models.ForeignKey(Workflow, null=True, verbose_name=_t('Workflow'),
                                help_text=_t('The workflow to schedule repeatedly.'))
   timeout = models.SmallIntegerField(null=True, blank=True, verbose_name=_t('Timeout'),
                                      help_text=_t('Number of minutes the coordinator action will be in '
@@ -1504,7 +1526,7 @@ class Coordinator(Job):
     props = json.loads(self.job_properties)
     index = [prop['name'] for prop in props]
 
-    for prop in self.workflow.get_parameters():
+    for prop in self.coordinatorworkflow.get_parameters():
       if not prop['name'] in index:
         props.append(prop)
         index.append(prop['name'])
@@ -1513,7 +1535,7 @@ class Coordinator(Job):
     datainput_names = [_input.name for _input in self.datainput_set.all()]
     dataoutput_names = [_output.name for _output in self.dataoutput_set.all()]
     removable_names = datainput_names + dataoutput_names
-    props = filter(lambda prop: prop['name'] not in removable_names, props)
+    props = [prop for prop in props if prop['name'] not in removable_names]
 
     return props
 
@@ -1541,7 +1563,7 @@ class Coordinator(Job):
     return '%(number)d %(unit)s' % {'unit': self.frequency_unit, 'number': self.frequency_number}
 
   def find_parameters(self):
-    params = self.workflow.find_parameters()
+    params = self.coordinatorworkflow.find_parameters()
 
     for param in find_parameters(self, ['job_properties']):
       params[param] = ''
@@ -1566,7 +1588,7 @@ class Coordinator(Job):
 
     return params
 
-  def compress(self, mapping=None, fp=StringIO.StringIO()):
+  def compress(self, mapping=None, fp=string_io()):
     metadata = {
       'version': Coordinator.METADATA_FORMAT_VERSION,
       'workflow': self.workflow.name,
@@ -1654,7 +1676,7 @@ class Dataset(models.Model):
                           help_text=_t('The name of the dataset.'))
   description = models.CharField(max_length=1024, blank=True, default='', verbose_name=_t('Description'),
                                  help_text=_t('A description of the dataset.'))
-  start = models.DateTimeField(default=datetime.today(), verbose_name=_t('Start'),
+  start = models.DateTimeField(auto_now=True, verbose_name=_t('Start'),
                                help_text=_t(' The UTC datetime of the initial instance of the dataset. The initial instance also provides '
                                             'the baseline datetime to compute instances of the dataset using multiples of the frequency.'))
   frequency_number = models.SmallIntegerField(default=1, choices=FREQUENCY_NUMBERS, verbose_name=_t('Frequency number'),
@@ -1758,7 +1780,7 @@ class BundledCoordinator(models.Model):
 
 
 class Bundle(Job):
-  kick_off_time = models.DateTimeField(default=datetime.today(), verbose_name=_t('Start'),
+  kick_off_time = models.DateTimeField(auto_now=True, verbose_name=_t('Start'),
                                        help_text=_t('When to start the first coordinators.'))
   coordinators = models.ManyToManyField(Coordinator, through='BundledCoordinator')
 
@@ -1840,7 +1862,7 @@ class Bundle(Job):
   def kick_off_time_utc(self):
     return utc_datetime_format(self.kick_off_time)
 
-  def compress(self, mapping=None, fp=StringIO.StringIO()):
+  def compress(self, mapping=None, fp=string_io()):
     metadata = {
       'version': Bundle.METADATA_FORMAT_VERSION,
       'attributes': {
@@ -1980,7 +2002,7 @@ def find_json_parameters(fields):
   params = []
 
   for field in fields:
-    for data in field.values():
+    for data in list(field.values()):
       if isinstance(data, basestring):
         for match in Template.pattern.finditer(data):
           name = match.group('braced')

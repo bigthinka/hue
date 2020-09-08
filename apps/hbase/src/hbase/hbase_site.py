@@ -18,12 +18,15 @@
 import errno
 import logging
 import os.path
+import sys
 
 from hadoop import confparse
 from desktop.lib.security_util import get_components
 
-from hbase.conf import HBASE_CONF_DIR, USE_DOAS
-
+if sys.version_info[0] > 2:
+  open_file = open
+else:
+  open_file = file
 
 LOG = logging.getLogger(__name__)
 
@@ -32,7 +35,9 @@ SITE_PATH = None
 SITE_DICT = None
 
 _CNF_HBASE_THRIFT_KERBEROS_PRINCIPAL = 'hbase.thrift.kerberos.principal'
+_CNF_HBASE_THRIFT_SPNEGO_PRINCIPAL = 'hbase.thrift.spnego.principal'
 _CNF_HBASE_AUTHENTICATION = 'hbase.security.authentication'
+_CNF_HBASE_REGIONSERVER_THRIFT_FRAMED = 'hbase.regionserver.thrift.framed'
 
 _CNF_HBASE_IMPERSONATION_ENABLED = 'hbase.thrift.support.proxyuser'
 _CNF_HBASE_USE_THRIFT_HTTP = 'hbase.regionserver.thrift.http'
@@ -52,7 +57,8 @@ def get_conf():
 
 
 def get_server_principal():
-  principal = get_conf().get(_CNF_HBASE_THRIFT_KERBEROS_PRINCIPAL, None)
+  thrift_principal = get_conf().get(_CNF_HBASE_THRIFT_KERBEROS_PRINCIPAL, None)
+  principal = get_conf().get(_CNF_HBASE_THRIFT_SPNEGO_PRINCIPAL, thrift_principal)
   components = get_components(principal)
   if components is not None:
     return components[0]
@@ -61,10 +67,26 @@ def get_server_principal():
 def get_server_authentication():
   return get_conf().get(_CNF_HBASE_AUTHENTICATION, 'NOSASL').upper()
 
+def get_thrift_transport():
+  use_framed = get_conf().get(_CNF_HBASE_REGIONSERVER_THRIFT_FRAMED)
+  if use_framed is not None:
+    if use_framed.upper() == "TRUE":
+      return "framed"
+    else:
+      return "buffered"
+  else:
+    #Avoid circular import
+    from hbase.conf import THRIFT_TRANSPORT
+    return THRIFT_TRANSPORT.get()
+
 def is_impersonation_enabled():
+  #Avoid circular import
+  from hbase.conf import USE_DOAS
   return get_conf().get(_CNF_HBASE_IMPERSONATION_ENABLED, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
 
 def is_using_thrift_http():
+  #Avoid circular import
+  from hbase.conf import USE_DOAS
   return get_conf().get(_CNF_HBASE_USE_THRIFT_HTTP, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
 
 def is_using_thrift_ssl():
@@ -75,10 +97,12 @@ def _parse_site():
   global SITE_DICT
   global SITE_PATH
 
+  #Avoid circular import
+  from hbase.conf import HBASE_CONF_DIR
   SITE_PATH = os.path.join(HBASE_CONF_DIR.get(), 'hbase-site.xml')
   try:
-    data = file(SITE_PATH, 'r').read()
-  except IOError, err:
+    data = open_file(SITE_PATH, 'r').read()
+  except IOError as err:
     if err.errno != errno.ENOENT:
       LOG.error('Cannot read from "%s": %s' % (SITE_PATH, err))
       return

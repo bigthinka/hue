@@ -18,7 +18,7 @@
 
 # Concept
 Hue consists in 4 apps in a single page interface that allow the users to perform data
-analyzes without losing any context. The goal is to promote self service and stay simple like Excel
+analyses without losing any context. The goal is to promote self service and stay simple like Excel
 so that 80% of the user can find, explore and query data and become more data driven.
 
 **1. Find or import your data**
@@ -39,7 +39,6 @@ When you found your data, the Editor's autocomplete is extremely powerful as the
 
 Each app of Hue can be extended to support your own languages or apps as detailed in the [SDK](../sdk/sdk.html).
 
-
 ## Interface
 
 The layout simplifies the interface and is now single page app, and this makes things snappier and unifies the apps together.
@@ -58,7 +57,7 @@ From top to bottom we have:
 Learn more on the [The Hue 4 user interface in detail](http://gethue.com/the-hue-4-user-interface-in-detail/).
 
 
-### Top search
+## Top search
 
 The new search bar is always accessible on the top of screen, and it offers a document search and metadata search too if Hue is configured to access a metadata server like Cloudera Navigator.
 
@@ -85,90 +84,22 @@ Example of searches:
 
 Learn more on the [Search and Tagging](https://blog.cloudera.com/blog/2017/05/new-in-cloudera-enterprise-5-11-hue-data-search-and-tagging/).
 
-### Left assist
+## Left assist
 
 Data where you need it when you need it
 
 You can now find your Hue documents, HDFS and S3 files and more in the left assist panel, right-clicking items will show a list of actions, you can also drag-and-drop a file to get the path in your editor and more.
 
-### Right assist
+## Right assist
 This assistant content depends on the context of the application selected and will display the current tables or available UDFs.
 
-### Sample popup
+## Sample popup
 
 This popup offers a quick way to see sample of the data and other statistics on databases, tables, and columns. You can open the popup from the SQL Assist or with a right-click on any SQL object (table, column, function…). In this release, it also opens faster and caches the data.
 
-### Charting
-
-These visualizations are convenient for plotting chronological data or when subsets of rows have the same attribute: they will be stacked together.
-
-* Pie
-* Bar/Line with pivot
-* Timeline
-* Scattered plot
-* Maps (Marker and Gradient)
-
-## Data Importer
-
-The goal of the importer is to allow ad hoc queries on data not yet in the clusters thereby expedite self-service analytics.
-
-If you want to import your own data instead of installing the sample
-tables, open the importer from the left menu or from the little `+` in the left assist.
-
-If you've ever struggled with creating new SQL tables from files, you'll be happy to learn that this is now much easier. The wizard has been revamped to two simple steps and also offers more formats. Now users just need to:
-
-1. Select a source type
-2. Select the type of object for the destination
-
-And that's it!
-
-To learn more, watch the video on [Data Import Wizard](http://gethue.com/import-data-to-be-queried-via-the-self-service-drag-drop-create-table-wizard/).
-
-### SQL Tables
-
-Although you can create tables by executing the appropriate Hive HQL DDL
-query commands, it is easier to create a table using the create table wizard.
-
-**From a File**
-
-If you've ever struggled with creating new SQL tables from files, you'll be happy to learn that this is now much easier. With the latest Hue release, you can now create these in an ad hoc way and thereby expedite self-service analytics. The wizard has been revamped to two simple steps and also offers more formats. Now users just need to:
-
-1. In the Importer Manager selects source from a 'File'
-1. Select the type of table
-
-Files can be dragged & dropped, selected from HDFS or S3 (if configured), and their formats are automatically detected. The wizard also assists when performing advanced functionalities like table partitioning, Kudu tables, and nested types.
-
-
-**Manually**
-
-1.  In the Importer Manager selects 'Manually'
-2.  Follow the instructions in the wizard to create the table. The basic
-    steps are:
-    -   Name the table.
-    -   Choose the record format.
-    -   Configure record serialization by specifying delimiters for
-        columns, collections, and map keys.
-    -   Choose the file format.
-    -   Specify the location for your table's data.
-    -   Specify the columns, providing a name and selecting the type for
-        each column.
-    -   Specify partition columns, providing a name and selecting the
-        type for each column.
-
-
-### Indexing
-
-In the past, indexing data into Solr to then explore it with a [Dynamic Dashboard](http://gethue.com/search-dashboards/) has been quite difficult. The task involved writing a Solr schema and a Morphlines file then submitting a job to YARN to do the indexing. Often times getting this correct for non trivial imports could take a few days of work. Now with Hue's new feature you can start your YARN indexing job in minutes. This tutorial offers a step by step guide on how to do it.
-
-[Read more about it here](http://gethue.com/easy-indexing-of-data-into-solr/).
-
-### Traditional Databases
-
-Read more about [ingesting data from traditional databases](http://gethue.com/importing-data-from-traditional-databases-into-hdfshive-in-just-a-few-clicks/).
-
 ## Documents
 
-Similarly to Google Doc, queries, workflows... can be saved and shared with other.
+Similarly to Google Document, queries, workflows... can be saved and shared with other users.
 
 ### Sharing
 
@@ -184,38 +115,35 @@ The language is automatically detected from the Browser or OS. English, Spanish,
 
 The language can be manual set by a user in the "My Profile" page. Please go to My Profile > Step2 Profile and Groups > Language Preference and choose the language you want.
 
-# Editors / Notebook
+
+# SQL Editors / Notebook
 The goal of Hue's Editor is to make data querying easy and productive.
 
 It focuses on SQL but also supports job submissions. It comes with an intelligent autocomplete, search & tagging of data and query assistance.
 
-The [http://gethue.com/custom-sql-query-editors/](customer SQL Editor page) also describes the configuration steps. Any editor can be `starred`
+The [custom SQL Editor page](http://gethue.com/custom-sql-query-editors/) also describes the configuration steps. Any editor can be `starred`
 next to its name so that it becomes the default editor and the landing page when logging in.
 
 First, in your hue.ini file, you will need to add the relevant database connection information under the librdbms section:
 
-<pre>
-[librdbms]
-  [[databases]]
-    [[[postgresql]]]
-    nice_name=PostgreSQL
-    name=music
-    engine=postgresql_psycopg2
-    port=5432
-    user=hue
-    password=hue
-    options={}
-</pre>
+    [librdbms]
+      [[databases]]
+        [[[postgresql]]]
+        nice_name=PostgreSQL
+        name=music
+        engine=postgresql_psycopg2
+        port=5432
+        user=hue
+        password=hue
+        options={}
 
 Secondly, we need to add a new interpreter to the notebook app. This will allow the new database type to be registered as a snippet-type in the Notebook app. For query editors that use a Django-compatible database, the name in the brackets should match the database configuration name in the librdbms section (e.g. – postgresql). The interface will be set to rdbms. This tells Hue to use the librdbms driver and corresponding connection information to connect to the database. For example, with the above postgresql connection configuration in the librdbms section, we can add a PostgreSQL interpreter with the following notebook configuration:
 
-<pre>
-[notebook]
-  [[interpreters]]
-    [[[postgresql]]]
-    name=PostgreSQL
-    interface=rdbms
-</pre>
+    [notebook]
+      [[interpreters]]
+        [[[postgresql]]]
+        name=PostgreSQL
+        interface=rdbms
 
 ## Concepts
 ### Running Queries
@@ -250,7 +178,7 @@ MapReduce or [Impala jobs](#impala-queries) that the query generated.
 
 ### Downloading and Exporting Query Results
 
-To get things started, press the export icon, the bottom last element of the action bar to the top left of the results. There are several ways you can export results of a query. 
+To get things started, press the export icon, the bottom last element of the action bar to the top left of the results. There are several ways you can export results of a query.
 
 ![image](images/note.jpg) Two of them offer great scalability:
 1.  Export to an empty folder on your cluster's file system. This exports the results using multiple files. In the export icon, choose Export and then All.
@@ -260,31 +188,6 @@ To get things started, press the export icon, the bottom last element of the act
 1.  Export to a file on your cluster's file systems. This exports the results to a single file. In the export icon, choose Export and then First XXX.
 2.  Download to your computer as a CSV or XLS. This exports the results to a single file in comma-separated values or Microsoft Office Excel format. In the export icon, choose Download as CSV or Download as XLS.
 
-Download and export options with limited scalability can be limited in the number of rows or bytes transferred using the following options respectively in your hue.ini:
-<pre>
-  [beeswax]
-  # A limit to the number of rows that can be downloaded from a query before it is truncated.
-  # A value of -1 means there will be no limit.
-  download_row_limit=-1
-
-  # A limit to the number of bytes that can be downloaded from a query before it is truncated.
-  # A value of -1 means there will be no limit.
-  download_bytes_limit=-1
-</pre>
-
-In addition, it is possible to disable the download and export feature in the editor, dashboard, as well as in the file browser with the following option in your hue.ini:
-<pre>
-  [desktop]
-  # Global setting to allow or disable end user downloads in all Hue.
-  # e.g. Query result in Editors and Dashboards, file in File Browser...
-  enable_download=false
-</pre>
-
-The download feature in the file browser can be disabled separately with the following options in your hue.ini:
-<pre>
-[filebrowser]
-show_download_button=false
-</pre>
 
 <a id="advancedQuerySettings"></a>
 ### Advanced Query Settings
@@ -383,10 +286,32 @@ The autocompleter talks to the backend to get data for tables and databases etc.
 
 We've got an extensive test suite but not every possible statement is covered, if the autocompleter can't interpret a statement it will be silent and no drop-down will appear. If you encounter a case where you think it should suggest something but doesn't or if it gives incorrect suggestions then please let us know.
 
-Leanr more about it in [Autocompleter for Hive and Impala](http://gethue.com/brand-new-autocompleter-for-hive-and-impala/).
+Learn more about it in [Autocompleter for Hive and Impala](http://gethue.com/brand-new-autocompleter-for-hive-and-impala/).
 
 ### Variables
-Variables can have default values, e.g. ${n=10} instead of just ${n}.
+Variables are used to easily configure parameters in a query. They can be of two types:
+
+
+<b>Single Valued</b>
+<pre>
+select * from web_logs where country_code = "${country_code}"
+</pre>
+The variable can have a default value.
+<pre>
+select * from web_logs where country_code = "${country_code=US}"
+</pre>
+<b>Multi Valued</b>
+<pre>
+select * from web_logs where country_code = "${country_code=CA, FR, US}"
+</pre>
+In addition, the displayed text for multi valued variables can be changed.
+<pre>
+select * from web_logs where country_code = "${country_code=CA(Canada), FR(France), US(United States)}"
+</pre>
+For values that are not textual, omit the quotes.
+<pre>
+select * from boolean_table where boolean_column = ${boolean_column}
+</pre>
 
 ### Syntax checker
 
@@ -397,6 +322,17 @@ A little red underline will display the incorrect syntax so that the query can b
 Read more about the [Query Assistant with Navigator Optimizer Integration
 ](https://blog.cloudera.com/blog/2017/08/new-in-cloudera-enterprise-5-12-hue-4-interface-and-query-assistant/).
 
+### Charting
+
+These visualizations are convenient for plotting chronological data or when subsets of rows have the same attribute: they will be stacked together.
+
+* Pie
+* Bar/Line with pivot
+* Timeline
+* Scattered plot
+* Maps (Marker and Gradient)
+
+Read more about extending [charts](../sdk/sdk.html).
 
 ### Risk Alerts
 
@@ -410,47 +346,12 @@ While editing, Hue will run your queries through Navigator Optimizer in the back
 
 Turns a list of semi-colon separated queries into an interactive presentation. It is great for doing demos or basic reporting.
 
-## SQL
+## SQL Databases
 
-Use the query editor with any [JDBC](http://gethue.com/custom-sql-query-editors/) or Django-compatible database.
+Use the query editor with any database.
 
 ### Hive
-
-**Tez**
-
-An external contribution provided support for sending multiple queries when using Tez (instead of a maximum of just one at the time). You can turn it on with this setting:
-
-    [beeswax]
-    max_number_of_sessions=10
-
 ### Impala
-
-The Hive Editor enables you to perform queries on Apache Hive, a
-data warehousing system designed to work with Hadoop. For information
-about Hive. You can
-create Hive databases, tables and partitions, load data, create, run,
-and manage queries, and download the results in a Microsoft Office Excel
-worksheet file or a comma-separated values file.
-
-
-Hive Editor is installed and configured as part of Hue. For information
-about installing and configuring Hue, see the Hue Installation
-manual.
-
-Hive Editor assumes an existing Hive installation. The Hue installation
-instructions include the configuration necessary for hive to access
-Hive. You can view the current Hive configuration from the **Settings**
-tab in the Hive Editor.
-
-By default, a Hive Editor user can see the saved queries for all users -
-both his/her own queries and those of other Hive Editor users. To restrict
-viewing saved queries to the query owner and Hue administrators, set the
-share\_saved\_queries property under the [beeswax] section in the Hue
-configuration file to false.
-
-![image](images/note.jpg) **Note**: The Hive Editor used to be known as Beeswax.
-![image](images/note.jpg) **Note**: The [Job Browser](#impala-queries) integrates nicely with the Impala Query Editor.
-
 ### MySQL
 ### Oracle
 ### KSQL / Kafka SQL
@@ -469,6 +370,11 @@ As Solr SQL is pretty recent, there are some caveats, notably Solr lacks support
 which prevents a SQL UX experience comparable to the standard other databases (but we track it in [HUE-3686](https://issues.cloudera.org/browse/HUE-3686)).
 
 ### Presto
+
+Presto is a high performance, distributed SQL query engine for big data.
+
+[Read more about it here](https://prestosql.io/)
+
 ### PostgreSQL
 ### Redshift
 ### BigQuery
@@ -480,7 +386,7 @@ Apache Kylin is an open-source online analytical processing (OLAP) engine.
 See how to configure the [Kylin Query Editor](http://gethue.com/using-hue-to-interact-with-apache-kylin/).
 
 ### Others
-Extend with JDBC or your own [connectors](../sdk/sdk.html#sql).
+Extend with SQL Alchemy, JDBC or build your own [connectors](../sdk/sdk.html#sql).
 
 ## Jobs
 
@@ -499,10 +405,10 @@ box will appear to enable you to specify the values of the variables.
 that appears if you specify variables for the job.</td></tr>
 <tr><td>Advanced</td><td>Advanced settings:<ul><li>Is shared- Indicate whether to share the action with all users.<li>Oozie parameters - parameters to pass to Oozie</td></tr>
 <tr><td>Prepare</td><td>Specifies paths to create or delete before starting the workflow job.</td></tr>
-<tr><td>Params</td>Parameters to pass to a script or command. The parameters are expressed
-using the [JSP 2.0 Specification (JSP.2.3) Expression
-Language](http://jcp.org/aboutJava/communityprocess/final/jsr152/),
-allowing variables, functions, and complex expressions as parameters.<td></td></tr>
+<tr><td>Params</td><td>Parameters to pass to a script or command. The parameters are expressed
+using the <a href="http://jcp.org/aboutJava/communityprocess/final/jsr152/">JSP 2.0 Specification (JSP.2.3) Expression
+Language</a>,
+allowing variables, functions, and complex expressions as parameters.</td></tr>
 <tr><td>Job Properties</td><td>Job properties. To set a property value, click <b>Add Property</b>.<ol><li>Property name -  a configuration property name. This field provides autocompletion, so you can type the first few characters of a property name and then select the one you want from the drop-down
     list.<li>Valuethe property value.</td></tr>
 <tr><td>Files</td><td>Files to pass to the job. Equivalent to the Hadoop -files option.</td></tr>
@@ -579,7 +485,7 @@ And how to use the [Spark Action](http://gethue.com/use-the-spark-action-in-oozi
 
 #### Interactive
 
-Hue relies on Livy (http://livy.io/) for the interactive Scala, Python and R snippets.
+Hue relies on [Livy](http://livy.io/) for the interactive Scala, Python and R snippets.
 
 Livy got initially developed in the Hue project but got a lot of traction and was moved to its own project on livy.io. Here is a tutorial on how to use a notebook to perform some Bike Data analysis.
 
@@ -618,8 +524,63 @@ Make sure that the Notebook and interpreters are set in the hue.ini, and Livy is
       interface=livy
 </pre>
 
-## SDK
-Read more about extending [connectors](../sdk/sdk.html#spark-livy).
+# Data Importer
+
+The goal of the importer is to allow ad hoc queries on data not yet in the clusters thereby expedite self-service analytics.
+
+If you want to import your own data instead of installing the sample
+tables, open the importer from the left menu or from the little `+` in the left assist.
+
+If you've ever struggled with creating new SQL tables from files, you'll be happy to learn that this is now much easier. The wizard has been revamped to two simple steps and also offers more formats. Now users just need to:
+
+1. Select a source type
+2. Select the type of object for the destination
+
+And that's it!
+
+To learn more, watch the video on [Data Import Wizard](http://gethue.com/import-data-to-be-queried-via-the-self-service-drag-drop-create-table-wizard/).
+
+## SQL Tables
+
+Although you can create tables by executing the appropriate Hive HQL DDL
+query commands, it is easier to create a table using the create table wizard.
+
+**From a File**
+
+If you've ever struggled with creating new SQL tables from files, you'll be happy to learn that this is now much easier. With the latest Hue release, you can now create these in an ad hoc way and thereby expedite self-service analytics. The wizard has been revamped to two simple steps and also offers more formats. Now users just need to:
+
+1. In the Importer Manager selects source from a 'File'
+1. Select the type of table
+
+Files can be dragged & dropped, selected from HDFS or S3 (if configured), and their formats are automatically detected. The wizard also assists when performing advanced functionalities like table partitioning, Kudu tables, and nested types.
+
+
+**Manually**
+
+1.  In the Importer Manager selects 'Manually'
+2.  Follow the instructions in the wizard to create the table. The basic
+    steps are:
+    -   Name the table.
+    -   Choose the record format.
+    -   Configure record serialization by specifying delimiters for
+        columns, collections, and map keys.
+    -   Choose the file format.
+    -   Specify the location for your table's data.
+    -   Specify the columns, providing a name and selecting the type for
+        each column.
+    -   Specify partition columns, providing a name and selecting the
+        type for each column.
+
+
+## Indexing
+
+In the past, indexing data into Solr to then explore it with a [Dynamic Dashboard](http://gethue.com/search-dashboards/) has been quite difficult. The task involved writing a Solr schema and a Morphlines file then submitting a job to YARN to do the indexing. Often times getting this correct for non trivial imports could take a few days of work. Now with Hue's new feature you can start your YARN indexing job in minutes. This tutorial offers a step by step guide on how to do it.
+
+[Read more about it here](http://gethue.com/easy-indexing-of-data-into-solr/).
+
+## Traditional Databases
+
+Read more about [ingesting data from traditional databases](http://gethue.com/importing-data-from-traditional-databases-into-hdfshive-in-just-a-few-clicks/).
 
 
 # Dashboards
@@ -942,41 +903,9 @@ column.
     job you want to view. This shows the **Job** page for the job, with
     the recent tasks associated with the job are displayed in the
     **Tasks** tab.
-2.  Click the **Metadata** tab to view the metadata for this job.
+2.  Click the **Logs** tab to view the logs for this job.
 3.  Click the **Counters** tab to view the counter metrics for the job.
 
-**To view details about the tasks associated with the job:**
-
-1.  In the **Job** window, click the **View All Tasks** link at the
-    right just above the **Recent Tasks** list. This lists all the tasks
-    associated with the job.
-2.  Click **Attempts** to the right of a task to view the attempts for
-    that task.
-
-**To view information about an individual task:**
-
-1.  In the **Job** window, click the **View** link to the right of the
-    task. The attempts associated with the task are displayed.
-2.  Click the **Metadata** tab to view metadata for this task. The
-    metadata associated with the task is displayed.
-3.  To view the Hadoop counters for a task, click the **Counters** tab.
-    The counters associated with the task are displayed.
-4.  To return to the **Job** window for this job, click the job number
-    in the status panel at the left of the window.
-
-**To view details about a task attempt:**
-
-1.  In the **Job Task** window, click the **View** link to the right of
-    the task attempt. The metadata associated with the attempt is
-    displayed under the **Metadata** tab.
-2.  To view the Hadoop counters for the task attempt, click the
-    **Counters** tab. The counters associated with the attempt are
-    displayed.
-3.  To view the logs associated with the task attempt, click the
-    **Logs** tab. The logs associated with the task attempt are
-    displayed.
-4.  To return to the list of tasks for the current job, click the task
-    number in the status panel at the left of the window.
 
 ### Types
 #### YARN (Spark, MapReduce)
@@ -1341,7 +1270,7 @@ Iport data from relational databases to HDFS file or Hive table using Apache Sqo
 
 In the past, importing data using Sqoop command line interface could be a cumbersome and inefficient process. The task expected users to have a good knowledge of Sqoop . For example they would need put together a series of required parameters with specific syntax that would result in errors easy to make. Often times getting those correctly can take a few hours of work. Now with Hue's new feature you can submityour Sqoop job in minutes. The imports run on YARN and are scheduled by Oozie. This tutorial offers a step by step guide on how to do it.
 
-Leanr more about it on the [Importing data from traditional databases into HDFS/Hive in just a few clicks
+Learn more about it on the [Importing data from traditional databases into HDFS/Hive in just a few clicks
 ](http://gethue.com/importing-data-from-traditional-databases-into-hdfshive-in-just-a-few-clicks/) post.
 
 ## Sqoop 2 Editor
@@ -1467,6 +1396,12 @@ A basic read only version is done [HUE-951](https://issues.cloudera.org/browse/H
    </div>
 </div>
 
+
+<div class="row-fluid footer">
+  Documentation improvements? <a href="https://github.com/cloudera/hue/blob/master/docs/user-guide/user-guide.md">Feel free to edit this page on GitHub and send a pull request!</a>
+</div>
+
+
 <script src="../js/jquery.min.js"></script>
 <script src="../js/jquery.treed.js"></script>
 <script src="../js/jquery.highlight.js"></script>
@@ -1480,4 +1415,3 @@ A basic read only version is done [HUE-951](https://issues.cloudera.org/browse/H
 
   gtag('config', 'UA-37637545-1');
 </script>
-

@@ -15,23 +15,81 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import division
+from builtins import str
 import logging
+import math
 import os.path
-import sys
-import beeswax.hive_site
 
 from django.utils.translation import ugettext_lazy as _t, ugettext as _
 
 from desktop.conf import default_ssl_cacerts, default_ssl_validate, AUTH_PASSWORD as DEFAULT_AUTH_PASSWORD,\
   AUTH_USERNAME as DEFAULT_AUTH_USERNAME
 from desktop.lib.conf import ConfigSection, Config, coerce_bool, coerce_csv, coerce_password_from_script
-from desktop.lib.exceptions import StructuredThriftTransportException
-
-from beeswax.settings import NICE_NAME
 
 
 LOG = logging.getLogger(__name__)
 
+HIVE_DISCOVERY_LLAP = Config(
+  key="hive_discovery_llap",
+  help=_t("Have Hue determine Hive Server Interactive endpoint from zookeeper"),
+  default="false",
+  type=coerce_bool
+)
+
+HIVE_DISCOVERY_HS2 = Config(
+  key="hive_discovery_hs2",
+  help=_t("Determines whether we pull a random HiveServer2 from the list in zookeeper.  This HS2 instance is cached until hue is restarted."),
+  default="false",
+  type=coerce_bool
+)
+
+HIVE_DISCOVERY_LLAP_HA = Config(
+  key="hive_discovery_llap_ha",
+  help=_t("If you have more than one HSI server, it has a different znode setup.  This will trigger the code to check for the Active HSI Server"),
+  default="false",
+  type=coerce_bool
+)
+
+HIVE_DISCOVERY_LLAP_ZNODE = Config(
+  key="hive_discovery_llap_znode",
+  help=_t("If LLAP is enabled, you should be using zookeeper service discovery mode, this is the znode of the LLAP Master(s)"),
+  default="/hiveserver2-hive2"
+)
+
+HIVE_DISCOVERY_HIVESERVER2_ZNODE = Config(
+  key="hive_discovery_hiveserver2_znode",
+  help=_t("If Hive is using zookeeper service discovery mode, this is the znode of the hiveserver2(s)"),
+  default="/hiveserver2"
+)
+
+CACHE_TIMEOUT = Config(
+  key="cache_timeout",
+  help=_t("How long to pause before reaching back out to zookeeper to get the current Active HSI endpoint"),
+  default=60,
+  type=int
+)
+
+LLAP_SERVER_PORT = Config(
+  key="llap_server_port",
+  help=_t("LLAP binary Thrift port (10500 default)."),
+  default=10500,
+  type=int
+)
+
+LLAP_SERVER_THRIFT_PORT = Config(
+  key="llap_server_thrift_port",
+  help=_t("LLAP http Thrift port (10501 default)"),
+  default=10501,
+  type=int
+)
+
+LLAP_SERVER_HOST = Config(
+  key="llap_server_host",
+  help=_t("Host where Hive Server Interactive is running. If Kerberos security is enabled, "
+         "the fully-qualified domain name (FQDN) is required"),
+  default="localhost"
+)
 
 HIVE_SERVER_HOST = Config(
   key="hive_server_host",
@@ -39,10 +97,38 @@ HIVE_SERVER_HOST = Config(
          "the fully-qualified domain name (FQDN) is required"),
   default="localhost")
 
+def get_hive_thrift_binary_port():
+  """Devise port from core-site Thrift / execution mode & Http port"""
+  from beeswax.hive_site import hiveserver2_thrift_binary_port, get_hive_execution_mode   # Cyclic dependency
+  return hiveserver2_thrift_binary_port() or (10500 if (get_hive_execution_mode() or '').lower() == 'llap' else 10000)
+
 HIVE_SERVER_PORT = Config(
   key="hive_server_port",
-  help=_t("Configure the port the HiveServer2 server runs on."),
-  default=10000,
+  help=_t("Configure the binary Thrift port for HiveServer2."),
+  dynamic_default=get_hive_thrift_binary_port,
+  type=int)
+
+def get_hive_thrift_http_port():
+  """Devise port from core-site Thrift / execution mode & Http port"""
+  from beeswax.hive_site import hiveserver2_thrift_http_port, get_hive_execution_mode   # Cyclic dependency
+  return hiveserver2_thrift_http_port() or (10501 if (get_hive_execution_mode() or '').lower() == 'llap'  else 10001)
+
+HIVE_HTTP_THRIFT_PORT = Config(
+  key="hive_server_http_port",
+  help=_t("Configure the Http Thrift port for HiveServer2."),
+  dynamic_default=get_hive_thrift_http_port,
+  type=int)
+
+HIVE_METASTORE_HOST = Config(
+  key="hive_metastore_host",
+  help=_t("Host where Hive Metastore Server (HMS) is running. If Kerberos security is enabled, "
+         "the fully-qualified domain name (FQDN) is required"),
+  default="localhost")
+
+HIVE_METASTORE_PORT = Config(
+  key="hive_metastore_port",
+  help=_t("Configure the port the Hive Metastore Server runs on."),
+  default=9083,
   type=int)
 
 HIVE_CONF_DIR = Config(
@@ -71,8 +157,8 @@ USE_GET_LOG_API = Config( # To remove in Hue 4
   key='use_get_log_api',
   default=False,
   type=coerce_bool,
-  help=_t('Choose whether to use the old GetLog() thrift call from before Hive 0.14 to retrieve the logs.'
-          'If false, use the FetchResults() thrift call from Hive 1.0 or more instead.')
+  help=_t('Choose whether to use the old GetLog() Thrift call from before Hive 0.14 to retrieve the logs.'
+          'If false, use the FetchResults() Thrift call from Hive 1.0 or more instead.')
 )
 
 BROWSE_PARTITIONED_TABLE_LIMIT = Config( # Deprecated, to remove in Hue 4
@@ -108,7 +194,7 @@ DOWNLOAD_CELL_LIMIT = Config(
 
 def get_deprecated_download_cell_limit():
   """Get the old default"""
-  return DOWNLOAD_CELL_LIMIT.get() / 100 if DOWNLOAD_CELL_LIMIT.get() > 0 else DOWNLOAD_CELL_LIMIT.get()
+  return math.floor(DOWNLOAD_CELL_LIMIT.get() / 100) if DOWNLOAD_CELL_LIMIT.get() > 0 else DOWNLOAD_CELL_LIMIT.get()
 
 DOWNLOAD_ROW_LIMIT = Config(
   key='download_row_limit',
@@ -141,7 +227,9 @@ CLOSE_QUERIES = Config(
 
 MAX_NUMBER_OF_SESSIONS = Config(
   key="max_number_of_sessions",
-  help=_t("Hue will use at most this many HiveServer2 sessions per user at a time"),
+  help=_t("Hue will use at most this many HiveServer2 sessions per user at a time"
+          # The motivation for -1 is that Hue does currently keep track of session state perfectly and the user does not have ability to manage them effectively. The cost of a session is low
+          "-1 is unlimited number of sessions."),
   type=int,
   default=1
 )
@@ -150,7 +238,7 @@ THRIFT_VERSION = Config(
   key="thrift_version",
   help=_t("Thrift version to use when communicating with HiveServer2."),
   type=int,
-  default=7
+  default=11
 )
 
 CONFIG_WHITELIST = Config(
@@ -224,45 +312,34 @@ AUTH_PASSWORD_SCRIPT = Config(
   type=coerce_password_from_script,
   default=None)
 
+def get_use_sasl_default():
+  """Get from hive_site or backward compatibility"""
+  from beeswax.hive_site import get_hiveserver2_authentication, get_use_sasl  # Cyclic dependency
+  use_sasl = get_use_sasl()
+  if use_sasl is not None:
+    return use_sasl.upper() == 'TRUE'
+  return get_hiveserver2_authentication() in ('KERBEROS', 'NONE', 'LDAP', 'PAM') # list for backward compatibility
 
-def config_validator(user):
-  # dbms is dependent on beeswax.conf (this file)
-  # import in method to avoid circular dependency
-  from beeswax.design import hql_query
-  from beeswax.server import dbms
+USE_SASL = Config(
+  key="use_sasl",
+  help=_t("Use SASL framework to establish connection to host"),
+  private=False,
+  type=coerce_bool,
+  dynamic_default=get_use_sasl_default)
 
-  res = []
-  try:
-    try:
-      if not 'test' in sys.argv: # Avoid tests hanging
-        server = dbms.get(user)
-        query = hql_query("SELECT 'Hello World!';")
-        handle = server.execute_and_wait(query, timeout_sec=10.0)
+def has_multiple_sessions():
+  """When true will create multiple sessions for user queries"""
+  return MAX_NUMBER_OF_SESSIONS.get() != 1
 
-        if handle:
-          server.fetch(handle, rows=100)
-          server.close(handle)
-    except StructuredThriftTransportException, e:
-      if 'Error validating the login' in str(e):
-        msg = 'Failed to authenticate to HiveServer2, check authentication configurations.'
-        LOG.exception(msg)
-        res.append((NICE_NAME, _(msg)))
-      else:
-        raise e
-  except Exception, e:
-    msg = "The application won't work without a running HiveServer2."
-    LOG.exception(msg)
-    res.append((NICE_NAME, _(msg)))
+CLOSE_SESSIONS = Config(
+  key="close_sessions",
+  help=_t(
+      'When set to True, Hue will close sessions created for background queries and open new ones as needed.'
+      'When set to False, Hue will keep sessions created for background queries opened and reuse them as needed.'
+      'This flag is useful when max_number_of_sessions != 1'),
+  type=coerce_bool,
+  dynamic_default=has_multiple_sessions
+)
 
-  try:
-    from desktop.lib.fsmanager import get_filesystem
-    warehouse = beeswax.hive_site.get_metastore_warehouse_dir()
-    fs = get_filesystem()
-    fs.stats(warehouse)
-  except Exception:
-    msg = 'Failed to access Hive warehouse: %s'
-    LOG.exception(msg % warehouse)
-
-    return [(NICE_NAME, _(msg) % warehouse)]
-
-  return res
+def has_session_pool():
+  return has_multiple_sessions() and not CLOSE_SESSIONS.get()

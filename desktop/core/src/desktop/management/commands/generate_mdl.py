@@ -17,18 +17,20 @@
 """
 Dumps a Cloudera Manager Monitor Descriptor file.
 """
+from __future__ import print_function
 
+from past.builtins import cmp
 import json
 
-from django.core.management.base import NoArgsCommand
+from django.core.management.base import BaseCommand
 
 # Force loading the metrics
 import desktop.urls
 from desktop.lib.metrics import global_registry
 
 
-class Command(NoArgsCommand):
-  def handle_noargs(self, **options):
+class Command(BaseCommand):
+  def handle(self, *args, **options):
     """Generates a Monitor Descriptor file."""
     registry = global_registry()
     definitions = []
@@ -52,4 +54,4 @@ class Command(NoArgsCommand):
         ],
     }
 
-    print json.dumps(d)
+    print(json.dumps(d))

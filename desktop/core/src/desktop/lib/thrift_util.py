@@ -15,9 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-import Queue
+from __future__ import division
+from future import standard_library
+standard_library.install_aliases()
+from builtins import map
+from builtins import range
+from past.builtins import basestring
+from builtins import object
+import base64
+import queue
 import logging
+import math
 import socket
 import threading
 import time
@@ -28,14 +36,13 @@ import sys
 
 from thrift.Thrift import TType, TApplicationException
 from thrift.transport.TSocket import TSocket
-from thrift.transport.TTransport import TBufferedTransport, TFramedTransport, TMemoryBuffer,\
-                                        TTransportException
+from thrift.transport.TTransport import TBufferedTransport, TFramedTransport, TMemoryBuffer, TTransportException
 from thrift.protocol.TBinaryProtocol import TBinaryProtocol
 from thrift.protocol.TMultiplexedProtocol import TMultiplexedProtocol
 
 from django.conf import settings
 from django.utils.translation import ugettext as _
-from desktop.conf import SASL_MAX_BUFFER, CHERRYPY_SERVER_THREADS
+from desktop.conf import SASL_MAX_BUFFER, CHERRYPY_SERVER_THREADS, ENABLE_SMART_THRIFT_POOL
 
 from desktop.lib.apputil import WARN_LEVEL_CALL_DURATION_MS, INFO_LEVEL_CALL_DURATION_MS
 from desktop.lib.python_util import create_synchronous_io_multiplexer
@@ -44,6 +51,8 @@ from desktop.lib.thrift_.TSSLSocketWithWildcardSAN import TSSLSocketWithWildcard
 from desktop.lib.thrift_sasl import TSaslClientTransport
 from desktop.lib.exceptions import StructuredException, StructuredThriftTransportException
 
+if sys.version_info[0] > 2:
+  from past.builtins import long
 
 LOG = logging.getLogger(__name__)
 
@@ -54,7 +63,7 @@ LOG = logging.getLogger(__name__)
 MAX_RECURSION_DEPTH = 50
 
 
-class LifoQueue(Queue.Queue):
+class LifoQueue(queue.Queue):
     '''
     Variant of Queue that retrieves most recently added entries first.
 
@@ -93,7 +102,8 @@ class ConnectionConfig(object):
                transport='buffered',
                multiple=False,
                transport_mode='socket',
-               http_url=''):
+               http_url='',
+               coordinator_host=''):
     """
     @param klass The thrift client class
     @param host Host to connect to
@@ -116,6 +126,7 @@ class ConnectionConfig(object):
     @param multiple Whether Use MultiplexedProtocol
     @param transport_mode Can be socket or http
     @param Url used when using http transport mode
+    @param Host for Impala coordinator to create coordinator specific pool
     """
     self.klass = klass
     self.host = host
@@ -136,11 +147,18 @@ class ConnectionConfig(object):
     self.multiple = multiple
     self.transport_mode = transport_mode
     self.http_url = http_url
+    self.coordinator_host = coordinator_host
 
   def __str__(self):
     return ', '.join(map(str, [self.klass, self.host, self.port, self.service_name, self.use_sasl, self.kerberos_principal, self.timeout_seconds,
                                self.mechanism, self.username, self.use_ssl, self.ca_certs, self.keyfile, self.certfile, self.validate, self.transport,
-                               self.multiple, self.transport_mode, self.http_url]))
+                               self.multiple, self.transport_mode, self.http_url, self.coordinator_host]))
+
+  def update_coordinator_host(self, coordinator_host):
+    self.coordinator_host = coordinator_host
+
+  def get_coordinator_host(self):
+    return self.coordinator_host
 
 class ConnectionPooler(object):
   """
@@ -164,13 +182,16 @@ class ConnectionPooler(object):
     self.poolsize = poolsize
     self.dictlock = threading.Lock()
 
-  def get_client(self, conf, get_client_timeout=None):
-    """
-    Could block while we wait for the pool to become non-empty.
+  def create_pool_impala(self, conf):
+    self.dictlock.acquire()
+    try:
+      if _get_pool_key(conf) not in self.pooldict:
+        q = LifoQueue(self.poolsize)
+        self.pooldict[_get_pool_key(conf)] = q
+    finally:
+      self.dictlock.release()
 
-    @param get_client_timeout: how long (in seconds) to wait on the pool
-                               to get a client before failing
-    """
+  def create_pool(self, conf):
     # First up, check to see if we have a pool for this endpoint
     if _get_pool_key(conf) not in self.pooldict:
       # Uh-oh, we need to initialise the queue. Take the dict lock.
@@ -190,7 +211,7 @@ class ConnectionPooler(object):
       try:
         if _get_pool_key(conf) not in self.pooldict:
           q = LifoQueue(self.poolsize)
-          for i in xrange(self.poolsize):
+          for i in range(self.poolsize):
             client = construct_superclient(conf)
             client.CID = i
             q.put(client, False)
@@ -206,10 +227,19 @@ class ConnectionPooler(object):
       finally:
         self.dictlock.release()
 
+  def get_client(self, conf, get_client_timeout=None):
+    """
+    Could block while we wait for the pool to become non-empty.
+
+    @param get_client_timeout: how long (in seconds) to wait on the pool
+                               to get a client before failing
+    """
     connection = None
 
     start_pool_get_time = time.time()
     has_waited_for = 0
+
+    self.create_pool(conf)
 
     while connection is None:
       if get_client_timeout is not None:
@@ -223,13 +253,13 @@ class ConnectionPooler(object):
           duration = time.time() - start_pool_get_time
           message = "Thrift client %s got connection %s after %.2f seconds" % (self, connection.CID, duration)
           log_if_slow_call(duration=duration, message=message)
-      except Queue.Empty:
+      except queue.Empty:
         has_waited_for = time.time() - start_pool_get_time
         if get_client_timeout is not None and has_waited_for > get_client_timeout:
           raise socket.timeout(
             ("Timed out after %.2f seconds waiting to retrieve a %s client from the pool.") % (has_waited_for, conf.service_name))
         else:
-          message = "Waited %d seconds for a Thrift client to %s:%d" % (has_waited_for, conf.host, conf.port)
+          message = "Waited %d seconds for a Thrift client to %s:%d %s" % (has_waited_for, conf.host, conf.port, conf.get_coordinator_host())
           log_if_slow_call(duration=has_waited_for, message=message)
 
     return connection
@@ -240,6 +270,12 @@ class ConnectionPooler(object):
     pass back a client that was not retrieved from a pool, and
     you might well get an exception for doing so.
     """
+    if client.get_coordinator_host() is not None:
+      conf.update_coordinator_host(client.get_coordinator_host())
+      self.create_pool_impala(conf)
+    if client.get_coordinator_host() is not None and client.get_coordinator_host() != conf.get_coordinator_host():
+      conf.update_coordinator_host(client.get_coordinator_host())
+
     self.pooldict[_get_pool_key(conf)].put(client)
 
 def _get_pool_key(conf):
@@ -247,7 +283,7 @@ def _get_pool_key(conf):
   Given a ConnectionConfig, return the tuple used as the key in the dictionary
   of connections by the ConnectionPooler class.
   """
-  return (conf.klass, conf.host, conf.port)
+  return (conf.klass, conf.host, conf.port, conf.get_coordinator_host())
 
 def construct_superclient(conf):
   """
@@ -266,6 +302,7 @@ def connect_to_thrift(conf):
   """
   if conf.transport_mode == 'http':
     mode = THttpClient(conf.http_url)
+    mode.set_verify(conf.validate)
   else:
     if conf.use_ssl:
       mode = TSSLSocketWithWildcardSAN(conf.host, conf.port, validate=conf.validate, ca_certs=conf.ca_certs, keyfile=conf.keyfile, certfile=conf.certfile)
@@ -279,7 +316,7 @@ def connect_to_thrift(conf):
 
   if conf.transport_mode == 'http':
     if conf.use_sasl and conf.mechanism != 'PLAIN':
-      mode.set_kerberos_auth()
+      mode.set_kerberos_auth(service=conf.kerberos_principal)
     else:
       mode.set_basic_auth(conf.username, conf.password)
 
@@ -377,20 +414,20 @@ class PooledClient(object):
 
           superclient.set_timeout(self.conf.timeout_seconds)
           return attr(*args, **kwargs)
-        except TApplicationException, e:
+        except TApplicationException as e:
           # Unknown thrift exception... typically IO errors
           logging.info("Thrift saw an application exception: " + str(e), exc_info=False)
           raise StructuredException('THRIFTAPPLICATION', str(e), data=None, error_code=502)
-        except socket.error, e:
+        except socket.error as e:
           logging.info("Thrift saw a socket error: " + str(e), exc_info=False)
           raise StructuredException('THRIFTSOCKET', str(e), data=None, error_code=502)
-        except TTransportException, e:
+        except TTransportException as e:
           err_msg = str(e)
           logging.info("Thrift saw a transport exception: " + err_msg, exc_info=False)
           if err_msg and 'generic failure: Unable to find a callback: 32775' in err_msg:
             raise StructuredException(_("Increase the sasl_max_buffer value in hue.ini"), err_msg, data=None, error_code=502)
           raise StructuredThriftTransportException(e, error_code=502)
-        except Exception, e:
+        except Exception as e:
           # Stack tends to be only noisy here.
           logging.info("Thrift saw exception: " + str(e), exc_info=False)
           raise
@@ -411,10 +448,14 @@ class SuperClient(object):
   TODO(todd): get this into the Thrift lib
   """
 
-  def __init__(self, wrapped_client, transport, timeout_seconds=None):
+  def __init__(self, wrapped_client, transport, timeout_seconds=None, coordinator_host=None):
     self.wrapped = wrapped_client
     self.transport = transport
     self.timeout_seconds = timeout_seconds
+    self.coordinator_host = coordinator_host
+
+  def get_coordinator_host(self):
+    return self.coordinator_host
 
   def __getattr__(self, attr):
     if attr in self.__dict__:
@@ -429,7 +470,10 @@ class SuperClient(object):
       while tries_left:
         # clear exception state so our re-raise can't reraise something
         # old. This isn't strictly necessary, but feels safer.
-        sys.exc_clear()
+        # py3 doesn't have this
+        if sys.version_info[0] == 2:
+          sys.exc_clear()
+
         try:
           if not self.transport.isOpen():
             self.transport.open()
@@ -439,6 +483,11 @@ class SuperClient(object):
           logging.debug("Thrift call: %s.%s(args=%s, kwargs=%s)" % (str(self.wrapped.__class__), attr, str_args, repr(kwargs)))
 
           ret = res(*args, **kwargs)
+
+          if ENABLE_SMART_THRIFT_POOL.get() and 'OpenSession' == attr and 'http_addr' in repr(ret):
+            coordinator_host = re.search('http_addr\':\ \'(.*:[0-9]{2,})\', \'', repr(ret))
+            self.coordinator_host = coordinator_host.group(1)
+
           log_msg = _unpack_guid_secret_in_handle(repr(ret))
 
           # Truncate log message, increase output in DEBUG mode
@@ -448,29 +497,39 @@ class SuperClient(object):
           duration = time.time() - st
 
           # Log the duration at different levels, depending on how long it took.
-          logmsg = "Thrift call: %s.%s(args=%s, kwargs=%s) returned in %dms: %s" % (str(self.wrapped.__class__), attr, str_args, repr(kwargs), duration * 1000, log_msg)
+          logmsg = "Thrift call: %s.%s(args=%s, kwargs=%s) returned in %dms: %s" % (
+            str(self.wrapped.__class__),
+            attr, str_args, repr(kwargs), duration * 1000, log_msg
+          )
           log_if_slow_call(duration=duration, message=logmsg)
 
           return ret
-        except socket.error, e:
-          pass
-        except TTransportException, e:
-          pass
-        except Exception, e:
+        except (socket.error, socket.timeout, TTransportException) as e:
+          self.transport.close()
+
+          if isinstance(e, socket.timeout) or 'read operation timed out' in str(e): # Can come from ssl.SSLError
+            logging.warn("Not retrying thrift call %s due to socket timeout" % attr)
+            raise
+          else:
+            tries_left -= 1
+            if tries_left:
+              logging.info("Thrift exception; retrying: " + str(e), exc_info=0)
+              if 'generic failure: Unable to find a callback: 32775' in str(e):
+                logging.warn("Increase the sasl_max_buffer value in hue.ini")
+            else:
+              raise
+        except Exception as e:
           logging.exception("Thrift saw exception (this may be expected).")
-          raise
+          if "'client_protocol' is unset" in str(e):
+            raise StructuredException(
+              'OPEN_SESSION',
+              'Thrift version configured by property thrift_version might be too high. Request failed with "%s"' % str(e),
+              data=None,
+              error_code=502
+            )
+          else:
+            raise
 
-        self.transport.close()
-
-        if isinstance(e, socket.timeout) or 'read operation timed out' in str(e): # Can come from ssl.SSLError
-          logging.warn("Not retrying thrift call %s due to socket timeout" % attr)
-          raise
-        else:
-          tries_left -= 1
-          if tries_left:
-            logging.info("Thrift exception; retrying: " + str(e), exc_info=0)
-            if 'generic failure: Unable to find a callback: 32775' in str(e):
-              logging.warn("Increase the sasl_max_buffer value in hue.ini")
       logging.warn("Out of retries for thrift call: " + attr)
       raise
     return wrapper
@@ -486,20 +545,30 @@ class SuperClient(object):
 
 def _unpack_guid_secret_in_handle(str_args):
   if 'operationHandle' in str_args or 'sessionHandle' in str_args:
-    secret = re.search('secret=(\".*\"), guid', str_args) or re.search('secret=(\'.*\'), guid', str_args)
-    guid = re.search('guid=(\".*\")\)\)', str_args) or re.search('guid=(\'.*\')\)\)', str_args)
+    if sys.version_info[0] > 2:
+      guid = re.search('guid=(b".*"), secret', str_args) or re.search('guid=(b\'.*\'), secret', str_args)
+      secret = re.search('secret=(b".+?")\)', str_args) or re.search('secret=(b\'.+?\')\)', str_args)
+    else:
+      secret = re.search('secret=(".*"), guid', str_args) or re.search('secret=(\'.*\'), guid', str_args)
+      guid = re.search('guid=(".*")\)\)', str_args) or re.search('guid=(\'.*\')\)\)', str_args)
 
     if secret and guid:
       try:
-        encoded_secret = eval(secret.group(1))
+        encoded_secret = eval(secret.group(1)) # Does not take null bytes, but don't know how to fix.
         encoded_guid = eval(guid.group(1))
 
-        str_args = str_args.replace(secret.group(1), "%x:%x" % struct.unpack(b"QQ", encoded_secret))
-        str_args = str_args.replace(guid.group(1), "%x:%x" % struct.unpack(b"QQ", encoded_guid))
-      except Exception, e:
+        str_args = str_args.replace(secret.group(1), unpack_guid(encoded_secret))
+        str_args = str_args.replace(guid.group(1), unpack_guid(encoded_guid))
+      except Exception as e:
         logging.warn("Unable to unpack the secret and guid in Thrift Handle: %s" % e)
 
   return str_args
+
+def unpack_guid(guid):
+  return "%016x:%016x" % struct.unpack(b"QQ", guid)
+
+def unpack_guid_base64(guid):
+  return "%016x:%016x" % struct.unpack(b"QQ", base64.decodestring(guid))
 
 def simpler_string(thrift_obj):
   """
@@ -512,7 +581,7 @@ def simpler_string(thrift_obj):
   TODO(philip): Use this in SuperClient, above.
   """
   L = []
-  for key, value in thrift_obj.__dict__.iteritems():
+  for key, value in thrift_obj.__dict__.items():
     if value is None:
       continue
     if hasattr(value, "thrift_spec"):
@@ -556,11 +625,11 @@ def thrift2json(tft):
   """
   if isinstance(tft,type(None)):
     return None
-  if isinstance(tft,(float,int,long,complex,basestring)):
+  if isinstance(tft,(float,int,complex,basestring)):
     return tft
   if isinstance(tft,dict):
     d = {}
-    for key, val in tft.iteritems():
+    for key, val in tft.items():
       d[key] = thrift2json(val)
     return d
   if isinstance(tft,list):
@@ -670,7 +739,7 @@ def _jsonable2thrift_helper(jsonable, type_enum, spec_args, default, recursion_d
     check_type(jsonable, dict)
     key_type_enum, key_spec_args, val_type_enum, val_spec_args = spec_args
     out = dict()
-    for k_jsonable, v_jsonable in jsonable.iteritems():
+    for k_jsonable, v_jsonable in jsonable.items():
       k = _jsonable2thrift_helper(k_jsonable, key_type_enum, key_spec_args, None, recursion_depth + 1)
       v = _jsonable2thrift_helper(v_jsonable, val_type_enum, val_spec_args, None, recursion_depth + 1)
       out[k] = v
@@ -681,7 +750,7 @@ def _jsonable2thrift_helper(jsonable, type_enum, spec_args, default, recursion_d
     # as a map with values True.
     set_type_enum, set_spec_args = spec_args
     out = set()
-    for k, v in jsonable.iteritems():
+    for k, v in jsonable.items():
       assert v is True, "Expected set value to be True.  Got: %s" % repr(v)
       out.add(_jsonable2thrift_helper(k, set_type_enum, set_spec_args, None, recursion_depth + 1))
     return out
@@ -727,8 +796,7 @@ def enum_as_sequence(enum):
   Arguments:
   - `enum`: The class of a Thrift-generated enum
   """
-  return filter(lambda x: not x.startswith("__")
-                and  x not in ["_VALUES_TO_NAMES", "_NAMES_TO_VALUES"],dir(enum))
+  return [x for x in dir(enum) if not x.startswith("__") and x not in ["_VALUES_TO_NAMES", "_NAMES_TO_VALUES", "next"]]
 
 def fixup_enums(obj, name_class_map, suffix="AsString"):
   """
@@ -740,7 +808,7 @@ def fixup_enums(obj, name_class_map, suffix="AsString"):
 
   This is destructive - it uses setattr.
   """
-  for n in name_class_map.keys():
+  for n in list(name_class_map.keys()):
     c = name_class_map[n]
     setattr(obj, n + suffix, c._VALUES_TO_NAMES[getattr(obj,n)])
   return obj
@@ -751,9 +819,12 @@ def is_thrift_struct(o):
 
 # Same in resource.py for not losing the trace class
 def log_if_slow_call(duration, message):
-  if duration >= WARN_LEVEL_CALL_DURATION_MS / 1000:
+  if duration >= math.floor(WARN_LEVEL_CALL_DURATION_MS / 1000):
     LOG.warn('SLOW: %.2f - %s' % (duration, message))
-  elif duration >= INFO_LEVEL_CALL_DURATION_MS / 1000:
+  elif duration >= math.floor(INFO_LEVEL_CALL_DURATION_MS / 1000):
     LOG.info('SLOW: %.2f - %s' % (duration, message))
   else:
-    LOG.debug(message)
+    #Leave this as logging.debug and not logger.
+    #Otherwise we never get these logging messages even with debug enabled.
+    #Review this in the future to find out why.
+    logging.debug(message)

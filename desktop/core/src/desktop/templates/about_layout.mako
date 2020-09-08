@@ -17,6 +17,9 @@
 <%!
 from django.utils.translation import ugettext as _
 
+from desktop.auth.backend import is_admin, is_hue_admin
+from desktop.conf import METRICS, has_connectors, ANALYTICS
+
 def is_selected(section, matcher):
   if section == matcher:
     return "active"
@@ -32,26 +35,42 @@ def is_selected(section, matcher):
             <ul class="nav">
               <li class="app-header">
                 <a href="${ url('about:admin_wizard') }">
-                  <img src="${ static('desktop/art/icon_hue_48.png') }" class="app-icon"  alt="${ _('Hue icon') }"/>
+                  <img src="${ static('desktop/art/icon_hue_48.png') }" class="app-icon" alt="${ _('Hue icon') }"/>
                   ${ _('About Hue') }
                 </a>
-               </li>
-              % if user.is_superuser:
+              </li>
+              % if is_admin(user) or is_hue_admin(user):
                 <li class="${is_selected(section, 'quick_start')}">
                   <a href="${ url('about:admin_wizard') }">${_('Quick start')}</a>
                 </li>
+              % endif
+              % if has_connectors() and (is_admin(user) or is_hue_admin(user)):
+                <li class="${is_selected(section, 'connectors')}">
+                  <a href="${ url('desktop.lib.connectors.views.index') }">${_('Connectors')}</a>
+                </li>
+              % endif
+              % if is_hue_admin(user):
                 <li class="${is_selected(section, 'dump_config')}">
                   <a href="${ url('desktop.views.dump_config') }">${_('Configuration')}</a>
                 </li>
+              % endif
+              % if ANALYTICS.IS_ENABLED.get() and (is_hue_admin(user) or is_admin(user)):
+              <li class="${is_selected(section, 'analytics')}">
+                <a href="${ url('desktop.lib.analytics.views.index') }">${_('Analytics')}</a>
+              </li>
+              % endif
+              % if is_hue_admin(user):
                 <li class="${is_selected(section, 'log_view')}">
                   <a href="${ url('desktop.views.log_view') }">${_('Server Logs')}</a>
                 </li>
                 <li class="${is_selected(section, 'threads')}">
                   <a href="${ url('desktop.views.threads') }">${_('Threads')}</a>
                 </li>
+                % if METRICS.ENABLE_WEB_METRICS.get():
                 <li class="${is_selected(section, 'metrics')}">
                   <a href="${ url('desktop.lib.metrics.views.index') }">${_('Metrics')}</a>
                 </li>
+                % endif
               % endif
             </ul>
           </div>

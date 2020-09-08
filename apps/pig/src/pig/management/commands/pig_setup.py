@@ -20,11 +20,11 @@ import logging
 import os
 
 from django.core import management
-from django.core.management.base import NoArgsCommand
+from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.translation import ugettext as _
 
-from desktop.conf import USE_NEW_EDITOR, IS_HUE_4
+from desktop.conf import USE_NEW_EDITOR
 from desktop.lib import paths
 from desktop.models import Directory, Document, Document2, Document2Permission
 from hadoop import cluster
@@ -39,7 +39,7 @@ from pig.conf import LOCAL_SAMPLE_DIR, REMOTE_SAMPLE_DIR
 LOG = logging.getLogger(__name__)
 
 
-class Command(NoArgsCommand):
+class Command(BaseCommand):
 
   def install_pig_script(self, sample_user):
     doc2 = None
@@ -49,12 +49,14 @@ class Command(NoArgsCommand):
       LOG.info("Sample pig editor script already installed.")
       doc2 = Document2.objects.get(owner=sample_user, name=name, type='query-pig', is_history=False)
     else:
-      statement = """data = LOAD '/user/hue/pig/examples/data/midsummer.txt' as (text:CHARARRAY);
+      statement = """REGISTER hdfs://{}/piggybank.jar;
+
+data = LOAD '{}/data/midsummer.txt' as (text:CHARARRAY);
 
 upper_case = FOREACH data GENERATE org.apache.pig.piggybank.evaluation.string.UPPER(text);
 
 STORE upper_case INTO '$output';
-"""
+""".format(REMOTE_SAMPLE_DIR.get(), REMOTE_SAMPLE_DIR.get())
       snippet_properties = {
         'hadoopProperties': [],
         'parameters': [],
@@ -86,7 +88,7 @@ STORE upper_case INTO '$output';
             description=data['description'],
             data=json.dumps(data)
           )
-      except Exception, e:
+      except Exception as e:
         LOG.exception("Failed to create sample pig script document: %s" % e)
         # Just to be sure we delete Doc2 object incase of exception.
         # Possible when there are mixed InnoDB and MyISAM tables
@@ -96,7 +98,7 @@ STORE upper_case INTO '$output';
     return doc2
 
 
-  def handle_noargs(self, **options):
+  def handle(self, *args, **options):
     fs = cluster.get_hdfs()
     create_directories(fs, [REMOTE_SAMPLE_DIR.get()])
     remote_dir = REMOTE_SAMPLE_DIR.get()
@@ -120,16 +122,9 @@ STORE upper_case INTO '$output';
     # Initialize doc2, whether editor script or link
     doc2 = None
 
-    if IS_HUE_4.get():
-      # Install editor pig script without doc1 link
-      LOG.info("Using Hue 4, will install pig editor sample.")
-      doc2 = self.install_pig_script(sample_user)
-    else:
-      # Install old pig script fixture
-      LOG.info("Using Hue 3, will install pig script fixture.")
-
-      management.call_command('loaddata', 'initial_pig_examples.json', verbosity=2)
-      Document.objects.sync()
+    # Install editor pig script without doc1 link
+    LOG.info("Using Hue 4, will install pig editor sample.")
+    doc2 = self.install_pig_script(sample_user)
 
     if USE_NEW_EDITOR.get():
       # Get or create sample user directories
@@ -140,28 +135,6 @@ STORE upper_case INTO '$output';
         parent_directory=home_dir,
         owner=sample_user,
         name=Document2.EXAMPLES_DIR)
-
-      if not IS_HUE_4.get():
-        try:
-          # Don't overwrite
-          doc = Document.objects.get(object_id=1100713)
-          doc2 = Document2.objects.get(owner=sample_user, name=doc.name, type='link-pigscript')
-        except Document.DoesNotExist:
-          LOG.warn('Sample pig script document not found.')
-        except Document2.DoesNotExist:
-          if doc.content_object:
-            data = doc.content_object.dict
-            data.update({'content_type': doc.content_type.model, 'object_id': doc.object_id})
-            data = json.dumps(data)
-
-            doc2 = Document2.objects.create(
-              owner=sample_user,
-              parent_directory=examples_dir,
-              name=doc.name,
-              type='link-pigscript',
-              description=doc.description,
-              data=data)
-            LOG.info('Successfully installed sample link to pig script: %s' % (doc2.name,))
 
       # If document exists but has been trashed, recover from Trash
       if doc2 and doc2.parent_directory != examples_dir:

@@ -19,7 +19,7 @@ import json
 import logging
 import re
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
 
@@ -53,6 +53,10 @@ DEFAULT_LAYOUT = [
         "drops":["temp"],"klass":"card card-home card-column span10"},
 ]
 
+REPORT_LAYOUT = [
+  {u'klass': u'card card-home card-column span12', u'rows': [{"widgets":[]}], u'id': u'7e0c0a45-ae90-43a6-669a-2a852ef4a449', u'drops': [u'temp'], u'size': 12}
+]
+
 QUERY_BUILDER_LAYOUT = [
   {u'klass': u'card card-home card-column span12', u'rows': [
     {u'widgets': [
@@ -66,13 +70,29 @@ QUERY_BUILDER_LAYOUT = [
   }
 ]
 
+TEXT_SEARCH_LAYOUT = [
+     {"size":12,"rows":[{"widgets":[
+         {"size":12,"name":"Filter Bar","widgetType":"filter-widget", "id":"99923aef-b233-9420-96c6-15d48293532b",
+          "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]},
+                        {"widgets":[
+         {"size":12,"name":"HTML Results","widgetType":"html-resultset-widget", "id":"14023aef-b233-9420-96c6-15d48293532b",
+          "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]}],
+        "drops":["temp"],"klass":"card card-home card-column span12"},
+]
+
 
 def index(request, is_mobile=False):
-  hue_collections = DashboardController(request.user).get_search_collections()
+  engine = request.GET.get('engine', 'solr')
+  cluster = request.POST.get('cluster','""')
   collection_id = request.GET.get('collection')
 
-  if not hue_collections or not collection_id:
-    return admin_collections(request, True, is_mobile)
+  collections = get_engine(request.user, engine, cluster=cluster).datasets() if engine != 'report' else ['default']
+
+  if not collections:
+    if engine == 'solr':
+      return no_collections(request)
+    else:
+      return importer(request)
 
   try:
     collection_doc = Document2.objects.get(id=collection_id)
@@ -81,7 +101,7 @@ def index(request, is_mobile=False):
     else:
       collection_doc.doc.get().can_read_or_exception(request.user)
     collection = Collection2(request.user, document=collection_doc)
-  except Exception, e:
+  except Exception as e:
     raise PopupException(e, title=_("Dashboard does not exist or you don't have the permission to access it."))
 
   query = {'qs': [{'q': ''}], 'fqs': [], 'start': 0}
@@ -95,14 +115,16 @@ def index(request, is_mobile=False):
   template = 'search.mako'
   if is_mobile:
     template = 'search_m.mako'
+  engine = collection.data['collection'].get('engine', 'solr')
 
   return render(template, request, {
     'collection': collection,
     'query': json.dumps(query),
     'initial': json.dumps({
-        'collections': [],
+        'collections': collections,
         'layout': DEFAULT_LAYOUT,
         'qb_layout': QUERY_BUILDER_LAYOUT,
+        'text_search_layout': TEXT_SEARCH_LAYOUT,
         'is_latest': _get_latest(),
         'engines': get_engines(request.user)
     }),
@@ -110,6 +132,7 @@ def index(request, is_mobile=False):
     'can_edit_index': can_edit_index(request.user),
     'is_embeddable': request.GET.get('is_embeddable', False),
     'mobile': is_mobile,
+    'is_report': collection.data['collection'].get('engine') == 'report'
   })
 
 def index_m(request):
@@ -117,7 +140,10 @@ def index_m(request):
 
 def new_search(request):
   engine = request.GET.get('engine', 'solr')
-  collections = get_engine(request.user, engine).datasets() if engine != 'report' else ['default']
+  cluster = request.POST.get('cluster','""')
+
+  collections = get_engine(request.user, engine, cluster=cluster).datasets() if engine != 'report' else ['default']
+
   if not collections:
     if engine == 'solr':
       return no_collections(request)
@@ -126,6 +152,7 @@ def new_search(request):
 
   collection = Collection2(user=request.user, name=collections[0], engine=engine)
   query = {'qs': [{'q': ''}], 'fqs': [], 'start': 0}
+  layout = DEFAULT_LAYOUT if engine != 'report' else REPORT_LAYOUT
 
   if request.GET.get('format', 'plain') == 'json':
     return JsonResponse({
@@ -133,8 +160,9 @@ def new_search(request):
       'query': query,
       'initial': {
           'collections': collections,
-          'layout': DEFAULT_LAYOUT,
+          'layout': layout,
           'qb_layout': QUERY_BUILDER_LAYOUT,
+          'text_search_layout': TEXT_SEARCH_LAYOUT,
           'is_latest': _get_latest(),
           'engines': get_engines(request.user)
        }
@@ -145,14 +173,16 @@ def new_search(request):
       'query': query,
       'initial': json.dumps({
           'collections': collections,
-          'layout': DEFAULT_LAYOUT,
+          'layout': layout,
           'qb_layout': QUERY_BUILDER_LAYOUT,
+          'text_search_layout': TEXT_SEARCH_LAYOUT,
           'is_latest': _get_latest(),
           'engines': get_engines(request.user)
        }),
       'is_owner': True,
       'is_embeddable': request.GET.get('is_embeddable', False),
-      'can_edit_index': can_edit_index(request.user)
+      'can_edit_index': can_edit_index(request.user),
+      'is_report': engine == 'report'
     })
 
 def browse(request, name, is_mobile=False):
@@ -162,7 +192,9 @@ def browse(request, name, is_mobile=False):
   if engine == 'solr':
     name = re.sub('^default\.', '', name)
 
-  collections = get_engine(request.user, engine, source=source).datasets()
+  database = name.split('.', 1)[0]
+  collections = get_engine(request.user, engine, source=source).datasets(database=database)
+
   if not collections and engine == 'solr':
     return no_collections(request)
 
@@ -186,6 +218,7 @@ def browse(request, name, is_mobile=False):
           "drops":["temp"],"klass":"card card-home card-column span10"}
       ],
       'qb_layout': QUERY_BUILDER_LAYOUT,
+      'text_search_layout': TEXT_SEARCH_LAYOUT,
       'is_latest': _get_latest(),
       'engines': get_engines(request.user)
     }),

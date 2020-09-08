@@ -17,17 +17,18 @@
 
 import logging
 import os
-import sys
 import socket
+import sys
 
 from django.utils.translation import ugettext_lazy as _t, ugettext as _
-from desktop.conf import default_ssl_cacerts, default_ssl_validate, AUTH_USERNAME as DEFAULT_AUTH_USERNAME,\
-  AUTH_PASSWORD as DEFAULT_AUTH_PASSWORD
+
+from desktop.conf import default_ssl_cacerts, default_ssl_validate, AUTH_USERNAME as DEFAULT_AUTH_USERNAME, \
+    AUTH_PASSWORD as DEFAULT_AUTH_PASSWORD, has_connectors
 from desktop.lib.conf import ConfigSection, Config, coerce_bool, coerce_csv, coerce_password_from_script
 from desktop.lib.exceptions import StructuredThriftTransportException
 from desktop.lib.paths import get_desktop_root
 
-from impala.impala_flags import get_ssl_server_certificate, get_max_result_cache_size, is_impersonation_enabled
+from impala.impala_flags import get_max_result_cache_size, is_impersonation_enabled, is_kerberos_enabled, is_webserver_spnego_enabled
 from impala.settings import NICE_NAME
 
 
@@ -44,6 +45,12 @@ SERVER_PORT = Config(
   help=_t("Port of the Impala Server."),
   default=21050,
   type=int)
+
+COORDINATOR_URL = Config(
+  key="coordinator_url",
+  help=_t("URL of the Impala Coordinator Server."),
+  type=str,
+  default="")
 
 IMPALA_PRINCIPAL=Config(
   key='impala_principal',
@@ -84,15 +91,15 @@ QUERY_TIMEOUT_S = Config(
   help=_t("If QUERY_TIMEOUT_S > 0, the query will be timed out (i.e. cancelled) if Impala does not do any work"
           " (compute or send back results) for that query within QUERY_TIMEOUT_S seconds."),
   type=int,
-  default=600
+  default=300
 )
 
 SESSION_TIMEOUT_S = Config(
   key="session_timeout_s",
   help=_t("If SESSION_TIMEOUT_S > 0, the session will be timed out (i.e. cancelled) if Impala does not do any work"
-          " (compute or send back results) for that session within SESSION_TIMEOUT_S seconds. Default: 30 min."),
+          " (compute or send back results) for that session within SESSION_TIMEOUT_S seconds. Default: 15 min."),
   type=int,
-  default=30 * 60
+  default=15 * 60
 )
 
 CONFIG_WHITELIST = Config(
@@ -105,6 +112,7 @@ CONFIG_WHITELIST = Config(
 IMPALA_CONF_DIR = Config(
   key='impala_conf_dir',
   help=_t('Impala configuration directory, where impala_flags is located.'),
+  type=str,
   default=os.environ.get("HUE_CONF_DIR", get_desktop_root("conf")) + '/impala-conf'
 )
 
@@ -118,28 +126,24 @@ SSL = ConfigSection(
       type=coerce_bool,
       default=False
     ),
-
     CACERTS = Config(
       key="cacerts",
       help=_t("Path to Certificate Authority certificates."),
       type=str,
       dynamic_default=default_ssl_cacerts,
     ),
-
     KEY = Config(
       key="key",
       help=_t("Path to the private key file, e.g. /etc/hue/key.pem"),
       type=str,
       default=None
     ),
-
     CERT = Config(
       key="cert",
       help=_t("Path to the public certificate file, e.g. /etc/hue/cert.pem"),
       type=str,
       default=None
     ),
-
     VALIDATE = Config(
       key="validate",
       help=_t("Choose whether Hue should validate certificates received from the server."),
@@ -171,24 +175,99 @@ AUTH_PASSWORD = Config(
   key="auth_password",
   help=_t("LDAP/PAM/.. password of the hue user used for authentications."),
   private=True,
-  dynamic_default=get_auth_password)
+  dynamic_default=get_auth_password
+)
 
 AUTH_PASSWORD_SCRIPT = Config(
   key="auth_password_script",
   help=_t("Execute this script to produce the auth password. This will be used when `auth_password` is not set."),
   private=True,
   type=coerce_password_from_script,
-  default=None)
+  default=None
+)
+
+def get_daemon_config(key):
+  from metadata.conf import MANAGER
+  from metadata.manager_client import ManagerApi
+
+  if MANAGER.API_URL.get():
+    return ManagerApi().get_impalad_config(key=key, impalad_host=SERVER_HOST.get())
+
+  return None
+
+def get_daemon_api_username():
+  """
+    Try to get daemon_api_username from Cloudera Manager API
+  """
+  return get_daemon_config('webserver_htpassword_user')
+
+def get_daemon_api_password():
+  """
+    Try to get daemon_api_password from Cloudera Manager API
+  """
+  return get_daemon_config('webserver_htpassword_password')
+
+DAEMON_API_PASSWORD = Config(
+  key="daemon_api_password",
+  help=_t("Password for Impala Daemon when username/password authentication is enabled for the Impala Daemon UI."),
+  private=True,
+  dynamic_default=get_daemon_api_password
+)
+
+DAEMON_API_PASSWORD_SCRIPT = Config(
+  key="daemon_api_password_script",
+  help=_t("Execute this script to produce the Impala Daemon Password. This will be used when `daemon_api_password` is not set."),
+  private=True,
+  type=coerce_password_from_script,
+  default=None
+)
+
+DAEMON_API_USERNAME = Config(
+  key="daemon_api_username",
+  help=_t("Username for Impala Daemon when username/password authentication is enabled for the Impala Daemon UI."),
+  private=True,
+  dynamic_default=get_daemon_api_username
+)
+
+DAEMON_API_AUTH_SCHEME = Config(
+  key="daemon_api_auth_scheme",
+  help=_t("The authentication scheme to use with 'daemon_api_username' and 'daemon_api_password' when authenticating to the Impala Daemon UI, either 'digest' (default) or 'basic'."),
+  private=False,
+  default="digest"
+)
+
+def get_use_sasl_default():
+  """kerberos enabled or password is specified"""
+  return is_kerberos_enabled() or AUTH_PASSWORD.get() is not None # Maps closely to legacy behavior
+
+USE_SASL = Config(
+  key="use_sasl",
+  help=_t("Use SASL framework to establish connection to host."),
+  private=False,
+  type=coerce_bool,
+  dynamic_default=get_use_sasl_default
+)
+
+USE_THRIFT_HTTP = Config(
+  key="use_thrift_http",
+  help=_t("Use Thrift over HTTP for the transport mode."),
+  private=False,
+  type=coerce_bool,
+  default=False
+)
 
 
 def config_validator(user):
-  # dbms is dependent on beeswax.conf (this file)
-  # import in method to avoid circular dependency
+  # dbms is dependent on beeswax.conf, import in method to avoid circular dependency
   from beeswax.design import hql_query
   from beeswax.server import dbms
   from beeswax.server.dbms import get_query_server_config
 
   res = []
+
+  if has_connectors():
+    return res
+
   try:
     try:
       if not 'test' in sys.argv: # Avoid tests hanging
@@ -200,14 +279,14 @@ def config_validator(user):
         if handle:
           server.fetch(handle, rows=100)
           server.close(handle)
-    except StructuredThriftTransportException, ex:
+    except StructuredThriftTransportException as ex:
       if 'TSocket read 0 bytes' in str(ex):  # this message appears when authentication fails
         msg = "Failed to authenticate to Impalad, check authentication configurations."
         LOG.exception(msg)
         res.append((NICE_NAME, _(msg)))
       else:
-       raise ex
-  except Exception, ex:
+        raise ex
+  except Exception as ex:
     msg = "No available Impalad to send queries to."
     LOG.exception(msg)
     res.append((NICE_NAME, _(msg)))

@@ -17,14 +17,20 @@
 
 from __future__ import division
 
+from builtins import next
+from builtins import str
+from builtins import zip
+from builtins import object
 import collections
+import datetime
+import dateutil
 import itertools
 import json
 import logging
 import numbers
 import re
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
 
@@ -40,7 +46,7 @@ LOG = logging.getLogger(__name__)
 
 NESTED_FACET_FORM = {
     'field': '',
-    'mincount': 1,
+    'mincount': 0,
     'limit': 5,
     'sort': 'desc',
     'canRange': False,
@@ -142,6 +148,8 @@ class Collection2(object):
         properties['domain'] = {'blockParent': [], 'blockChildren': []}
       if 'missing' not in properties:
         properties['missing'] = False
+      if 'slot' not in properties:
+        properties['slot'] = 0
 
       if properties.get('facets'):
         for facet_facet in properties['facets']:
@@ -161,7 +169,7 @@ class Collection2(object):
       if facet['widgetType'] == 'map-widget' and facet['type'] == 'field':
         facet['type'] = 'pivot'
         properties['facets'] = []
-        properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+        properties['facets_form'] = {'field': '', 'mincount': 0, 'limit': 5}
 
       if 'compare' not in properties:
         properties['compare'] = COMPARE_FACET
@@ -274,16 +282,16 @@ class Collection2(object):
     try:
       schema_fields = api.fields(name)
       schema_fields = schema_fields['schema']['fields']
-    except Exception, e:
+    except Exception as e:
       LOG.warn('/luke call did not succeed: %s' % e)
       try:
         fields = api.schema_fields(name)
         schema_fields = Collection2._make_luke_from_schema_fields(fields)
-      except Exception, e:
+      except Exception as e:
         LOG.error('Could not access collection: %s' % e)
         return []
 
-    return sorted([self._make_field(field, attributes) for field, attributes in schema_fields.iteritems()])
+    return sorted([self._make_field(field, attributes) for field, attributes in schema_fields.items()], key=lambda f: f['name'])
 
   def update_data(self, post_data):
     data_dict = self.data
@@ -323,7 +331,7 @@ def get_facet_field(category, field, facets):
   else:
     id_pattern = '%(field)s-%(id)s'
 
-  facets = filter(lambda facet: facet['type'] == category and id_pattern % facet == field, facets)
+  facets = [facet for facet in facets if facet['type'] == category and id_pattern % facet == field]
 
   if facets:
     return facets[0]
@@ -368,14 +376,21 @@ def range_pair(field, cat, fq_filter, iterable, end, collection_facet):
   next(to, None)
   counts = iterable[1::2]
   total_counts = counts.pop(0) if collection_facet['properties']['sort'] == 'asc' else 0
+  isDate = collection_facet['properties']['isDate']
 
   for element in a:
     next(to, None)
     to_value = next(to, end)
     count = next(a)
 
+    if collection_facet['properties']['sort'] == 'asc':
+      from_value = to_value
+      to_value = element
+    else:
+      from_value = element
+
     pairs.append({
-        'field': field, 'from': element, 'value': count, 'to': to_value, 'selected': element in selected_values,
+        'field': field, 'from': from_value if isDate else int(element), 'value': count, 'to': to_value if isDate else int(to_value), 'selected': element in selected_values,
         'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element]),
         'is_single_unit_gap': is_single_unit_gap,
         'total_counts': total_counts,
@@ -479,7 +494,7 @@ def augment_solr_response(response, collection, query):
         }
         normalized_facets.append(facet)
       elif category == 'query' and response['facet_counts']['facet_queries']:
-        for name, value in response['facet_counts']['facet_queries'].iteritems():
+        for name, value in response['facet_counts']['facet_queries'].items():
           collection_facet = get_facet_field(category, name, collection['facets'])
           facet = {
             'id': collection_facet['id'],
@@ -575,7 +590,7 @@ def augment_solr_response(response, collection, query):
           if len(collection_facet['properties']['facets']) == 1 or len(collection_facet['properties']['facets']) == 2 and collection_facet['properties']['facets'][1]['aggregate']['function'] != 'count':
             column = 'count'
             if len(collection_facet['properties']['facets']) == 2:
-              agg_keys = [key for key, value in counts[0].items() if key.lower().startswith('agg_')]
+              agg_keys = _get_agg_keys(counts) if counts else []
               legend = agg_keys[0].split(':', 2)[1]
               column = agg_keys[0]
             else:
@@ -585,10 +600,17 @@ def augment_solr_response(response, collection, query):
             _augment_stats_2d(name, facet, counts, selected_values, agg_keys, rows)
 
             counts = [_v for _f in counts for _v in (_f['val'], _f[column])]
-            counts = range_pair2(facet['field'], name, selected_values.get(facet['id'], []), counts, 1, collection_facet['properties']['facets'][0], collection_facet=collection_facet)
+            counts = range_pair2(
+                                 facet['field'],
+                                 name,
+                                 selected_values.get(facet['id'], []),
+                                 counts,
+                                 facet['properties']['max'],
+                                 collection_facet['properties']['facets'][0],
+                                 collection_facet=collection_facet)
           else:
             # Dimension 1 with counts and 2 with analytics
-            agg_keys = [key for key, value in counts[0].items() if key.lower().startswith('agg_') or key.lower().startswith('dim_')] if counts else []
+            agg_keys = _get_agg_keys(counts) if counts else []
             agg_keys.sort(key=lambda a: a[4:])
 
             if len(agg_keys) == 1 and agg_keys[0].lower().startswith('dim_'):
@@ -606,15 +628,21 @@ def augment_solr_response(response, collection, query):
                   _series[legend].append(row[prev_last_seen_dim_col_index])
                   _series[legend].append(cell)
 
-            for _name, val in _series.iteritems():
-              _c = range_pair2(facet['field'], _name, selected_values.get(facet['id'], []), val, 1, collection_facet['properties']['facets'][0])
+            for _name, val in _series.items():
+              _c = range_pair2(
+                               facet['field'],
+                               _name,
+                               selected_values.get(facet['id'], []),
+                               val,
+                               facet['properties']['max'],
+                               collection_facet['properties']['facets'][0])
               extraSeries.append({'counts': _c, 'label': _name})
             counts = []
         elif collection_facet['properties'].get('isOldPivot'):
           facet_fields = [collection_facet['field']] + [f['field'] for f in collection_facet['properties'].get('facets', []) if f['aggregate']['function'] == 'count']
 
           column = 'count'
-          agg_keys = [key for key, value in counts[0].items() if key.lower().startswith('agg_') or key.lower().startswith('dim_')]
+          agg_keys = _get_agg_keys(counts) if counts else []
           agg_keys.sort(key=lambda a: a[4:])
 
           if len(agg_keys) == 1 and agg_keys[0].lower().startswith('dim_'):
@@ -628,7 +656,7 @@ def augment_solr_response(response, collection, query):
           dimension = 1
 
           column = 'count'
-          agg_keys = counts and [key for key, value in counts[0].items() if key.lower().startswith('agg_')]
+          agg_keys = _get_agg_keys(counts) if counts else []
           if len(collection_facet['properties']['facets']) == 2 and agg_keys:
             column = agg_keys[0]
           else:
@@ -642,7 +670,7 @@ def augment_solr_response(response, collection, query):
         else:
           # Dimension 2 with analytics or 1 with N aggregates
           dimension = 2
-          agg_keys = counts and [key for key, value in counts[0].items() if key.lower().startswith('agg_') or key.lower().startswith('dim_')]
+          agg_keys = _get_agg_keys(counts) if counts else []
           agg_keys.sort(key=lambda a: a[4:])
 
           if len(agg_keys) == 1 and agg_keys[0].lower().startswith('dim_'):
@@ -651,7 +679,7 @@ def augment_solr_response(response, collection, query):
           counts = _augment_stats_2d(name, facet, counts, selected_values, agg_keys, rows)
           actual_dimension = sum([_f['aggregate']['function'] == 'count' for _f in collection_facet['properties']['facets']])
 
-          counts = filter(lambda a: len(a['fq_fields']) == actual_dimension, counts)
+          counts = [a for a in counts if len(a['fq_fields']) == actual_dimension]
 
         num_bucket = response['facets'][name]['numBuckets'] if 'numBuckets' in response['facets'][name] else len(response['facets'][name])
         facet = {
@@ -663,8 +691,9 @@ def augment_solr_response(response, collection, query):
           'extraSeries': extraSeries,
           'dimension': dimension,
           'response': {'response': {'start': 0, 'numFound': num_bucket}}, # Todo * nested buckets + offsets
-          'docs': [dict(zip(cols, row)) for row in rows],
-          'fieldsAttributes': [Collection2._make_gridlayout_header_field({'name': col, 'type': 'aggr' if '(' in col else 'string'}) for col in cols]
+          'docs': [dict(list(zip(cols, row))) for row in rows],
+          'fieldsAttributes': [Collection2._make_gridlayout_header_field({'name': col, 'type': 'aggr' if '(' in col else 'string'}) for col in cols],
+          'multiselect': collection_facet['properties']['facets'][0].get('multiselect', True)
         }
 
         normalized_facets.append(facet)
@@ -681,6 +710,12 @@ def augment_solr_response(response, collection, query):
 
   return augmented
 
+def _get_agg_keys(counts):
+  for count in counts:
+    keys = [key for key, value in list(count.items()) if key.lower().startswith('agg_') or key.lower().startswith('dim_')]
+    if keys:
+      return keys
+  return []
 
 def augment_response(collection, query, response):
   # HTML escaping
@@ -696,7 +731,7 @@ def augment_response(collection, query, response):
         meta = {'type': 'link', 'link': doc['link']}
         link = get_data_link(meta)
 
-      for field, value in doc.iteritems():
+      for field, value in doc.items():
         if isinstance(value, numbers.Number):
           escaped_value = value
         elif field == '_childDocuments_': # Nested documents
@@ -717,7 +752,7 @@ def augment_response(collection, query, response):
         doc['numFound'] = _doc['numFound']
         del response['moreLikeThis'][doc['hueId']]
 
-  highlighted_fields = response.get('highlighting', {}).keys()
+  highlighted_fields = list(response.get('highlighting', {}).keys())
   if highlighted_fields and not query.get('download'):
     id_field = collection.get('idField')
     if id_field:
@@ -727,7 +762,7 @@ def augment_response(collection, query, response):
 
           if highlighting:
             escaped_highlighting = {}
-            for field, hls in highlighting.iteritems():
+            for field, hls in highlighting.items():
               _hls = [escape(smart_unicode(hl, errors='replace')).replace('&lt;em&gt;', '<em>').replace('&lt;/em&gt;', '</em>') for hl in hls]
               escaped_highlighting[field] = _hls[0] if len(_hls) == 1 else _hls
 
@@ -812,7 +847,7 @@ def __augment_stats_2d(counts, label, fq_fields, fq_values, fq_filter, _selected
         # List nested fields
         _agg_keys = []
         if agg_key in bucket and bucket[agg_key]['buckets']: # Protect against empty buckets
-          for key, value in bucket[agg_key]['buckets'][0].items():
+          for key, value in list(bucket[agg_key]['buckets'][0].items()):
             if key.lower().startswith('agg_') or key.lower().startswith('dim_'):
               _agg_keys.append(key)
         _agg_keys.sort(key=lambda a: a[4:])
@@ -927,7 +962,7 @@ def extract_solr_exception_message(e):
     message = json.loads(e.message)
     msg = message['error'].get('msg')
     response['error'] = msg if msg else message['error']['trace']
-  except Exception, e2:
+  except Exception as e2:
     LOG.exception('Failed to extract json message: %s' % force_unicode(e2))
     LOG.exception('Failed to parse json response: %s' % force_unicode(e))
     response['error'] = force_unicode(e)

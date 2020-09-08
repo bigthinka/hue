@@ -15,29 +15,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 import errno
 import logging
 import mimetypes
 import operator
 import os
-import parquet
 import posixpath
 import re
-import shutil
 import stat as stat_module
-import urllib
-from urlparse import urlparse
+import sys
+import urllib.request, urllib.error
 
 from bz2 import decompress
 from datetime import datetime
-from cStringIO import StringIO
 from gzip import GzipFile
 
-from django.contrib.auth.models import User, Group
-from django.core.paginator import EmptyPage
-from django.core.urlresolvers import reverse
+from django.core.paginator import EmptyPage, Paginator, Page, InvalidPage
+from django.urls import reverse
 from django.template.defaultfilters import stringformat, filesizeformat
-from django.http import Http404, StreamingHttpResponse, HttpResponseNotModified, HttpResponseForbidden, HttpResponse
+from django.http import Http404, StreamingHttpResponse, HttpResponseNotModified, HttpResponseForbidden, HttpResponse, HttpResponseRedirect
 from django.views.decorators.http import require_http_methods
 from django.views.static import was_modified_since
 from django.shortcuts import redirect
@@ -46,38 +45,54 @@ from django.utils.http import http_date
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
 
-from aws.s3.s3fs import S3FileSystemException
-from avro import datafile, io
+from aws.s3.s3fs import S3FileSystemException, S3ListAllBucketsException
 from desktop import appmanager
-from desktop.lib import i18n, paginator
+from desktop.auth.backend import is_admin
+from desktop.lib import i18n
 from desktop.lib.conf import coerce_bool
 from desktop.lib.django_util import render, format_preserving_redirect
 from desktop.lib.django_util import JsonResponse
+from desktop.lib.export_csvxls import file_reader
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.fs import splitpath
 from desktop.lib.i18n import smart_str
+from desktop.lib.paths import SAFE_CHARACTERS_URI, SAFE_CHARACTERS_URI_COMPONENTS
 from desktop.lib.tasks.compress_files.compress_utils import compress_files_in_hdfs
 from desktop.lib.tasks.extract_archive.extract_utils import extract_archive_in_hdfs
 from desktop.views import serve_403_error
+from hadoop.core_site import get_trash_interval
 from hadoop.fs.hadoopfs import Hdfs
 from hadoop.fs.exceptions import WebHdfsException
 from hadoop.fs.fsutils import do_overwrite_save
+from useradmin.models import User, Group
 
-from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE
-from filebrowser.conf import MAX_SNAPPY_DECOMPRESSION_SIZE
-from filebrowser.conf import SHOW_DOWNLOAD_BUTTON
-from filebrowser.conf import SHOW_UPLOAD_BUTTON
+from filebrowser.conf import ENABLE_EXTRACT_UPLOADED_ARCHIVE, MAX_SNAPPY_DECOMPRESSION_SIZE, SHOW_DOWNLOAD_BUTTON, SHOW_UPLOAD_BUTTON, REDIRECT_DOWNLOAD
 from filebrowser.lib.archives import archive_factory
 from filebrowser.lib.rwx import filetype, rwx
 from filebrowser.lib import xxd
 from filebrowser.forms import RenameForm, UploadFileForm, UploadArchiveForm, MkDirForm, EditorForm, TouchForm,\
-                              RenameFormSet, RmTreeFormSet, ChmodFormSet, ChownFormSet, CopyFormSet, RestoreFormSet,\
-                              TrashPurgeForm, SetReplicationFactorForm
+    RenameFormSet, RmTreeFormSet, ChmodFormSet, ChownFormSet, CopyFormSet, RestoreFormSet,\
+    TrashPurgeForm, SetReplicationFactorForm
+
+if sys.version_info[0] > 2:
+  import io
+  from io import StringIO as string_io
+  from urllib.parse import quote as urllib_quote
+  from urllib.parse import unquote as urllib_unquote
+  from urllib.parse import urlparse as lib_urlparse
+  from builtins import str as new_str
+else:
+  from cStringIO import StringIO as string_io
+  from urllib import quote as urllib_quote
+  from urllib import unquote as urllib_unquote
+  from urlparse import urlparse as lib_urlparse
+  new_str = unicode
+  import parquet
+  from avro import datafile, io
 
 
 DEFAULT_CHUNK_SIZE_BYTES = 1024 * 4 # 4KB
 MAX_CHUNK_SIZE_BYTES = 1024 * 1024 # 1MB
-DOWNLOAD_CHUNK_SIZE = 1 * 1024 * 1024 # 1MB
 
 # Defaults for "xxd"-style output.
 # Sentences refer to groups of bytes printed together, within a line.
@@ -87,9 +102,11 @@ BYTES_PER_SENTENCE = 2
 # The maximum size the file editor will allow you to edit
 MAX_FILEEDITOR_SIZE = 256 * 1024
 
-INLINE_DISPLAY_MIMETYPE = re.compile('video/|image/|audio/|application/pdf|application/msword|application/excel|'
-                                     'application/vnd\.ms|'
-                                     'application/vnd\.openxmlformats')
+INLINE_DISPLAY_MIMETYPE = re.compile(
+    'video/|image/|audio/|application/pdf|application/msword|application/excel|'
+    'application/vnd\.ms|'
+    'application/vnd\.openxmlformats'
+)
 
 INLINE_DISPLAY_MIMETYPE_EXCEPTIONS = re.compile('image/svg\+xml')
 
@@ -118,16 +135,6 @@ def index(request):
   return view(request, path)
 
 
-def _file_reader(fh):
-    """Generator that reads a file, chunk-by-chunk."""
-    while True:
-        chunk = fh.read(DOWNLOAD_CHUNK_SIZE)
-        if chunk == '':
-            fh.close()
-            break
-        yield chunk
-
-
 def download(request, path):
     """
     Downloads a file.
@@ -135,6 +142,9 @@ def download(request, path):
     This is inspired by django.views.static.serve.
     ?disposition={attachment, inline}
     """
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not SHOW_DOWNLOAD_BUTTON.get():
         return serve_403_error(request)
     if not request.fs.exists(path):
@@ -154,17 +164,21 @@ def download(request, path):
     # Verify read permissions on file first
     try:
         request.fs.read(path, offset=0, length=1)
-    except WebHdfsException, e:
+    except WebHdfsException as e:
         if e.code == 403:
             raise PopupException(_('User %s is not authorized to download file at path "%s"') %
                                  (request.user.username, path))
         else:
             raise PopupException(_('Failed to download file at path "%s": %s') % (path, e))
 
-    response = StreamingHttpResponse(_file_reader(fh), content_type=content_type)
-    response["Last-Modified"] = http_date(stats['mtime'])
-    response["Content-Length"] = stats['size']
-    response['Content-Disposition'] = request.GET.get('disposition', 'attachment') if _can_inline_display(path) else 'attachment'
+    if REDIRECT_DOWNLOAD.get() and hasattr(fh, 'read_url'):
+      response = HttpResponseRedirect(fh.read_url())
+      setattr(response, 'redirect_override', True)
+    else:
+      response = StreamingHttpResponse(file_reader(fh), content_type=content_type)
+      response["Last-Modified"] = http_date(stats['mtime'])
+      response["Content-Length"] = stats['size']
+      response['Content-Disposition'] = request.GET.get('disposition', 'attachment; filename="' + stats['name'] + '"') if _can_inline_display(path) else 'attachment'
 
     request.audit = {
         'operation': 'DOWNLOAD',
@@ -177,30 +191,31 @@ def download(request, path):
 
 def view(request, path):
     """Dispatches viewing of a path to either index() or fileview(), depending on type."""
-
+    decoded_path = unquote_url(path)
+    if path != decoded_path:
+      path = decoded_path
     # default_to_home is set in bootstrap.js
     if 'default_to_home' in request.GET:
         home_dir_path = request.user.get_home_directory()
         if request.fs.isdir(home_dir_path):
-            return format_preserving_redirect(request, reverse(view, kwargs=dict(path=home_dir_path)))
+            return format_preserving_redirect(request, '/filebrowser/view=' + urllib_quote(home_dir_path.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS))
 
     # default_to_home is set in bootstrap.js
     if 'default_to_trash' in request.GET:
-        if request.fs.isdir(_home_trash_path(request.fs, request.user, path)):
-            return format_preserving_redirect(request, reverse(view, kwargs=dict(path=_home_trash_path(request.fs, request.user, path))))
-        if request.fs.isdir(request.fs.trash_path(path)):
-            return format_preserving_redirect(request, reverse(view, kwargs=dict(path=request.fs.trash_path(path))))
+        home_trash_path = _home_trash_path(request.fs, request.user, path)
+        if request.fs.isdir(home_trash_path):
+            return format_preserving_redirect(request, '/filebrowser/view=' + urllib_quote(home_trash_path.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS))
+        trash_path = request.fs.trash_path(path)
+        if request.fs.isdir(trash_path):
+            return format_preserving_redirect(request, '/filebrowser/view=' + urllib_quote(trash_path.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS))
 
     try:
-        decoded_path = urllib.unquote(path)
-        if path != decoded_path:
-          path = decoded_path
         stats = request.fs.stats(path)
         if stats.isDir:
             return listdir_paged(request, path)
         else:
             return display(request, path)
-    except S3FileSystemException, e:
+    except S3FileSystemException as e:
         msg = _("S3 filesystem exception.")
         if request.is_ajax():
             exception = {
@@ -209,15 +224,11 @@ def view(request, path):
             return JsonResponse(exception)
         else:
             raise PopupException(msg, detail=e)
-    except (IOError, WebHdfsException), e:
+    except (IOError, WebHdfsException) as e:
         msg = _("Cannot access: %(path)s. ") % {'path': escape(path)}
 
-        if "Connection refused" in e.message:
+        if "Connection refused" in str(e):
             msg += _(" The HDFS REST service is not available. ")
-        elif request.fs._get_scheme(path).lower() == 'hdfs':
-            if request.user.is_superuser and not _is_hdfs_superuser(request):
-                msg += _(' Note: you are a Hue admin but not a HDFS superuser, "%(superuser)s" or part of HDFS supergroup, "%(supergroup)s".') \
-                        % {'superuser': request.fs.superuser, 'supergroup': request.fs.supergroup}
 
         if request.is_ajax():
           exception = {
@@ -233,6 +244,9 @@ def _home_trash_path(fs, user, path):
 
 
 def home_relative_view(request, path):
+  decoded_path = urllib_unquote(path)
+  if path != decoded_path:
+    path = decoded_path
   home_dir_path = request.user.get_home_directory()
   if request.fs.exists(home_dir_path):
     path = '%s%s' % (home_dir_path, path)
@@ -242,10 +256,12 @@ def home_relative_view(request, path):
 
 def edit(request, path, form=None):
     """Shows an edit form for the given path. Path does not necessarily have to exist."""
-
+    decoded_path = unquote_url(path)
+    if path != decoded_path:
+      path = decoded_path
     try:
         stats = request.fs.stats(path)
-    except IOError, ioe:
+    except IOError as ioe:
         # A file not found is OK, otherwise re-raise
         if ioe.errno == errno.ENOENT:
             stats = None
@@ -261,12 +277,12 @@ def edit(request, path, form=None):
         raise PopupException(_("File too big to edit: %(path)s") % {'path': path})
 
     if not form:
-        encoding = request.REQUEST.get('encoding') or i18n.get_site_encoding()
+        encoding = request.GET.get('encoding') or i18n.get_site_encoding()
         if stats:
             f = request.fs.open(path)
             try:
                 try:
-                    current_contents = unicode(f.read(), encoding)
+                    current_contents = new_str(f.read(), encoding)
                 except UnicodeDecodeError:
                     raise PopupException(_("File is not encoded in %(encoding)s; cannot be edited: %(path)s.") % {'encoding': encoding, 'path': path})
             finally:
@@ -284,7 +300,7 @@ def edit(request, path, form=None):
         breadcrumbs=parse_breadcrumbs(path),
         is_embeddable=request.GET.get('is_embeddable', False),
         show_download_button=SHOW_DOWNLOAD_BUTTON.get())
-    if request.META.get('HTTP_X_REQUESTED_WITH') != 'XMLHttpRequest':
+    if not request.is_ajax():
         data['stats'] = stats;
         data['form'] = form;
     return render("edit.mako", request, data)
@@ -298,6 +314,9 @@ def save_file(request):
     form = EditorForm(request.POST)
     is_valid = form.is_valid()
     path = form.cleaned_data.get('path')
+    decoded_path = unquote_url(path)
+    if path != decoded_path:
+      path = decoded_path
 
     if request.POST.get('save') == "Save As":
         if not is_valid:
@@ -318,12 +337,12 @@ def save_file(request):
             do_overwrite_save(request.fs, path, data)
         else:
             request.fs.create(path, overwrite=False, data=data)
-    except WebHdfsException, e:
+    except WebHdfsException as e:
         raise PopupException(_("The file could not be saved"), detail=e.message.splitlines()[0])
-    except Exception, e:
+    except Exception as e:
         raise PopupException(_("The file could not be saved"), detail=e)
 
-    request.path = reverse("filebrowser.views.edit", kwargs=dict(path=path))
+    request.path = reverse("filebrowser_views_edit", kwargs=dict(path=path))
     return edit(request, path, form)
 
 
@@ -334,7 +353,7 @@ def parse_breadcrumbs(path):
       if url and not url.endswith('/'):
         url += '/'
       url += part
-      breadcrumbs.append({'url': url, 'label': part})
+      breadcrumbs.append({'url': urllib_quote(url.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS), 'label': part})
     return breadcrumbs
 
 
@@ -343,13 +362,14 @@ def listdir(request, path):
     Implements directory listing (or index).
 
     Intended to be called via view().
-
-    TODO: Remove?
     """
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not request.fs.isdir(path):
         raise PopupException(_("Not a directory: %(path)s") % {'path': path})
 
-    file_filter = request.REQUEST.get('file_filter', 'any')
+    file_filter = request.GET.get('file_filter', 'any')
 
     assert file_filter in ['any', 'file', 'dir']
 
@@ -361,15 +381,15 @@ def listdir(request, path):
         'path': path,
         'file_filter': file_filter,
         'breadcrumbs': breadcrumbs,
-        'current_dir_path': path,
-        'current_request_path': request.path,
-        'home_directory': request.fs.isdir(home_dir_path) and home_dir_path or None,
+        'current_dir_path': urllib_quote(path.encode('utf-8'), safe=SAFE_CHARACTERS_URI),
+        'current_request_path': '/filebrowser/view=' + urllib_quote(path.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS),
+        'home_directory': home_dir_path if home_dir_path and request.fs.isdir(home_dir_path) else None,
         'cwd_set': True,
         'is_superuser': request.user.username == request.fs.superuser,
         'groups': request.user.username == request.fs.superuser and [str(x) for x in Group.objects.values_list('name', flat=True)] or [],
         'users': request.user.username == request.fs.superuser and [str(x) for x in User.objects.values_list('username', flat=True)] or [],
         'superuser': request.fs.superuser,
-        'show_upload': (request.REQUEST.get('show_upload') == 'false' and (False,) or (True,))[0],
+        'show_upload': (request.GET.get('show_upload') == 'false' and (False,) or (True,))[0],
         'show_download_button': SHOW_DOWNLOAD_BUTTON.get(),
         'show_upload_button': SHOW_UPLOAD_BUTTON.get(),
         'is_embeddable': request.GET.get('is_embeddable', False),
@@ -389,15 +409,25 @@ def listdir(request, path):
     data['files'] = [_massage_stats(request, stat_absolute_path(path, stat)) for stat in stats]
     return render('listdir.mako', request, data)
 
-def _massage_page(page):
+def _massage_page(page, paginator):
+    try:
+        prev_num = page.previous_page_number()
+    except InvalidPage:
+        prev_num = 0
+
+    try:
+        next_num = page.next_page_number()
+    except InvalidPage:
+        next_num = 0
+
     return {
         'number': page.number,
-        'num_pages': page.num_pages(),
-        'previous_page_number': page.previous_page_number(),
-        'next_page_number': page.next_page_number(),
+        'num_pages': paginator.num_pages,
+        'previous_page_number': prev_num,
+        'next_page_number': next_num,
         'start_index': page.start_index(),
         'end_index': page.end_index(),
-        'total_count': page.total_count()
+        'total_count': paginator.count
     }
 
 def listdir_paged(request, path):
@@ -415,14 +445,17 @@ def listdir_paged(request, path):
       filter=?          - Specify a substring filter to search for in
                           the filename field.
     """
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not request.fs.isdir(path):
         raise PopupException("Not a directory: %s" % (path,))
 
     pagenum = int(request.GET.get('pagenum', 1))
     pagesize = int(request.GET.get('pagesize', 30))
     do_as = None
-    if request.user.is_superuser or request.user.has_hue_permission(action="impersonate", app="security"):
-      do_as = request.GET.get('doas', request.user.usernamefull)
+    if is_admin(request.user) or request.user.has_hue_permission(action="impersonate", app="security"):
+      do_as = request.GET.get('doas', request.user.username)
     if hasattr(request, 'doas'):
       do_as = request.doas
 
@@ -430,19 +463,23 @@ def listdir_paged(request, path):
       home_dir_path = request.user.get_home_directory()
     else:
       home_dir_path = None
-    
     breadcrumbs = parse_breadcrumbs(path)
+    s3_listing_not_allowed = ''
 
-    if do_as:
-      all_stats = request.fs.do_as_user(do_as, request.fs.listdir_stats, path)
-    else:
-      all_stats = request.fs.listdir_stats(path)
+    try:
+      if do_as:
+        all_stats = request.fs.do_as_user(do_as, request.fs.listdir_stats, path)
+      else:
+        all_stats = request.fs.listdir_stats(path)
+    except S3ListAllBucketsException as e:
+      s3_listing_not_allowed = e.message
+      all_stats = []
 
 
     # Filter first
     filter_str = request.GET.get('filter', None)
     if filter_str:
-        filtered_stats = filter(lambda sb: filter_str in sb['name'], all_stats)
+        filtered_stats = [sb for sb in all_stats if filter_str in sb['name']]
         all_stats = filtered_stats
 
     # Sort next
@@ -450,20 +487,18 @@ def listdir_paged(request, path):
     descending_param = request.GET.get('descending', None)
     if sortby is not None:
         if sortby not in ('type', 'name', 'atime', 'mtime', 'user', 'group', 'size'):
-            logger.info("Invalid sort attribute '%s' for listdir." %
-                        (sortby,))
+            logger.info("Invalid sort attribute '%s' for listdir." % sortby)
         else:
-            all_stats = sorted(all_stats,
-                               key=operator.attrgetter(sortby),
-                               reverse=coerce_bool(descending_param))
-
+            all_stats = sorted(all_stats, key=operator.attrgetter(sortby), reverse=coerce_bool(descending_param))
 
     # Do pagination
     try:
-      page = paginator.Paginator(all_stats, pagesize).page(pagenum)
+      paginator = Paginator(all_stats, pagesize, allow_empty_first_page=True)
+      page = paginator.page(pagenum)
       shown_stats = page.object_list
     except EmptyPage:
       logger.warn("No results found for requested page.")
+      paginator = None
       page = None
       shown_stats = []
 
@@ -481,54 +516,53 @@ def listdir_paged(request, path):
     current_stat = request.fs.stats(path)
     # The 'path' field would be absolute, but we want its basename to be
     # actually '.' for display purposes. Encode it since _massage_stats expects byte strings.
-    current_stat['path'] = path
-    current_stat['name'] = "."
+    current_stat.path = path
+    current_stat.name = "."
     shown_stats.insert(1, current_stat)
 
     if page:
-      page.object_list = [ _massage_stats(request, stat_absolute_path(path, s)) for s in shown_stats ]
+      page.object_list = [_massage_stats(request, stat_absolute_path(path, s)) for s in shown_stats]
 
-    is_trash_enabled = request.fs._get_scheme(path) == 'hdfs' and \
-                       (request.fs.isdir(_home_trash_path(request.fs, request.user, path)) or
-                        request.fs.isdir(request.fs.trash_path(path)))
+    is_trash_enabled = request.fs._get_scheme(path) == 'hdfs' and int(get_trash_interval()) > 0
 
     is_fs_superuser = _is_hdfs_superuser(request)
     data = {
         'path': path,
         'breadcrumbs': breadcrumbs,
-        'current_request_path': request.path,
+        'current_request_path': '/filebrowser/view=' + urllib_quote(path.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS),
         'is_trash_enabled': is_trash_enabled,
         'files': page.object_list if page else [],
-        'page': _massage_page(page) if page else {},
+        'page': _massage_page(page, paginator) if page else {},
         'pagesize': pagesize,
-        'home_directory': home_dir_path and request.fs.isdir(home_dir_path) or None,
+        'home_directory': home_dir_path if home_dir_path and request.fs.isdir(home_dir_path) else None,
         'descending': descending_param,
         # The following should probably be deprecated
         'cwd_set': True,
         'file_filter': 'any',
-        'current_dir_path': path,
+        'current_dir_path': urllib_quote(path.encode('utf-8'), safe=SAFE_CHARACTERS_URI),
         'is_fs_superuser': is_fs_superuser,
         'groups': is_fs_superuser and [str(x) for x in Group.objects.values_list('name', flat=True)] or [],
         'users': is_fs_superuser and [str(x) for x in User.objects.values_list('username', flat=True)] or [],
         'superuser': request.fs.superuser,
         'supergroup': request.fs.supergroup,
         'is_sentry_managed': request.fs.is_sentry_managed(path),
-        'apps': appmanager.get_apps_dict(request.user).keys(),
+        'apps': list(appmanager.get_apps_dict(request.user).keys()),
         'show_download_button': SHOW_DOWNLOAD_BUTTON.get(),
         'show_upload_button': SHOW_UPLOAD_BUTTON.get(),
         'is_embeddable': request.GET.get('is_embeddable', False),
+        's3_listing_not_allowed': s3_listing_not_allowed
     }
     return render('listdir.mako', request, data)
 
 def scheme_absolute_path(root, path):
-  splitPath = urlparse(path)
-  splitRoot = urlparse(root)
+  splitPath = lib_urlparse(path)
+  splitRoot = lib_urlparse(root)
   if splitRoot.scheme and not splitPath.scheme:
     path = splitPath._replace(scheme=splitRoot.scheme).geturl()
   return path
 
 def stat_absolute_path(path, stat):
-  stat["path"] = scheme_absolute_path(path, stat["path"])
+  stat.path = scheme_absolute_path(path, stat.path)
   return stat
 
 def _massage_stats(request, stats):
@@ -536,18 +570,18 @@ def _massage_stats(request, stats):
     Massage a stats record as returned by the filesystem implementation
     into the format that the views would like it in.
     """
-    path = stats['path']
+    path = stats.path
     normalized = request.fs.normpath(path)
     return {
-        'path': normalized,
-        'name': stats['name'],
+        'path': normalized, # Normally this should be quoted, but we only use this in POST request so we're ok. Changing this to quoted causes many issues.
+        'name': stats.name,
         'stats': stats.to_json_dict(),
-        'mtime': datetime.fromtimestamp(stats['mtime']).strftime('%B %d, %Y %I:%M %p') if stats['mtime'] else '',
-        'humansize': filesizeformat(stats['size']),
-        'type': filetype(stats['mode']),
-        'rwx': rwx(stats['mode'], stats['aclBit']),
-        'mode': stringformat(stats['mode'], "o"),
-        'url': reverse('filebrowser.views.view', kwargs=dict(path=normalized)),
+        'mtime': datetime.fromtimestamp(stats.mtime).strftime('%B %d, %Y %I:%M %p') if stats.mtime else '',
+        'humansize': filesizeformat(stats.size),
+        'type': filetype(stats.mode),
+        'rwx': rwx(stats.mode, stats.aclBit),
+        'mode': stringformat(stats.mode, "o"),
+        'url': '/filebrowser/view=' + urllib_quote(normalized.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS),
         'is_sentry_managed': request.fs.is_sentry_managed(path)
     }
 
@@ -559,6 +593,9 @@ def stat(request, path):
     Intended for use via AJAX (and hence doesn't provide
     an HTML view).
     """
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not request.fs.exists(path):
         raise Http404(_("File not found: %(path)s") % {'path': escape(path)})
     stats = request.fs.stats(path)
@@ -566,6 +603,9 @@ def stat(request, path):
 
 
 def content_summary(request, path):
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not request.fs.exists(path):
         raise Http404(_("File not found: %(path)s") % {'path': escape(path)})
     response = {'status': -1, 'message': '', 'summary': None}
@@ -575,7 +615,7 @@ def content_summary(request, path):
         stats.summary.update({'replication': replication_factor})
         response['status'] = 0
         response['summary'] = stats.summary
-    except WebHdfsException, e:
+    except WebHdfsException as e:
         response['message'] = _("The file could not be saved") + e.message.splitlines()[0]
     return JsonResponse(response)
 
@@ -595,13 +635,16 @@ def display(request, path):
     sequence files, decompress gzipped text files, etc.).
     There exists a python-magic package to interface with libmagic.
     """
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     if not request.fs.isfile(path):
         raise PopupException(_("Not a file: '%(path)s'") % {'path': path})
 
     # display inline files just if it's not an ajax request
     if not request.is_ajax():
       if _can_inline_display(path):
-        return redirect(reverse('filebrowser.views.download', args=[path]) + '?disposition=inline')
+        return redirect(reverse('filebrowser_views_download', args=[path]) + '?disposition=inline')
 
     stats = request.fs.stats(path)
     encoding = request.GET.get('encoding') or i18n.get_site_encoding()
@@ -645,13 +688,12 @@ def display(request, path):
     if mode == 'binary':
         compression = 'none'
         # Read out based on meta.
-    compression, offset, length, contents =\
-    read_contents(compression, path, request.fs, offset, length)
+    compression, offset, length, contents = read_contents(compression, path, request.fs, offset, length)
 
     # Get contents as string for text mode, or at least try
     uni_contents = None
     if not mode or mode == 'text':
-        uni_contents = unicode(contents, encoding, errors='replace')
+        uni_contents = new_str(contents, encoding, errors='replace')
         is_binary = uni_contents.find(i18n.REPLACEMENT_CHAR) != -1
         # Auto-detect mode
         if not mode:
@@ -675,11 +717,11 @@ def display(request, path):
         'dirname': dirname,
         'mode': mode,
         'compression': compression,
-        'size': stats['size'],
+        'size': stats.size,
         'max_chunk_size': str(MAX_CHUNK_SIZE_BYTES)
     }
     data["filename"] = os.path.basename(path)
-    data["editable"] = stats['size'] < MAX_FILEEDITOR_SIZE
+    data["editable"] = stats.size < MAX_FILEEDITOR_SIZE
     if mode == "binary":
         # This might be the wrong thing for ?format=json; doing the
         # xxd'ing in javascript might be more compact, or sending a less
@@ -715,7 +757,9 @@ def read_contents(codec_type, path, fs, offset, length):
     """
     contents = ''
     fhandle = None
-
+    decoded_path = urllib_unquote(path)
+    if path != decoded_path:
+      path = decoded_path
     try:
         fhandle = fs.open(path)
         stats = fs.stats(path)
@@ -768,7 +812,7 @@ def _decompress_snappy(compressed_content):
     try:
         import snappy
         return snappy.decompress(compressed_content)
-    except Exception, e:
+    except Exception as e:
         raise PopupException(_('Failed to decompress snappy compressed file.'), detail=e)
 
 
@@ -779,7 +823,7 @@ def _read_snappy(fhandle, path, offset, length, stats):
     if stats.size > MAX_SNAPPY_DECOMPRESSION_SIZE.get():
         raise PopupException(_('Failed to decompress snappy compressed file. File size is greater than allowed max snappy decompression size of %d.') % MAX_SNAPPY_DECOMPRESSION_SIZE.get())
 
-    return _read_simple(StringIO(_decompress_snappy(fhandle.read())), path, offset, length, stats)
+    return _read_simple(string_io(_decompress_snappy(fhandle.read())), path, offset, length, stats)
 
 
 def _read_avro(fhandle, path, offset, length, stats):
@@ -803,7 +847,7 @@ def _read_avro(fhandle, path, offset, length, stats):
             data_file_reader.close()
 
         contents = "".join(contents_list)
-    except Exception, e:
+    except Exception as e:
         logging.exception('Could not read avro file at "%s": %s' % (path, e))
         raise PopupException(_("Failed to read Avro file."))
     return contents
@@ -812,13 +856,13 @@ def _read_avro(fhandle, path, offset, length, stats):
 def _read_parquet(fhandle, path, offset, length, stats):
     try:
         size = 1 * 128 * 1024 * 1024  # Buffer file stream to 128 MB chunks
-        data = StringIO(fhandle.read(size))
+        data = string_io(fhandle.read(size))
 
-        dumped_data = StringIO()
+        dumped_data = string_io()
         parquet._dump(data, ParquetOptions(limit=1000), out=dumped_data)
         dumped_data.seek(offset)
         return dumped_data.read()
-    except Exception, e:
+    except Exception as e:
         logging.exception('Could not read parquet file at "%s": %s' % (path, e))
         raise PopupException(_("Failed to read Parquet file."))
 
@@ -828,8 +872,8 @@ def _read_gzip(fhandle, path, offset, length, stats):
     if offset and offset != 0:
         raise PopupException(_("Offsets are not supported with Gzip compression."))
     try:
-        contents = GzipFile('', 'r', 0, StringIO(fhandle.read())).read(length)
-    except Exception, e:
+        contents = GzipFile('', 'r', 0, string_io(fhandle.read())).read(length)
+    except Exception as e:
         logging.exception('Could not decompress file at "%s": %s' % (path, e))
         raise PopupException(_("Failed to decompress file."))
     return contents
@@ -839,7 +883,7 @@ def _read_bz2(fhandle, path, offset, length, stats):
     contents = ''
     try:
         contents = decompress(fhandle.read(length))
-    except Exception, e:
+    except Exception as e:
         logging.exception('Could not decompress file at "%s": %s' % (path, e))
         raise PopupException(_("Failed to decompress file."))
     return contents
@@ -850,7 +894,7 @@ def _read_simple(fhandle, path, offset, length, stats):
     try:
         fhandle.seek(offset)
         contents = fhandle.read(length)
-    except Exception, e:
+    except Exception as e:
         logging.exception('Could not read file at "%s": %s' % (path, e))
         raise PopupException(_("Failed to read file."))
     return contents
@@ -889,8 +933,9 @@ def detect_snappy(contents):
 def detect_parquet(fhandle):
     """
     Detect parquet from magic header bytes.
+    Python 2 only currently.
     """
-    return parquet._check_header_magic_bytes(fhandle)
+    return False if sys.version_info[0] > 2 else parquet._check_header_magic_bytes(fhandle)
 
 
 def snappy_installed():
@@ -1041,7 +1086,7 @@ def generic_op(form_class, request, op, parameter_names, piggyback=None, templat
         ret['extra_params'] = extra_params
 
     for p in parameter_names:
-        val = request.REQUEST.get(p)
+        val = request.GET.get(p)
         if val:
             ret[p] = val
 
@@ -1052,23 +1097,13 @@ def generic_op(form_class, request, op, parameter_names, piggyback=None, templat
             args = arg_extractor(request, form, parameter_names)
             try:
                 op(*args)
-            except (IOError, WebHdfsException), e:
+            except (IOError, WebHdfsException) as e:
                 msg = _("Cannot perform operation.")
-                # TODO: Only apply this message for HDFS
-                if request.user.is_superuser and not _is_hdfs_superuser(request):
-                    msg += _(' Note: you are a Hue admin but not a HDFS superuser, "%(superuser)s" or part of HDFS supergroup, "%(supergroup)s".') \
-                           % {'superuser': request.fs.superuser, 'supergroup': request.fs.supergroup}
-                if request.is_ajax():
-                    return HttpResponseForbidden(smart_str(e))
-                else:
-                    raise PopupException(msg, detail=e)
-            except S3FileSystemException, e:
-              msg = _("S3 filesystem exception.")
-              if request.is_ajax():
-                  return HttpResponseForbidden(smart_str(e))
-              else:
-                  raise PopupException(msg, detail=e)
-            except NotImplementedError, e:
+                raise PopupException(msg, detail=e)
+            except S3FileSystemException as e:
+                msg = _("S3 filesystem exception.")
+                raise PopupException(msg, detail=e)
+            except NotImplementedError as e:
                 msg = _("Cannot perform operation.")
                 raise PopupException(msg, detail=e)
 
@@ -1079,9 +1114,9 @@ def generic_op(form_class, request, op, parameter_names, piggyback=None, templat
             ret["success"] = True
             try:
                 if piggyback:
-                    piggy_path = form.cleaned_data[piggyback]
+                    piggy_path = form.cleaned_data.get(piggyback)
                     ret["result"] = _massage_stats(request, stat_absolute_path(piggy_path ,request.fs.stats(piggy_path)))
-            except Exception, e:
+            except Exception as e:
                 # Hard to report these more naturally here.  These happen either
                 # because of a bug in the piggy-back code or because of a
                 # race condition.
@@ -1108,7 +1143,7 @@ def rename(request):
           raise PopupException(_("Could not rename folder \"%s\" to \"%s\": Hashes are not allowed in filenames." % (src_path, dest_path)))
         if "/" not in dest_path:
             src_dir = os.path.dirname(src_path)
-            dest_path = request.fs.join(src_dir, dest_path)
+            dest_path = request.fs.join(urllib_unquote(src_dir), urllib_unquote(dest_path))
         if request.fs.exists(dest_path):
           raise PopupException(_('The destination path "%s" already exists.') % dest_path)
         request.fs.rename(src_path, dest_path)
@@ -1117,7 +1152,7 @@ def rename(request):
 
 def set_replication(request):
     def smart_set_replication(src_path, replication_factor):
-        result = request.fs.set_replication(src_path, replication_factor)
+        result = request.fs.set_replication(urllib_unquote(src_path), replication_factor)
         if not result:
             raise PopupException(_("Setting of replication factor failed"))
 
@@ -1130,7 +1165,7 @@ def mkdir(request):
         # No absolute directory specification allowed.
         if posixpath.sep in name or "#" in name:
             raise PopupException(_("Could not name folder \"%s\": Slashes or hashes are not allowed in filenames." % name))
-        request.fs.mkdir(request.fs.join(path, name))
+        request.fs.mkdir(request.fs.join(urllib_unquote(path), urllib_unquote(name)))
 
     return generic_op(MkDirForm, request, smart_mkdir, ["path", "name"], "path")
 
@@ -1140,7 +1175,12 @@ def touch(request):
         # No absolute path specification allowed.
         if posixpath.sep in name:
             raise PopupException(_("Could not name file \"%s\": Slashes are not allowed in filenames." % name))
-        request.fs.create(request.fs.join(path, name))
+        request.fs.create(
+            request.fs.join(
+                urllib_unquote(path.encode('utf-8') if not isinstance(path, str) else path),
+                urllib_unquote(name.encode('utf-8') if not isinstance(name, str) else name)
+            )
+        )
 
     return generic_op(TouchForm, request, smart_touch, ["path", "name"], "path")
 
@@ -1150,7 +1190,7 @@ def rmtree(request):
     params = ["path"]
     def bulk_rmtree(*args, **kwargs):
         for arg in args:
-            request.fs.do_as_user(request.user, request.fs.rmtree, arg['path'], 'skip_trash' in request.GET)
+            request.fs.do_as_user(request.user, request.fs.rmtree, urllib_unquote(arg['path']), 'skip_trash' in request.GET)
     return generic_op(RmTreeFormSet, request, bulk_rmtree, ["path"], None,
                       data_extractor=formset_data_extractor(recurring, params),
                       arg_extractor=formset_arg_extractor,
@@ -1163,7 +1203,12 @@ def move(request):
     params = ['src_path']
     def bulk_move(*args, **kwargs):
         for arg in args:
-            request.fs.rename(arg['src_path'], arg['dest_path'])
+            if arg['src_path'] == arg['dest_path']:
+                raise PopupException(_('Source path and destination path cannot be same'))
+            request.fs.rename(
+                urllib_unquote(arg['src_path'].encode('utf-8') if not isinstance(arg['src_path'], str) else arg['src_path']),
+                urllib_unquote(arg['dest_path'].encode('utf-8') if not isinstance(arg['dest_path'], str) else arg['dest_path'])
+            )
     return generic_op(RenameFormSet, request, bulk_move, ["src_path", "dest_path"], None,
                       data_extractor=formset_data_extractor(recurring, params),
                       arg_extractor=formset_arg_extractor,
@@ -1178,7 +1223,7 @@ def copy(request):
         for arg in args:
             if arg['src_path'] == arg['dest_path']:
                 raise PopupException(_('Source path and destination path cannot be same'))
-            request.fs.copy(arg['src_path'], arg['dest_path'], recursive=True, owner=request.user)
+            request.fs.copy(unquote_url(arg['src_path']), unquote_url(arg['dest_path']), recursive=True, owner=request.user)
     return generic_op(CopyFormSet, request, bulk_copy, ["src_path", "dest_path"], None,
                       data_extractor=formset_data_extractor(recurring, params),
                       arg_extractor=formset_arg_extractor,
@@ -1192,7 +1237,7 @@ def chmod(request):
     def bulk_chmod(*args, **kwargs):
         op = curry(request.fs.chmod, recursive=request.POST.get('recursive', False))
         for arg in args:
-            op(arg['path'], arg['mode'])
+            op(urllib_unquote(arg['path']), arg['mode'])
     # mode here is abused: on input, it's a string, but when retrieved,
     # it's an int.
     return generic_op(ChmodFormSet, request, bulk_chmod, ['path', 'mode'], "path",
@@ -1217,7 +1262,7 @@ def chown(request):
     def bulk_chown(*args, **kwargs):
         op = curry(request.fs.chown, recursive=request.POST.get('recursive', False))
         for arg in args:
-            varg = [arg[param] for param in param_names]
+            varg = [urllib_unquote(arg[param]) for param in param_names]
             op(*varg)
 
     return generic_op(ChownFormSet, request, bulk_chown, param_names, "path",
@@ -1232,7 +1277,7 @@ def trash_restore(request):
     params = ["path"]
     def bulk_restore(*args, **kwargs):
         for arg in args:
-            request.fs.do_as_user(request.user, request.fs.restore, arg['path'])
+            request.fs.do_as_user(request.user, request.fs.restore, urllib_unquote(arg['path']))
     return generic_op(RestoreFormSet, request, bulk_restore, ["path"], None,
                       data_extractor=formset_data_extractor(recurring, params),
                       arg_extractor=formset_arg_extractor,
@@ -1257,8 +1302,9 @@ def upload_file(request):
     try:
         resp = _upload_file(request)
         response.update(resp)
-    except Exception, ex:
-        response['data'] = str(ex).split('\n', 1)[0]
+    except Exception as ex:
+        logger.exception('Upload failure')
+        response['data'] = smart_str(ex).split('\n', 1)[0]
         hdfs_file = request.FILES.get('hdfs_file')
         if hdfs_file and hasattr(hdfs_file, 'remove'):  # TODO: Call from proxyFS
             hdfs_file.remove()
@@ -1281,8 +1327,8 @@ def _upload_file(request):
 
     if form.is_valid():
         uploaded_file = request.FILES['hdfs_file']
-        dest = scheme_absolute_path(request.GET['dest'], form.cleaned_data['dest'])
-        filepath = request.fs.join(dest, uploaded_file.name)
+        dest = scheme_absolute_path(unquote_url(request.GET['dest']), unquote_url(request.GET['dest']))
+        filepath = request.fs.join(dest, unquote_url(uploaded_file.name))
 
         if request.fs.isdir(dest) and posixpath.sep in uploaded_file.name:
             raise PopupException(_('Sorry, no "%(sep)s" in the filename %(name)s.' % {'sep': posixpath.sep, 'name': uploaded_file.name}))
@@ -1290,8 +1336,7 @@ def _upload_file(request):
         try:
             request.fs.upload(file=uploaded_file, path=dest, username=request.user.username)
             response['status'] = 0
-
-        except IOError, ex:
+        except IOError as ex:
             already_exists = False
             try:
                 already_exists = request.fs.exists(dest)
@@ -1324,8 +1369,10 @@ def extract_archive_using_batch_job(request):
 
     if upload_path and archive_name:
       try:
+        upload_path = urllib.unquote(upload_path)
+        archive_name = urllib.unquote(archive_name)
         response = extract_archive_in_hdfs(request, upload_path, archive_name)
-      except Exception, e:
+      except Exception as e:
         response['message'] = _('Exception occurred while extracting archive: %s' % e)
   else:
     response['message'] = _('ERROR: Configuration parameter enable_extract_uploaded_archive ' +
@@ -1345,8 +1392,11 @@ def compress_files_using_batch_job(request):
 
     if upload_path and file_names and archive_name:
       try:
+        upload_path = urllib.unquote(upload_path)
+        archive_name = urllib.unquote(archive_name)
+        file_names = [urllib.unquote(name) for name in file_names]
         response = compress_files_in_hdfs(request, file_names, upload_path, archive_name)
-      except Exception, e:
+      except Exception as e:
         response['message'] = _('Exception occurred while compressing files: %s' % e)
     else:
       response['message'] = _('Error: Output directory is not set.');
@@ -1369,31 +1419,6 @@ def status(request):
     return render("status.mako", request, data)
 
 
-def location_to_url(location, strict=True, is_embeddable=False):
-    """
-    If possible, returns a file browser URL to the location.
-    Prunes HDFS URI to path.
-    Location is a URI, if strict is True.
-
-    Python doesn't seem to have a readily-available URI-comparison
-    library, so this is quite hacky.
-    """
-    if location is None:
-      return None
-    split_path = Hdfs.urlsplit(location)
-    if strict and not split_path[1] or not split_path[2]:
-      # No netloc not full url or no URL
-      return None
-    path = location
-    if split_path[0] == 'hdfs':
-      path = split_path[2]
-
-    filebrowser_path = reverse("filebrowser.views.view", kwargs=dict(path=path))
-    if is_embeddable and not filebrowser_path.startswith('/hue'):
-        filebrowser_path = '/hue' + filebrowser_path
-    return filebrowser_path
-
-
 def truncate(toTruncate, charsToKeep=50):
     """
     Returns a string truncated to 'charsToKeep' length plus ellipses.
@@ -1404,6 +1429,9 @@ def truncate(toTruncate, charsToKeep=50):
     else:
         return toTruncate
 
+def unquote_url(url):
+  url = urllib_unquote(url.encode('utf-8') if not isinstance(url, str) else url)
+  return url.decode('utf-8') if isinstance(url, bytes) else url
 
 def _is_hdfs_superuser(request):
   return request.user.username == request.fs.superuser or request.user.groups.filter(name__exact=request.fs.supergroup).exists()

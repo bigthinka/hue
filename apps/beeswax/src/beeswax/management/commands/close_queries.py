@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import str
 import logging
 from datetime import datetime,  timedelta
 
@@ -45,7 +46,7 @@ class Command(BaseCommand):
 
     self.stdout.write('Closing (all=%s) HiveServer2 queries older than %s days...\n' % (close_all, days))
 
-    queries = QueryHistory.objects.filter(last_state__in=[QueryHistory.STATE.expired.index, QueryHistory.STATE.failed.index, QueryHistory.STATE.available.index])
+    queries = QueryHistory.objects.filter(last_state__in=[QueryHistory.STATE.expired.value, QueryHistory.STATE.failed.value, QueryHistory.STATE.available.value])
 
     if close_all:
       queries = QueryHistory.objects.all()
@@ -79,12 +80,12 @@ class Command(BaseCommand):
         else:
           already_closed_queries += 1
 
-        query.last_state = QueryHistory.STATE.expired.index
+        query.last_state = QueryHistory.STATE.expired.value
         query.save()
-      except Exception, e:
+      except Exception as e:
         if 'None' in str(e) or 'Invalid OperationHandle' in str(e):
           already_closed_queries += 1
-          query.last_state = QueryHistory.STATE.expired.index
+          query.last_state = QueryHistory.STATE.expired.value
           query.save()
         else:
           self.stdout.write('Info: %s\n' % e)

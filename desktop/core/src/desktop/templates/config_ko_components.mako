@@ -23,8 +23,6 @@ from desktop.views import _ko
 
 <%def name="config()">
 
-  <link rel="stylesheet" href="${ static('desktop/ext/css/selectize.css') }">
-
   <style>
     .config-property {
       display: block;
@@ -359,7 +357,7 @@ from desktop.views import _ko
   </script>
 
   <script type="text/html" id="jvm-memory-input-template">
-    <input type="text" class="input-small" data-bind="numericTextInput: { value: value, precision: 0, allowEmpty: true }" /> <select class="input-mini" data-bind="options: units, value: selectedUnit" />
+    <input type="text" class="input-small" data-bind="numericTextInput: { value: value, precision: 0, allowEmpty: true }" /> <select class="input-mini" data-bind="options: units, value: selectedUnit"></select>
   </script>
 
   <script type="text/javascript">

@@ -1,79 +1,94 @@
-var fs  = require('fs');
-var webpack = require('webpack');
-var path = require('path');
+// Licensed to Cloudera, Inc. under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  Cloudera, Inc. licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-var jqueryShim = new webpack.ProvidePlugin({
-  $: 'jquery',
-  jQuery: 'jquery',
-  'window.jQuery': 'jquery'
-});
-
-// Note that since we are using 'npm install' and stopped using --legacy-bundling,
-// we are not ensured which version is installed and where. We will try cloudera-ui
-// first, and if it is not there we will let 'require' resolve it. The latter means
-// that a version compatible with cloudera-ui and other libraries was installed at the
-// top of the node_modules directory.
-var lodashDir = path.resolve('node_modules/lodash');
-if (!fs.exists(lodashDir)) {
-  lodashDir = require.resolve('lodash');
-}
+const CleanWebpackPlugin = require('clean-webpack-plugin');
+const {
+  BUNDLES,
+  getPluginConfig,
+  splitChunksName
+} = require('./desktop/core/src/desktop/js/webpack/configUtils');
 
 module.exports = {
-  devtool: 'source-map',
-  progress: true,
-  host: '0.0.0.0',
-  port: '8080',
-  resolve: {
-    extensions: ['', '.json', '.jsx', '.js'],
-
-    modulesDirectories: [
-      'node_modules',
-      'js',
-      'desktop/core/src/desktop/static/desktop/js/cui'
-    ],
-    alias: {
-      // any bootstrap modules should really resolve to node_modules/bootstrap/js
-      bootstrap: 'bootstrap/js',
-      'cloudera-ui': 'cui',
-      _: 'lodash',
-      komapping: 'knockout.mapping',
-      'query-command-supported': 'query-command-supported/src/queryCommandSupported',
-      pubsub: 'pubsub.js/pubsub',
-    }
-  },
+  devtool: false,
   entry: {
-    hue: ['./desktop/core/src/desktop/static/desktop/js/hue.js']
+    hue: ['./desktop/core/src/desktop/js/hue.js'],
+    notebook: ['./desktop/core/src/desktop/js/apps/notebook/app.js'],
+    tableBrowser: ['./desktop/core/src/desktop/js/apps/tableBrowser/app.js'],
+    jobBrowser: ['./desktop/core/src/desktop/js/apps/jobBrowser/app.js']
   },
-  output: {
-    path: './desktop/core/src/desktop/static/desktop/js',
-    filename: 'hue-bundle.js'
-  },
+  mode: 'development',
   module: {
-    loaders: [
+    rules: [
+      {
+        test: /\.tsx?$/,
+        exclude: /node_modules/,
+        loader: 'babel-loader'
+      },
+      { test: /\.js$/, use: ['source-map-loader'], enforce: 'pre' },
       { test: /\.(html)$/, loader: 'html?interpolate&removeComments=false' },
       { test: /\.less$/, loader: 'style-loader!css-loader!less-loader' },
+      { test: /\.s[ac]ss$/, loader: 'style-loader!css-loader!sass-loader' },
       { test: /\.css$/, loader: 'style-loader!css-loader' },
       { test: /\.(woff2?|ttf|eot|svg)$/, loader: 'file-loader' },
       {
         test: /\.jsx?$/,
         exclude: /node_modules/,
-        loader: 'babel-loader',
-        query: {
-          presets: ['es2015']
-        }
+        loader: 'babel-loader'
       },
-
-      // expose lodash and jquery for knockout templates to access
-      { test: /lodash$/, loader: 'expose?_' },
-      { test: /jquery/, loader: 'expose?$!expose?jQuery' },
-
-      // needed for moment-timezone
-      { include: /\.json$/, loaders: ['json-loader'] }
+      {
+        test: /\.vue$/,
+        loader: 'vue-loader',
+        options: {
+          shadowMode: true,
+          loaders: {
+            less: ['vue-style-loader', 'css-loader', 'less-loader', 'sass-loader']
+          }
+        }
+      }
     ]
   },
-
-  plugins: [
-    new webpack.optimize.UglifyJsPlugin({ compress: { warnings: false } }),
-    new webpack.BannerPlugin('\nLicensed to Cloudera, Inc. under one\nor more contributor license agreements.  See the NOTICE file\ndistributed with this work for additional information\nregarding copyright ownership.  Cloudera, Inc. licenses this file\nto you under the Apache License, Version 2.0 (the\n"License"); you may not use this file except in compliance\nwith the License.  You may obtain a copy of the License at\n\nhttp://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an "AS IS" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n'),
-  ]
+  optimization: {
+    //minimize: true,
+    minimize: false,
+    splitChunks: {
+      chunks: 'all',
+      name: splitChunksName
+    },
+    runtimeChunk: {
+      name: 'hue'
+    }
+  },
+  output: {
+    path: __dirname + '/desktop/core/src/desktop/static/desktop/js/bundles/hue',
+    filename: '[name]-bundle-[hash].js',
+    chunkFilename: '[name]-chunk-[hash].js'
+  },
+  performance: {
+    maxEntrypointSize: 400 * 1024, // 400kb
+    maxAssetSize: 400 * 1024 // 400kb
+  },
+  plugins: getPluginConfig(BUNDLES.HUE).concat([
+    new CleanWebpackPlugin([`${__dirname}/desktop/core/src/desktop/static/desktop/js/bundles/hue`])
+  ]),
+  resolve: {
+    extensions: ['.json', '.jsx', '.js', '.tsx', '.ts', '.vue'],
+    modules: ['node_modules', 'js'],
+    alias: {
+      bootstrap: __dirname + '/node_modules/bootstrap-2.3.2/js',
+      vue$: __dirname + '/node_modules/vue/dist/vue.esm.browser.min.js'
+    }
+  }
 };

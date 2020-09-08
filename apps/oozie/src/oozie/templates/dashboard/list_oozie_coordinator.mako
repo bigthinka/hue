@@ -16,10 +16,17 @@
 ## limitations under the License.
 
 <%!
+  import sys
+  from desktop.lib.paths import SAFE_CHARACTERS_URI_COMPONENTS
   from desktop.views import commonheader, commonfooter, _ko
   from django.utils.translation import ugettext as _
   
   from oozie.conf import ENABLE_V2
+
+  if sys.version_info[0] > 2:
+    from urllib.parse import quote as urllib_quote
+  else:
+    from urllib import quote as urllib_quote
 %>
 
 <%namespace name="layout" file="../navigation-bar.mako" />
@@ -197,7 +204,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
                          % if oozie_coordinator.is_running() or oozie_coordinator.status in ('KILLED', 'FAILED'):
                            disabled="disabled"
                          % endif
-                        data-rerun-url="${ url('oozie:rerun_oozie_coord', job_id=oozie_coordinator.id, app_path=oozie_coordinator.coordJobPath) }">
+                        data-rerun-url="${ url('oozie:rerun_oozie_coord', job_id=oozie_coordinator.id, app_path=urllib_quote(oozie_coordinator.coordJobPath.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS)) }">
                         <i class="fa fa-refresh"></i> ${ _('Rerun') }
                       </button>
                       <button id="trash-btn-caret" class="btn toolbarBtn dropdown-toggle" data-toggle="dropdown"
@@ -224,7 +231,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
               <table class="table table-condensed margin-top-10">
                 <thead>
                 <tr>
-                  <th width="20"><div data-bind="click: selectAll, css: { 'fa-check': allSelected }" class="hueCheckbox fa"></div></th>
+                  <th width="20"><div data-bind="click: selectAll, css: { 'fa-check': allSelected }" class="hue-checkbox fa"></div></th>
                   <th width="200">${ _('Day') }</th>
                   <th>${ _('Warning message') }</th>
                 </tr>
@@ -257,7 +264,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
 
             <script id="calendarTemplate" type="text/html">
               <tr data-bind="css: { disabled: url == '' }">
-                <td data-bind="click: handleSelect"><div data-bind="css: { 'fa-check': selected }" class="hueCheckbox fa"></div></td>
+                <td data-bind="click: handleSelect"><div data-bind="css: { 'fa-check': selected }" class="hue-checkbox fa"></div></td>
                 <td data-bind="css: { disabled: url == '' }">
                   <a data-bind="attr: {href: url != '' ? url : 'javascript:void(0)', title: url ? '' : '${ _ko('Workflow not available or instantiated yet') }' }, css: { disabled: url == '' }" data-row-selector="true">
                     <span data-bind="text: title, attr: {'class': statusClass, 'id': 'date-' + $index()}"></span>
@@ -415,7 +422,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
             </div>
 
             <div class="tab-pane" id="definition" style="margin-bottom: 10px;">
-              <div id="definitionEditor">${ oozie_coordinator.definition.decode('utf-8', 'replace') }</div>
+              <div id="definitionEditor">${ oozie_coordinator.definition if isinstance(oozie_coordinator.definition, str) else oozie_coordinator.definition.decode('utf-8', 'replace') }</div>
             </div>
 
             % if oozie_coordinator.has_sla:

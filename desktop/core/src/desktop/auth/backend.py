@@ -28,31 +28,53 @@ Because Django's models are sometimes unfriendly, you'll want
 User to remain a django.contrib.auth.models.User object.
 """
 
-import ldap
+from builtins import object
+from importlib import import_module
+
 import logging
-import pam
-
-import django.contrib.auth.backends
-from django.contrib.auth.models import User
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
-from django.forms import ValidationError
-from django.utils.importlib import import_module
-
-from django_auth_ldap.backend import LDAPBackend
-from django_auth_ldap.config import LDAPSearch
-
-import desktop.conf
-from desktop import metrics
-from liboauth.metrics import oauth_authentication_time
-
-from useradmin import ldap_access
-from useradmin.forms import validate_username
-from useradmin.models import get_profile, get_default_user_group, UserProfile
-from useradmin.views import import_ldap_users
-
-
 LOG = logging.getLogger(__name__)
 
+try:
+  import ldap
+except ImportError:
+  LOG.warn('ldap module not found')
+try:
+  import pam
+except ImportError:
+  LOG.warn('pam module not found')
+import requests
+
+import django.contrib.auth.backends
+from django.contrib import auth
+from django.core.urlresolvers import reverse
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.http import HttpResponseRedirect
+from django.forms import ValidationError
+try:
+  from django_auth_ldap.backend import LDAPBackend
+  from django_auth_ldap.config import LDAPSearch
+except ImportError:
+  LOG.warn('django_auth_ldap module not found')
+  class LDAPSearch: pass
+  class LDAPSearch: pass
+from liboauth.metrics import oauth_authentication_time
+try:
+  from mozilla_django_oidc.auth import OIDCAuthenticationBackend, default_username_algo
+  from mozilla_django_oidc.utils import absolutify, import_from_settings
+except ImportError:
+  LOG.warn('mozilla_django_oidc module not found')
+  class OIDCAuthenticationBackend: pass
+
+from desktop import metrics
+from desktop.conf import AUTH, LDAP, OIDC, ENABLE_ORGANIZATIONS
+from desktop.settings import LOAD_BALANCER_COOKIE
+
+from useradmin import ldap_access
+from useradmin.models import get_profile, get_default_user_group, UserProfile, User
+from useradmin.organization import get_organization
+
+
+# TODO: slowly move those utils to the useradmin module
 
 def load_augmentation_class():
   """
@@ -60,9 +82,9 @@ def load_augmentation_class():
   Similar in spirit to django.contrib.auth.load_backend
   """
   try:
-    class_name = desktop.conf.AUTH.USER_AUGMENTOR.get()
+    class_name = AUTH.USER_AUGMENTOR.get()
     i = class_name.rfind('.')
-    module, attr = class_name[:i], class_name[i+1:]
+    module, attr = class_name[:i], class_name[i + 1:]
     mod = import_module(module)
     klass = getattr(mod, attr)
     LOG.info("Augmenting users with class: %s" % (klass,))
@@ -70,6 +92,7 @@ def load_augmentation_class():
   except:
     LOG.exception('failed to augment class')
     raise ImproperlyConfigured("Could not find user_augmentation_class: %s" % (class_name,))
+
 
 _user_augmentation_class = None
 def get_user_augmentation_class():
@@ -79,22 +102,58 @@ def get_user_augmentation_class():
     _user_augmentation_class = load_augmentation_class()
   return _user_augmentation_class
 
+
 def rewrite_user(user):
   """
   Rewrites the user according to the augmentation class.
-  We currently only re-write specific attributes,
-  though this could be generalized.
+  We currently only re-write specific attributes, though this could be generalized.
   """
   if user is None:
     LOG.warn('Failed to rewrite user, user is None.')
   else:
     augment = get_user_augmentation_class()(user)
-    for attr in ("get_groups", "get_home_directory", "has_hue_permission"):
+    for attr in ('get_groups', 'get_home_directory', 'has_hue_permission', 'get_permissions'):
       setattr(user, attr, getattr(augment, attr))
-    user.usernamefull =  user.username
-    user.username = user.username.replace("'", '').split('@')[0]
-      
+
+    setattr(user, 'profile', get_profile(user))
+    setattr(user, 'auth_backend', user.profile.data.get('auth_backend'))
   return user
+
+
+def is_admin(user):
+  """
+  Admin of the Organization. Typically can edit users, connectors...
+  To rename to is_org_admin at some point.
+
+  If ENABLE_ORGANIZATIONS is false:
+    - Hue superusers are automatically also admin
+
+  If ENABLE_ORGANIZATIONS is true:
+    - Hue superusers might not be admin of the organization
+  """
+  is_admin = False
+
+  if hasattr(user, 'is_superuser') and not ENABLE_ORGANIZATIONS.get():
+    is_admin = user.is_superuser
+
+  if not is_admin and user.is_authenticated():
+    try:
+      user = rewrite_user(user)
+      is_admin = user.is_admin if ENABLE_ORGANIZATIONS.get() else user.has_hue_permission(action="superuser", app="useradmin")
+    except Exception:
+      LOG.exception("Could not validate if %s is a superuser, assuming False." % user)
+
+  return is_admin
+
+
+def is_hue_admin(user):
+  """
+  Hue service super user. Can manage global settings of the services used by all the organization.
+
+  Independent of ENABLE_ORGANIZATIONS.
+  """
+  return hasattr(user, 'is_superuser') and user.is_superuser
+
 
 class DefaultUserAugmentor(object):
   def __init__(self, parent):
@@ -112,23 +171,47 @@ class DefaultUserAugmentor(object):
   def has_hue_permission(self, action, app):
     return self._get_profile().has_hue_permission(action=action, app=app)
 
+  def get_permissions(self):
+    return self._get_profile().get_permissions()
+
+
 def find_user(username):
+  lookup = {'email': username} if ENABLE_ORGANIZATIONS.get() else {'username': username}
+
   try:
-    user = User.objects.get(username=username)
-    LOG.debug("Found user %s in the db" % username)
+    user = User.objects.get(**lookup)
+    LOG.debug("Found user %s" % user)
   except User.DoesNotExist:
     user = None
+
   return user
 
+
 def create_user(username, password, is_superuser=True):
-  LOG.info("Materializing user %s in the database" % username)
-  user = User(username=username)
+  if ENABLE_ORGANIZATIONS.get():
+    organization = get_organization(email=username)
+    attrs = {'email': username, 'organization': organization}
+  else:
+    attrs = {'username': username}
+
+  user = User(**attrs)
+
   if password is None:
     user.set_unusable_password()
   else:
     user.set_password(password)
+
   user.is_superuser = is_superuser
+
+  if ENABLE_ORGANIZATIONS.get():
+    user.is_admin = is_superuser or not organization.organizationuser_set.exists() or not organization.is_multi_user
+    user.save()
+    ensure_has_a_group(user)
+
   user.save()
+
+  LOG.info("User %s was created." % username)
+
   return user
 
 def find_or_create_user(username, password=None, is_superuser=True):
@@ -138,18 +221,19 @@ def find_or_create_user(username, password=None, is_superuser=True):
   return user
 
 def ensure_has_a_group(user):
-  default_group = get_default_user_group()
+  default_group = get_default_user_group(user=user)
 
   if not user.groups.exists() and default_group is not None:
     user.groups.add(default_group)
     user.save()
 
 def force_username_case(username):
-  if desktop.conf.AUTH.FORCE_USERNAME_LOWERCASE.get():
+  if AUTH.FORCE_USERNAME_LOWERCASE.get():
     username = username.lower()
-  elif desktop.conf.AUTH.FORCE_USERNAME_UPPERCASE.get():
+  elif AUTH.FORCE_USERNAME_UPPERCASE.get():
     username = username.upper()
   return username
+
 
 class DesktopBackendBase(object):
   """
@@ -186,9 +270,13 @@ class AllowFirstUserDjangoBackend(django.contrib.auth.backends.ModelBackend):
   Allows the first user in, but otherwise delegates to Django's
   ModelBackend.
   """
-  def authenticate(self, username=None, password=None):
+  def authenticate(self, username=None, email=None, password=None):
+    if email is not None:
+      username = email
     username = force_username_case(username)
-    user = super(AllowFirstUserDjangoBackend, self).authenticate(username, password)
+    request = None
+
+    user = super(AllowFirstUserDjangoBackend, self).authenticate(request, username=username, password=password)
 
     if user is not None:
       if user.is_active:
@@ -215,7 +303,7 @@ class AllowFirstUserDjangoBackend(django.contrib.auth.backends.ModelBackend):
     return user
 
   def is_first_login_ever(self):
-    """ Return true if no one has ever logged in to Desktop yet. """
+    """ Return true if no one has ever logged in."""
     return User.objects.count() == 0
 
 
@@ -228,7 +316,8 @@ class ImpersonationBackend(django.contrib.auth.backends.ModelBackend):
     if not login_as:
       return
 
-    authenticated = super(ImpersonationBackend, self).authenticate(username, password)
+    request = None
+    authenticated = super(ImpersonationBackend, self).authenticate(request, username, password)
 
     if not authenticated:
       raise PermissionDenied()
@@ -306,16 +395,16 @@ class PamBackend(DesktopBackendBase):
   """
 
   @metrics.pam_authentication_time
-  def authenticate(self, username, password):
+  def authenticate(self, request=None, username=None, password=None):
     username = force_username_case(username)
 
-    if pam.authenticate(username, password, desktop.conf.AUTH.PAM_SERVICE.get()):
+    if pam.authenticate(username, password, AUTH.PAM_SERVICE.get()):
       is_super = False
       if User.objects.count() == 0:
         is_super = True
 
       try:
-        if desktop.conf.AUTH.IGNORE_USERNAME_CASE.get():
+        if AUTH.IGNORE_USERNAME_CASE.get():
           user = User.objects.get(username__iexact=username)
         else:
           user = User.objects.get(username=username)
@@ -323,7 +412,7 @@ class PamBackend(DesktopBackendBase):
         user = find_or_create_user(username, None)
         if user is not None and user.is_active:
           profile = get_profile(user)
-          profile.creation_method = UserProfile.CreationMethod.EXTERNAL
+          profile.creation_method = UserProfile.CreationMethod.EXTERNAL.name
           profile.save()
           user.is_superuser = is_super
 
@@ -353,16 +442,18 @@ class LdapBackend(object):
         username = force_username_case(username)
 
         try:
+          #Avoid circular import from is_admin
+          from useradmin.forms import validate_username
           validate_username(username)
 
-          if desktop.conf.LDAP.IGNORE_USERNAME_CASE.get():
+          if LDAP.IGNORE_USERNAME_CASE.get():
             try:
               return User.objects.get(username__iexact=username), False
             except User.DoesNotExist:
               return User.objects.get_or_create(username=username)
           else:
             return User.objects.get_or_create(username=username)
-        except ValidationError, e:
+        except ValidationError as e:
           LOG.exception("LDAP username is invalid: %s" % username)
 
     self._backend = _LDAPBackend()
@@ -414,13 +505,15 @@ class LdapBackend(object):
         # %(user)s is a special string that will get replaced during the authentication process
         setattr(self._backend.settings, 'USER_DN_TEMPLATE', "%(user)s@" + nt_domain)
 
+    # If Secure ldaps is specified in hue.ini then ldap code automatically use SSL/TLS communication
+    if not ldap_url.lower().startswith('ldaps'):
+      setattr(self._backend.settings, 'START_TLS', ldap_config.USE_START_TLS.get())
+
     # Certificate-related config settings
     if ldap_config.LDAP_CERT.get():
-      setattr(self._backend.settings, 'START_TLS', ldap_config.USE_START_TLS.get())
       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
       ldap.set_option(ldap.OPT_X_TLS_CACERTFILE, ldap_config.LDAP_CERT.get())
     else:
-      setattr(self._backend.settings, 'START_TLS', False)
       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
 
     if ldap_config.FOLLOW_REFERRALS.get():
@@ -429,22 +522,22 @@ class LdapBackend(object):
       ldap.set_option(ldap.OPT_REFERRALS, 0)
 
   def add_ldap_config_for_server(self, server):
-    if desktop.conf.LDAP.LDAP_SERVERS.get():
+    if LDAP.LDAP_SERVERS.get():
       # Choose from multiple server configs
-      if server in desktop.conf.LDAP.LDAP_SERVERS.get():
-        self.add_ldap_config(desktop.conf.LDAP.LDAP_SERVERS.get()[server])
+      if server in LDAP.LDAP_SERVERS.get():
+        self.add_ldap_config(LDAP.LDAP_SERVERS.get()[server])
     else:
-      self.add_ldap_config(desktop.conf.LDAP)
+      self.add_ldap_config(LDAP)
 
   @metrics.ldap_authentication_time
-  def authenticate(self, username=None, password=None, server=None):
+  def authenticate(self, request=None, username=None, password=None, server=None):
     self.add_ldap_config_for_server(server)
 
     username_filter_kwargs = ldap_access.get_ldap_user_kwargs(username)
 
     # Do this check up here, because the auth call creates a django user upon first login per user
     is_super = False
-    if not UserProfile.objects.filter(creation_method=str(UserProfile.CreationMethod.EXTERNAL)).exists():
+    if not UserProfile.objects.filter(creation_method=UserProfile.CreationMethod.EXTERNAL.name).exists():
       # If there are no LDAP users already in the system, the first one will
       # become a superuser
       is_super = True
@@ -454,28 +547,33 @@ class LdapBackend(object):
       # user, we should do the safe thing and turn off superuser privs.
       existing_user = User.objects.get(**username_filter_kwargs)
       existing_profile = get_profile(existing_user)
-      if existing_profile.creation_method == str(UserProfile.CreationMethod.EXTERNAL):
+      if existing_profile.creation_method == UserProfile.CreationMethod.EXTERNAL.name:
         is_super = User.objects.get(**username_filter_kwargs).is_superuser
-    elif not desktop.conf.LDAP.CREATE_USERS_ON_LOGIN.get():
+    elif not LDAP.CREATE_USERS_ON_LOGIN.get():
       LOG.warn("Create users when they login with their LDAP credentials is turned off")
       return None
 
     try:
-      user = self._backend.authenticate(username, password)
-    except ImproperlyConfigured, detail:
+      allowed_group = self.check_ldap_access_groups(server, username)
+      if allowed_group:
+        user = self._backend.authenticate(username, password)
+      else:
+        LOG.warn("%s not in an allowed login group" % username)
+        return None
+    except ImproperlyConfigured as detail:
       LOG.warn("LDAP was not properly configured: %s", detail)
       return None
-    LOG.exception('Ldap user: %s' % user)
+
     if user is not None and user.is_active:
       profile = get_profile(user)
-      profile.creation_method = UserProfile.CreationMethod.EXTERNAL
+      profile.creation_method = UserProfile.CreationMethod.EXTERNAL.name
       profile.save()
       user.is_superuser = is_super
       user = rewrite_user(user)
 
       ensure_has_a_group(user)
 
-      if desktop.conf.LDAP.SYNC_GROUPS_ON_LOGIN.get():
+      if LDAP.SYNC_GROUPS_ON_LOGIN.get():
         self.import_groups(server, user)
 
     return user
@@ -485,8 +583,39 @@ class LdapBackend(object):
     user = rewrite_user(user)
     return user
 
+  def check_ldap_access_groups(self, server, username):
+    #Avoid circular import from is_admin
+    from useradmin.views import get_find_groups_filter
+    allowed_group = False
+
+    if LDAP.LOGIN_GROUPS.get() and LDAP.LOGIN_GROUPS.get() != ['']:
+      login_groups = LDAP.LOGIN_GROUPS.get()
+      connection = ldap_access.get_connection_from_server(server)
+      try:
+        user_info = connection.find_users(username, find_by_dn=False)
+      except Exception as e:
+        LOG.warn("Failed to find LDAP user: %s" % e)
+
+      if not user_info:
+        LOG.warn("Could not get LDAP details for users with pattern %s" % username)
+        return False
+
+      ldap_info = user_info[0]
+      group_ldap_info = connection.find_groups("*", group_filter=get_find_groups_filter(ldap_info, server))
+      for group in group_ldap_info:
+        if group['name'] in login_groups:
+          return True
+
+    else:
+      #Login groups not set default to True
+      allowed_group = True
+
+    return allowed_group
+
   def import_groups(self, server, user):
     connection = ldap_access.get_connection_from_server(server)
+    #Avoid circular import from is_admin
+    from useradmin.views import import_ldap_users
     import_ldap_users(connection, user.username, sync_groups=True, import_by_dn=False, server=server)
 
   @classmethod
@@ -506,7 +635,7 @@ class SpnegoDjangoBackend(django.contrib.auth.backends.ModelBackend):
   """
 
   @metrics.spnego_authentication_time
-  def authenticate(self, username=None):
+  def authenticate(self, request=None, username=None):
     username = self.clean_username(username)
     username = force_username_case(username)
     is_super = False
@@ -514,7 +643,7 @@ class SpnegoDjangoBackend(django.contrib.auth.backends.ModelBackend):
       is_super = True
 
     try:
-      if desktop.conf.AUTH.IGNORE_USERNAME_CASE.get():
+      if AUTH.IGNORE_USERNAME_CASE.get():
         user = User.objects.get(username__iexact=username)
       else:
         user = User.objects.get(username=username)
@@ -522,7 +651,7 @@ class SpnegoDjangoBackend(django.contrib.auth.backends.ModelBackend):
       user = find_or_create_user(username, None)
       if user is not None and user.is_active:
         profile = get_profile(user)
-        profile.creation_method = UserProfile.CreationMethod.EXTERNAL
+        profile.creation_method = UserProfile.CreationMethod.EXTERNAL.name
         profile.save()
         user.is_superuser = is_super
 
@@ -546,6 +675,51 @@ class SpnegoDjangoBackend(django.contrib.auth.backends.ModelBackend):
     return user
 
 
+class KnoxSpnegoDjangoBackend(django.contrib.auth.backends.ModelBackend):
+  """
+  Knox Trusted proxy passes GET parameter doAs
+  """
+
+  @metrics.spnego_authentication_time
+  def authenticate(self, request=None, username=None):
+    username = self.clean_username(username, request)
+    username = force_username_case(username)
+    is_super = False
+    if User.objects.count() == 0:
+      is_super = True
+
+    try:
+      if AUTH.IGNORE_USERNAME_CASE.get():
+        user = User.objects.get(username__iexact=username)
+      else:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+      user = find_or_create_user(username, None)
+      if user is not None and user.is_active:
+        profile = get_profile(user)
+        profile.creation_method = UserProfile.CreationMethod.EXTERNAL.name
+        profile.save()
+        user.is_superuser = is_super
+
+        ensure_has_a_group(user)
+
+        user.save()
+
+    if user is not None:
+      user = rewrite_user(user)
+
+    return user
+
+  def clean_username(self, username, request):
+    # Grab doAs parameter here
+    doas_user = request.GET.get("doAs", "")
+    return doas_user
+
+  def get_user(self, user_id):
+    user = super(KnoxSpnegoDjangoBackend, self).get_user(user_id)
+    user = rewrite_user(user)
+    return user
+
 
 class RemoteUserDjangoBackend(django.contrib.auth.backends.RemoteUserBackend):
   """
@@ -559,7 +733,7 @@ class RemoteUserDjangoBackend(django.contrib.auth.backends.RemoteUserBackend):
       is_super = True
 
     try:
-      if desktop.conf.AUTH.IGNORE_USERNAME_CASE.get():
+      if AUTH.IGNORE_USERNAME_CASE.get():
         user = User.objects.get(username__iexact=username)
       else:
         user = User.objects.get(username=username)
@@ -567,7 +741,7 @@ class RemoteUserDjangoBackend(django.contrib.auth.backends.RemoteUserBackend):
       user = find_or_create_user(username, None)
       if user is not None and user.is_active:
         profile = get_profile(user)
-        profile.creation_method = UserProfile.CreationMethod.EXTERNAL
+        profile.creation_method = UserProfile.CreationMethod.EXTERNAL.name
         profile.save()
         user.is_superuser = is_super
 
@@ -583,3 +757,168 @@ class RemoteUserDjangoBackend(django.contrib.auth.backends.RemoteUserBackend):
     user = rewrite_user(user)
     return user
 
+
+class OIDCBackend(OIDCAuthenticationBackend):
+  def authenticate(self, **kwargs):
+    self.request = kwargs.pop('request', None)
+    if not self.request:
+      return None
+
+    state = self.request.GET.get('state')
+    code = self.request.GET.get('code')
+    nonce = kwargs.pop('nonce', None)
+
+    if not code or not state:
+      return None
+
+    reverse_url = import_from_settings('OIDC_AUTHENTICATION_CALLBACK_URL', 'oidc_authentication_callback')
+
+    token_payload = {
+      'client_id': self.OIDC_RP_CLIENT_ID,
+      'client_secret': self.OIDC_RP_CLIENT_SECRET,
+      'grant_type': 'authorization_code',
+      'code': code,
+      'redirect_uri': absolutify(
+        self.request,
+        reverse(reverse_url)
+      ),
+    }
+
+    # Get the token
+    token_info = self.get_token(token_payload)
+    id_token = token_info.get('id_token')
+    access_token = token_info.get('access_token')
+    refresh_token = token_info.get('refresh_token')
+
+    # Validate the token
+    verified_id = self.verify_token(id_token, nonce=nonce)
+
+    if verified_id:
+      self.save_refresh_tokens(refresh_token)
+      user =  self.get_or_create_user(access_token, id_token, verified_id)
+      user = rewrite_user(user)
+      return user
+
+    return None
+
+  def filter_users_by_claims(self, claims):
+    username = claims.get(import_from_settings('OIDC_USERNAME_ATTRIBUTE', 'preferred_username'))
+    if not username:
+      return self.UserModel.objects.none()
+    return self.UserModel.objects.filter(username__iexact=username)
+
+  def save_refresh_tokens(self, refresh_token):
+    session = self.request.session
+
+    if import_from_settings('OIDC_STORE_REFRESH_TOKEN', False):
+      session['oidc_refresh_token'] = refresh_token
+
+  def create_user(self, claims):
+    """Return object for a newly created user account."""
+    # Overriding lib's logic, use preferred_username from oidc as username
+
+    username = claims.get(import_from_settings('OIDC_USERNAME_ATTRIBUTE', 'preferred_username'), '')
+    email = claims.get('email', '')
+    first_name = claims.get('given_name', '')
+    last_name = claims.get('family_name', '')
+
+    if not username:
+      if not email:
+        LOG.debug("OpenID Connect no username and email while creating new user")
+        return None
+      username = default_username_algo(email)
+
+    return self.UserModel.objects.create_user(
+        username=username,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        is_superuser=self.is_hue_superuser(claims)
+    )
+
+  def get_or_create_user(self, access_token, id_token, verified_id):
+    user = super(OIDCBackend, self).get_or_create_user(access_token, id_token, verified_id)
+    if not user and not import_from_settings('OIDC_CREATE_USER', True):
+      # in this case, user is login from Keycloak, but not allow create
+      self.logout(self.request, next_page=import_from_settings('LOGIN_REDIRECT_URL_FAILURE', '/'))
+    return user
+
+  def get_user(self, user_id):
+    user = super(OIDCBackend, self).get_user(user_id)
+    user = rewrite_user(user)
+    return user
+
+  def update_user(self, user, claims):
+    if user.is_superuser != self.is_hue_superuser(claims):
+      user.is_superuser = self.is_hue_superuser(claims)
+      user.save()
+    return user
+
+  def is_hue_superuser(self, claims):
+    """
+    To use this feature, setup in Keycloak:
+      1. add the name of Hue superuser group to superuser_group in hue.ini
+      2. in Keycloak, go to your_realm --> your_clients --> Mappers, add a mapper
+           Mapper Type: Group Membership (this is predefined mapper type)
+           Token Claim Name: group_membership (required exact string)
+    """
+    sueruser_group = '/' + OIDC.SUPERUSER_GROUP.get()
+    if sueruser_group:
+      return sueruser_group in claims.get('group_membership', [])
+    return False
+
+  def logout(self, request, next_page):
+    # https://stackoverflow.com/questions/46689034/logout-user-via-keycloak-rest-api-doesnt-work
+    if request.session.get('_auth_user_backend', '') != 'desktop.auth.backend.OIDCBackend':
+      return None
+
+    session = request.session
+    access_token = session.get('oidc_access_token', '')
+    refresh_token = session.get('oidc_refresh_token', '')
+
+    if access_token and refresh_token:
+      oidc_logout_url = OIDC.LOGOUT_REDIRECT_URL.get()
+      client_id = import_from_settings('OIDC_RP_CLIENT_ID')
+      client_secret = import_from_settings('OIDC_RP_CLIENT_SECRET')
+      oidc_verify_ssl = import_from_settings('OIDC_VERIFY_SSL')
+      form = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'refresh_token': refresh_token,
+      }
+      headers = {
+        'Authorization': 'Bearer {0}'.format(access_token),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+      resp = requests.post(oidc_logout_url, data=form, headers=headers, verify=oidc_verify_ssl)
+      if resp.status_code >= 200 and resp.status_code < 300:
+        LOG.debug("OpenID Connect logout succeed!")
+        delete_oidc_session_tokens(session)
+        auth.logout(request)
+        response = HttpResponseRedirect(next_page)
+        response.delete_cookie(LOAD_BALANCER_COOKIE)
+        return response
+      else:
+        LOG.error("OpenID Connect logout failed: %s" % resp.content)
+    else:
+      LOG.warn("OpenID Connect tokens are not available, logout skipped!")
+    return None
+
+  # def filter_users_by_claims(self, claims):
+
+  # def verify_claims(self, claims):
+
+def delete_oidc_session_tokens(session):
+  if session:
+    if 'oidc_access_token' in session:
+      del session['oidc_access_token']
+    if 'oidc_id_token' in session:
+      del session['oidc_id_token']
+    if 'oidc_id_token_expiration' in session:
+      del session['oidc_id_token_expiration']
+    if 'oidc_login_next' in session:
+      del session['oidc_login_next']
+    if 'oidc_refresh_token' in session:
+      del session['oidc_refresh_token']
+    if 'oidc_state' in session:
+      del session['oidc_state']

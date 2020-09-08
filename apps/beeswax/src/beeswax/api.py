@@ -15,17 +15,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import zip
 import logging
 import json
 import re
 
-from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.http import Http404
 from django.utils.translation import ugettext as _
 from django.views.decorators.http import require_POST
 
 from thrift.transport.TTransport import TTransportException
+from desktop.auth.backend import is_admin
 from desktop.context_processors import get_app_name
 from desktop.lib.django_util import JsonResponse
 from desktop.lib.exceptions import StructuredThriftTransportException
@@ -34,22 +35,21 @@ from desktop.lib.i18n import force_unicode
 from desktop.lib.parameterization import substitute_variables
 from metastore import parser
 from notebook.models import escape_rows, MockedDjangoRequest, make_notebook
+from metastore.conf import FORCE_HS2_METADATA
+from metastore.views import _get_db, _get_servername
+from useradmin.models import User
 
 import beeswax.models
-
 from beeswax.data_export import upload
 from beeswax.design import HQLdesign
 from beeswax.conf import USE_GET_LOG_API
 from beeswax.forms import QueryForm
 from beeswax.models import Session, QueryHistory
 from beeswax.server import dbms
-from beeswax.server.dbms import expand_exception, get_query_server_config, QueryServerException, QueryServerTimeoutException,\
-  SubQueryTable
-from beeswax.views import authorized_get_design, authorized_get_query_history, make_parameterization_form,\
-                          safe_get_design, save_design, massage_columns_for_json, _get_query_handle_and_state, \
-                          parse_out_jobs
-from metastore.conf import FORCE_HS2_METADATA
-from metastore.views import _get_db
+from beeswax.server.dbms import expand_exception, get_query_server_config, QueryServerException, QueryServerTimeoutException, \
+    SubQueryTable
+from beeswax.views import authorized_get_design, authorized_get_query_history, make_parameterization_form, \
+    safe_get_design, save_design, massage_columns_for_json, _get_query_handle_and_state, parse_out_jobs
 
 
 LOG = logging.getLogger(__name__)
@@ -59,9 +59,9 @@ def error_handler(view_fn):
   def decorator(request, *args, **kwargs):
     try:
       return view_fn(request, *args, **kwargs)
-    except Http404, e:
+    except Http404 as e:
       raise e
-    except Exception, e:
+    except Exception as e:
       LOG.exception('error in %s' % view_fn)
 
       if not hasattr(e, 'message') or not e.message:
@@ -90,23 +90,28 @@ def error_handler(view_fn):
 
 @error_handler
 def autocomplete(request, database=None, table=None, column=None, nested=None):
+  cluster = request.POST.get('cluster')
   app_name = None if FORCE_HS2_METADATA.get() else get_app_name(request)
 
   do_as = request.user
-  if (request.user.is_superuser or request.user.has_hue_permission(action="impersonate", app="security")) and 'doas' in request.GET:
+  if (is_admin(request.user) or request.user.has_hue_permission(action="impersonate", app="security")) and 'doas' in request.GET:
     do_as = User.objects.get(username=request.GET.get('doas'))
 
-  db = _get_db(user=do_as, source_type=app_name)
+  db = _get_db(user=do_as, source_type=app_name, cluster=cluster)
 
-  response = _autocomplete(db, database, table, column, nested)
+  response = _autocomplete(db, database, table, column, nested, cluster=cluster)
   return JsonResponse(response)
 
 
-def _autocomplete(db, database=None, table=None, column=None, nested=None, query=None):
+def _autocomplete(db, database=None, table=None, column=None, nested=None, query=None, cluster=None, operation='schema'):
   response = {}
 
   try:
-    if database is None:
+    if operation == 'functions':
+      response['functions'] = _get_functions(db, database)
+    elif operation == 'function':
+      response['function'] = _get_function(db, database)
+    elif database is None:
       response['databases'] = db.get_databases()
     elif table is None:
       tables_meta = db.get_tables_meta(database=database)
@@ -121,24 +126,29 @@ def _autocomplete(db, database=None, table=None, column=None, nested=None, query
 
       cols_extended = massage_columns_for_json(table.cols)
 
-      if 'org.apache.kudu.mapreduce.KuduTableOutputFormat' in str(table.properties): # When queries from Impala directly
-        table.is_impala_only = True
+      if table.is_impala_only: # Expand Kudu table information
+        if db.client.query_server['dialect'] != 'impala':
+          query_server = get_query_server_config('impala', connector=cluster)
+          db = dbms.get(db.client.user, query_server, cluster=cluster)
 
-      if table.is_impala_only: # Expand Kudu columns information
-        query_server = get_query_server_config('impala')
-        db = dbms.get(db.client.user, query_server)
-
-        col_options = db.get_table_describe(database, table.name)
-        extra_col_options = dict([(col[0], dict(zip(col_options.cols(), col))) for col in col_options.rows()])
-
+        col_options = db.get_table_describe(database, table.name) # Expand columns information
+        extra_col_options = dict([(col[0], dict(list(zip(col_options.cols(), col)))) for col in col_options.rows()])
         for col_props in cols_extended:
           col_props.update(extra_col_options.get(col_props['name'], {}))
+
+        primary_keys = [col['name'] for col in extra_col_options.values() if col.get('primary_key') == 'true'] # Until IMPALA-8291
+        foreign_keys = []  # Not supported yet
+      else:
+        primary_keys = [pk.name for pk in table.primary_keys]
+        foreign_keys = table.foreign_keys
 
       response['support_updates'] = table.is_impala_only
       response['columns'] = [column.name for column in table.cols]
       response['extended_columns'] = cols_extended
       response['is_view'] = table.is_view
       response['partition_keys'] = [{'name': part.name, 'type': part.type} for part in table.partition_keys]
+      response['primary_keys'] = [{'name': pk} for pk in primary_keys]
+      response['foreign_keys'] = [{'name': fk.name, 'to': fk.type} for fk in foreign_keys]
     else:
       col = db.get_column(database, table, column)
       if col:
@@ -148,20 +158,66 @@ def _autocomplete(db, database=None, table=None, column=None, nested=None, query
         response = parse_tree
         # If column or nested type is scalar/primitive, add sample of values
         if parser.is_scalar_type(parse_tree['type']):
-          sample = _get_sample_data(db, database, table, column)
+          sample = _get_sample_data(db, database, table, column, cluster=cluster)
           if 'rows' in sample:
             response['sample'] = sample['rows']
       else:
         raise Exception('Could not find column `%s`.`%s`.`%s`' % (database, table, column))
-  except (QueryServerTimeoutException, TTransportException), e:
+  except (QueryServerTimeoutException, TTransportException) as e:
     response['code'] = 503
-    response['error'] = e.message
-  except Exception, e:
+    response['error'] = str(e)
+  except TypeError as e:
+    response['code'] = 500
+    response['error'] = str(e)
+  except Exception as e:
     LOG.warn('Autocomplete data fetching error: %s' % e)
     response['code'] = 500
-    response['error'] = e.message
+    response['error'] = str(e)
 
   return response
+
+
+def _get_functions(db, database=None):
+  data = []
+
+  functions = db.get_functions(prefix=database)
+  if functions:
+    rows = escape_rows(functions, nulls_only=True)
+
+    if db.client.query_server['dialect'] == 'impala':
+      data = [{
+          'name': row[1].split('(', 1)[0],
+          'signature': '(' + row[1].split('(', 1)[1],
+          'return_type': row[0],
+          'is_builtin': row[2],
+          'is_persistent': row[3]
+        }
+        for row in rows
+      ]
+    else:
+      data = [{'name': row[0]} for row in rows]
+
+  return data
+
+
+def _get_function(db, name):
+  data = {}
+
+  if db.client.query_server['dialect'] == 'hive' or db.client.query_server['dialect'] == 'beeswax':
+    functions = db.get_function(name=name)
+    rows = escape_rows(functions, nulls_only=True)
+
+    full_description = '\n'.join([col for row in rows for col in row])
+    signature, description = full_description.split(' - ', 1)
+    name = name.split('(', 1)[0]
+
+    data = {
+      'name': name,
+      'signature': signature,
+      'description': description,
+    }
+
+  return data
 
 
 @error_handler
@@ -228,16 +284,16 @@ def watch_query_refresh_json(request, id):
       close_operation(request, id)
       query_history = db.execute_next_statement(query_history, request.POST.get('query-query'))
       handle, state = _get_query_handle_and_state(query_history)
-  except QueryServerException, ex:
+  except QueryServerException as ex:
     raise ex
-  except Exception, ex:
+  except Exception as ex:
     LOG.exception(ex)
     handle, state = _get_query_handle_and_state(query_history)
 
   try:
     start_over = request.POST.get('log-start-over') == 'true'
     log = db.get_log(handle, start_over=start_over)
-  except Exception, ex:
+  except Exception as ex:
     log = str(ex)
 
   jobs = parse_out_jobs(log)
@@ -339,7 +395,7 @@ def execute(request, design_id=None):
         # Parameterized query
         parameterization_form_cls = make_parameterization_form(query_str)
         if parameterization_form_cls:
-          parameterization_form = parameterization_form_cls(request.REQUEST, prefix="parameterization")
+          parameterization_form = parameterization_form_cls(request.POST.get('query-query', ''), prefix="parameterization")
 
           if parameterization_form.is_valid():
             parameters = parameterization_form.cleaned_data
@@ -353,7 +409,7 @@ def execute(request, design_id=None):
               else:
                 return execute_directly(request, query, design, query_server, parameters=parameters)
 
-            except Exception, ex:
+            except Exception as ex:
               db = dbms.get(request.user, query_server)
               error_message, log = expand_exception(ex, db)
               response['message'] = error_message
@@ -376,7 +432,7 @@ def execute(request, design_id=None):
         'file_resources': query_form.file_resources.errors,
         'functions': query_form.functions.errors,
       }
-  except RuntimeError, e:
+  except RuntimeError as e:
     response['message']= str(e)
 
   return JsonResponse(response)
@@ -408,7 +464,7 @@ def save_query_design(request, design_id=None):
         'functions': query_form.functions.errors,
         'saveform': query_form.saveform.errors,
       }
-  except RuntimeError, e:
+  except RuntimeError as e:
     response['message'] = str(e)
 
   return JsonResponse(response)
@@ -455,8 +511,8 @@ def cancel_query(request, query_history_id):
       db.cancel_operation(query_history.get_handle())
       query_history.set_to_expired()
       response['status'] = 0
-    except Exception, e:
-      response['message'] = unicode(e)
+    except Exception as e:
+      response['message'] = str(e)
 
   return JsonResponse(response)
 
@@ -499,7 +555,7 @@ def save_results_hdfs_directory(request, query_history_id):
         response['success_url'] = '/filebrowser/view=%s' % target_dir
         query_history = db.insert_query_into_directory(query_history, target_dir)
         response['watch_url'] = reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id})
-      except Exception, ex:
+      except Exception as ex:
         error_msg, log = expand_exception(ex, db)
         response['message'] = _('The result could not be saved: %s.') % error_msg
         response['status'] = -3
@@ -545,7 +601,7 @@ def save_results_hdfs_file(request, query_history_id):
 
       try:
         handle, state = _get_query_handle_and_state(query_history)
-      except Exception, ex:
+      except Exception as ex:
         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
         response['status'] = -2
         return JsonResponse(response)
@@ -565,7 +621,7 @@ def save_results_hdfs_file(request, query_history_id):
         response['path'] = target_file
         response['success_url'] = '/filebrowser/view=%s' % target_file
         response['watch_url'] = reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id})
-      except Exception, ex:
+      except Exception as ex:
         error_msg, log = expand_exception(ex, db)
         response['message'] = _('The result could not be saved: %s.') % error_msg
         response['status'] = -3
@@ -608,7 +664,7 @@ def save_results_hive_table(request, query_history_id):
       try:
         handle, state = _get_query_handle_and_state(query_history)
         result_meta = db.get_results_metadata(handle)
-      except Exception, ex:
+      except Exception as ex:
         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
         response['status'] = -2
         return JsonResponse(response)
@@ -621,14 +677,14 @@ def save_results_hive_table(request, query_history_id):
         response['path'] = form.cleaned_data['target_table']
         response['success_url'] = reverse('metastore:describe_table', kwargs={'database': form.target_database, 'table': form.cleaned_data['target_table']})
         response['watch_url'] = reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id})
-      except Exception, ex:
+      except Exception as ex:
         error_msg, log = expand_exception(ex, db)
         response['message'] = _('The result could not be saved: %s.') % error_msg
         response['status'] = -3
 
     else:
       response['status'] = 1
-      response['message'] = '\n'.join(form.errors.values()[0])
+      response['message'] = '\n'.join(list(form.errors.values())[0])
 
   return JsonResponse(response)
 
@@ -649,34 +705,42 @@ def clear_history(request):
 @error_handler
 def get_sample_data(request, database, table, column=None):
   app_name = get_app_name(request)
-  query_server = get_query_server_config(app_name)
+  cluster = json.loads(request.POST.get('cluster', '{}'))
+
+  query_server = get_query_server_config(app_name, connector=cluster)
   db = dbms.get(request.user, query_server)
 
-  response = _get_sample_data(db, database, table, column)
+  response = _get_sample_data(db, database, table, column, cluster=cluster)
   return JsonResponse(response)
 
 
-def _get_sample_data(db, database, table, column, async=False):
-  table_obj = db.get_table(database, table)
-  if table_obj.is_impala_only and db.client.query_server['server_name'] != 'impala':
-    query_server = get_query_server_config('impala')
-    db = dbms.get(db.client.user, query_server)
+def _get_sample_data(db, database, table, column, is_async=False, cluster=None, operation=None):
+  if operation == 'hello':
+    table_obj = None
+  else:
+    table_obj = db.get_table(database, table)
+    if table_obj.is_impala_only and db.client.query_server['server_name'] != 'impala':  # Kudu table, now Hive should support it though
+      query_server = get_query_server_config('impala', connector=cluster)
+      db = dbms.get(db.client.user, query_server, cluster=cluster)
 
-  sample_data = db.get_sample(database, table_obj, column, generate_sql_only=async)
+  sample_data = db.get_sample(database, table_obj, column, generate_sql_only=is_async, operation=operation)
   response = {'status': -1}
 
   if sample_data:
     response['status'] = 0
-    if async:
+    if is_async:
       notebook = make_notebook(
           name=_('Table sample for `%(database)s`.`%(table)s`.`%(column)s`') % {'database': database, 'table': table, 'column': column},
-          editor_type=db.server_name,
+          editor_type=_get_servername(db),
           statement=sample_data,
           status='ready-execute',
           skip_historify=True,
-          is_task=False
+          is_task=False,
+          compute=cluster if cluster else None
       )
       response['result'] = notebook.execute(request=MockedDjangoRequest(user=db.client.user), batch=False)
+      if table_obj.is_impala_only:
+        response['result']['type'] = 'impala'
     else:
       sample = escape_rows(sample_data.rows(), nulls_only=True)
       if column:
@@ -746,7 +810,9 @@ def get_functions(request):
 @error_handler
 def analyze_table(request, database, table, columns=None):
   app_name = get_app_name(request)
-  query_server = get_query_server_config(app_name)
+  cluster = json.loads(request.POST.get('cluster', '{}'))
+
+  query_server = get_query_server_config(app_name, connector=cluster)
   db = dbms.get(request.user, query_server)
 
   table_obj = db.get_table(database, table)
@@ -773,7 +839,9 @@ def analyze_table(request, database, table, columns=None):
 @error_handler
 def get_table_stats(request, database, table, column=None):
   app_name = get_app_name(request)
-  query_server = get_query_server_config(app_name)
+  cluster = json.loads(request.POST.get('cluster', '{}'))
+
+  query_server = get_query_server_config(app_name, connector=cluster)
   db = dbms.get(request.user, query_server)
 
   response = {'status': -1, 'message': '', 'redirect': ''}
@@ -794,7 +862,9 @@ def get_table_stats(request, database, table, column=None):
 @error_handler
 def get_top_terms(request, database, table, column, prefix=None):
   app_name = get_app_name(request)
-  query_server = get_query_server_config(app_name)
+  cluster = json.loads(request.POST.get('cluster', '{}'))
+
+  query_server = get_query_server_config(app_name, connector=cluster)
   db = dbms.get(request.user, query_server)
 
   response = {'status': -1, 'message': '', 'redirect': ''}
@@ -822,7 +892,7 @@ def get_session(request, session_id=None):
   if session is not None:
     properties = json.loads(session.properties)
     # Redact passwords
-    for key, value in properties.items():
+    for key, value in list(properties.items()):
       if 'password' in key.lower():
         properties[key] = '*' * len(value)
 
@@ -845,7 +915,7 @@ def close_session(request, session_id):
 
   try:
     filters = {'id': session_id, 'application': query_server['server_name']}
-    if not request.user.is_superuser:
+    if not is_admin(request.user):
       filters['owner'] = request.user
     session = Session.objects.get(**filters)
   except Session.DoesNotExist:
@@ -863,9 +933,9 @@ def close_session(request, session_id):
 # Proxy API for Metastore App
 def describe_table(request, database, table):
   try:
-    from metastore.views import describe_table
-    return describe_table(request, database, table)
-  except Exception, e:
+    from metastore.views import describe_table as metastore_describe_table
+    return metastore_describe_table(request, database, table)
+  except Exception as e:
     LOG.exception('Describe table failed')
     raise PopupException(_('Problem accessing table metadata'), detail=e)
 
@@ -911,13 +981,13 @@ def get_query_form(request):
       query_server = dbms.get_query_server_config(get_app_name(request))
       db = dbms.get(request.user, query_server)
       databases = [(database, database) for database in db.get_databases()]
-    except StructuredThriftTransportException, e:
+    except StructuredThriftTransportException as e:
       # If Thrift exception was due to failed authentication, raise corresponding message
       if 'TSocket read 0 bytes' in str(e) or 'Error validating the login' in str(e):
         raise PopupException(_('Failed to authenticate to query server, check authentication configurations.'), detail=e)
       else:
         raise e
-  except Exception, e:
+  except Exception as e:
     raise PopupException(_('Unable to access databases, Query Server or Metastore may be down.'), detail=e)
 
   if not databases:
