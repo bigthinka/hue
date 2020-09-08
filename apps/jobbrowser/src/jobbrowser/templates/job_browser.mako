@@ -2187,7 +2187,7 @@ ${ commonheader("Job Browser", "jobbrowser", user, request) | n,unicode }
       };
 
       self.fetchLogs = function (name) {
-        self.logs('');
+        //self.logs(''); // this could be what causes all havoc with logs
         $.post("/jobbrowser/api/job/logs?is_embeddable=${ str(is_embeddable).lower() }", {
           app_id: ko.mapping.toJSON(self.id),
           interface: ko.mapping.toJSON(vm.interface),
