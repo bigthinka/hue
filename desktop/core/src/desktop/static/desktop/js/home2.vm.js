@@ -28,10 +28,21 @@ var HomeViewModel = (function () {
 
     self.user = options.user;
     self.superuser = options.superuser;
-    self.apiHelper = ApiHelper.getInstance(options);
+    self.apiHelper = window.apiHelper;
     self.isLeftPanelVisible = ko.observable(false);
     // Uncomment to enable the assist panel
     // self.apiHelper.withTotalStorage('assist', 'assist_panel_visible', self.isLeftPanelVisible, true);
+
+    self.sharingEnabled = ko.observable(false);
+
+    var updateFromConfig = function (hueConfig) {
+      self.sharingEnabled(
+        hueConfig && (hueConfig.hue_config.is_admin || hueConfig.hue_config.enable_sharing)
+      );
+    };
+
+    updateFromConfig(window.getLastKnownConfig());
+    huePubSub.subscribe('cluster.config.set.config', updateFromConfig);
 
     self.serverTypeFilter = ko.observable();
 

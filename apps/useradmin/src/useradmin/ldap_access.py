@@ -18,18 +18,27 @@
 This module provides access to LDAP servers, along with some basic functionality required for Hue and
 User Admin to work seamlessly with LDAP.
 """
-import ldap
-import ldap.filter
+from builtins import str, object
+
 import logging
+
+LOG = logging.getLogger(__name__)
+
+try:
+  import ldap
+  import ldap.filter
+  from ldap import SCOPE_SUBTREE
+except ImportError:
+  LOG.warn('ldap module not found')
+  SCOPE_SUBTREE = None
 import re
 
-from django.contrib.auth.models import User
+from django.utils.encoding import smart_text
 
 import desktop.conf
 from desktop.lib.python_util import CaseInsensitiveDict
 
-
-LOG = logging.getLogger(__name__)
+from useradmin.models import User
 
 CACHED_LDAP_CONN = None
 
@@ -50,7 +59,7 @@ def get_connection_from_server(server=None):
     ldap_config = ldap_servers[server]
   else:
     ldap_config = desktop.conf.LDAP
-     
+
   return get_connection(ldap_config)
 
 def get_connection(ldap_config):
@@ -157,17 +166,19 @@ class LdapConnection(object):
       ldap.set_option(ldap.OPT_DEBUG_LEVEL, ldap_config.DEBUG_LEVEL.get())
 
     self.ldap_handle = ldap.initialize(uri=ldap_url, trace_level=ldap_config.TRACE_LEVEL.get())
+    if self.ldap_config.USE_START_TLS.get() and not ldap_url.lower().startswith('ldaps'):
+      self.ldap_handle.start_tls_s()
 
     if bind_user:
       try:
         self.ldap_handle.simple_bind_s(bind_user, bind_password)
-      except Exception, e:
+      except Exception as e:
         self.handle_bind_exception(e, bind_user)
     else:
       try:
         # Do anonymous bind
-        self.ldap_handle.simple_bind_s('','')
-      except Exception, e:
+        self.ldap_handle.simple_bind_s('', '')
+      except Exception as e:
         self.handle_bind_exception(e)
 
   def handle_bind_exception(self, exception, bind_user=None):
@@ -205,9 +216,11 @@ class LdapConnection(object):
   @classmethod
   def _transform_find_user_results(cls, result_data, user_name_attr):
     """
-    :param result_data: List of dictionaries that have ldap attributes and their associated values. Generally the result list from an ldapsearch request.
-    :param user_name_attr: The ldap attribute that is returned by the server to map to ``username`` in the return dictionary.
-    
+    :param result_data: List of dictionaries that have ldap attributes and their associated values.
+                        Generally the result list from an ldapsearch request.
+    :param user_name_attr: The ldap attribute that is returned by the server to map to ``username``
+                           in the return dictionary.
+
     :returns list of dictionaries that take on the following form: {
       'dn': <distinguished name of entry>,
       'username': <ldap attribute associated with user_name_attr>
@@ -232,24 +245,26 @@ class LdapConnection(object):
 
           ldap_info = {
             'dn': dn,
-            'username': data[user_name_attr][0]
+            'username': smart_text(data[user_name_attr][0])
           }
 
           if 'givenName' in data:
-            if len(data['givenName'][0]) > 30:
+            first_name = smart_text(data['givenName'][0])
+            if len(first_name) > 30:
               LOG.warn('First name is truncated to 30 characters for [<User: %s>].' % ldap_info['username'])
-            ldap_info['first'] = data['givenName'][0][:30]
+            ldap_info['first'] = first_name[:30]
           if 'sn' in data:
-            if len(data['sn'][0]) > 30:
+            last_name = smart_text(data['sn'][0])
+            if len(last_name) > 30:
               LOG.warn('Last name is truncated to 30 characters for [<User: %s>].' % ldap_info['username'])
-            ldap_info['last'] = data['sn'][0][:30]
+            ldap_info['last'] = last_name[:30]
           if 'mail' in data:
-            ldap_info['email'] = data['mail'][0]
+            ldap_info['email'] = smart_text(data['mail'][0])
           # memberOf and isMemberOf should be the same if they both exist
           if 'memberOf' in data:
-            ldap_info['groups'] = data['memberOf']
+            ldap_info['groups'] = [smart_text(member) for member in data['memberOf']]
           if 'isMemberOf' in data:
-            ldap_info['groups'] = data['isMemberOf']
+            ldap_info['groups'] = [smart_text(member) for member in data['isMemberOf']]
 
           user_info.append(ldap_info)
     return user_info
@@ -280,21 +295,25 @@ class LdapConnection(object):
             'name': group_name
           }
 
-          if group_member_attr in data and 'posixGroup' not in data['objectClass']:
+          if group_member_attr in data and group_member_attr.lower() != 'memberuid':
             ldap_info['members'] = data[group_member_attr]
           else:
+            LOG.warn('Skipping import of non-posix users from group %s since group_member_attr '
+                     'is memberUid or group did not contain any members' % group_name)
             ldap_info['members'] = []
 
-          if 'posixGroup' in data['objectClass'] and 'memberUid' in data:
+          if 'posixgroup' in (item.lower() for item in data['objectClass']) and 'memberUid' in data:
             ldap_info['posix_members'] = data['memberUid']
           else:
+            LOG.warn('Skipping import of posix users from group %s since posixGroup '
+                     'not an objectClass or no memberUids found' % group_name)
             ldap_info['posix_members'] = []
 
           group_info.append(ldap_info)
 
     return group_info
 
-  def find_users(self, username_pattern, search_attr=None, user_name_attr=None, user_filter=None, find_by_dn=False, scope=ldap.SCOPE_SUBTREE):
+  def find_users(self, username_pattern, search_attr=None, user_name_attr=None, user_filter=None, find_by_dn=False, scope=SCOPE_SUBTREE):
     """
     LDAP search helper method finding users. This supports searching for users
     by distinguished name, or the configured username attribute.
@@ -304,7 +323,7 @@ class LdapConnection(object):
     :param user_name_attr: The ldap attribute that is returned by the server to map to ``username`` in the return dictionary.
     :param find_by_dn: Search by distinguished name.
     :param scope: ldapsearch scope.
-    
+
     :returns: List of dictionaries that take on the following form: {
       'dn': <distinguished name of entry>,
       'username': <ldap attribute associated with user_name_attr>
@@ -344,15 +363,21 @@ class LdapConnection(object):
     self._ldap_filter = ldap_filter
     self._attrlist = attrlist
 
-    ldap_result_id = self.ldap_handle.search(search_dn, scope, ldap_filter, attrlist)
-    result_type, result_data = self.ldap_handle.result(ldap_result_id)
+    try:
+      ldap_result_id = self.ldap_handle.search(search_dn, scope, ldap_filter, attrlist)
+      result_type, result_data = self.ldap_handle.result(ldap_result_id)
 
-    if result_type == ldap.RES_SEARCH_RESULT:
-      return self._transform_find_user_results(result_data, user_name_attr)
-    else:
-      return []
+      if result_type == ldap.RES_SEARCH_RESULT:
+        return self._transform_find_user_results(result_data, user_name_attr)
+      else:
+        return []
+    except ldap.LDAPError as e:
+      LOG.warn("LDAP Error: %s" % e)
 
-  def find_groups(self, groupname_pattern, search_attr=None, group_name_attr=None, group_member_attr=None, group_filter=None, find_by_dn=False, scope=ldap.SCOPE_SUBTREE):
+    return None
+
+  def find_groups(self, groupname_pattern, search_attr=None, group_name_attr=None,
+                  group_member_attr=None, group_filter=None, find_by_dn=False, scope=SCOPE_SUBTREE):
     """
     LDAP search helper method for finding groups
 
@@ -361,7 +386,7 @@ class LdapConnection(object):
     :param group_name_attr: The ldap attribute that is returned by the server to map to ``name`` in the return dictionary.
     :param find_by_dn: Search by distinguished name.
     :param scope: ldapsearch scope.
-    
+
     :returns: List of dictionaries that take on the following form: {
       'dn': <distinguished name of entry>,
       'name': <ldap attribute associated with group_name_attr>
@@ -406,7 +431,7 @@ class LdapConnection(object):
     else:
       return []
 
-  def find_members_of_group(self, dn, search_attr, ldap_filter, scope=ldap.SCOPE_SUBTREE):
+  def find_members_of_group(self, dn, search_attr, ldap_filter, scope=SCOPE_SUBTREE):
     if ldap_filter and not ldap_filter.startswith('('):
       ldap_filter = '(' + ldap_filter + ')'
 

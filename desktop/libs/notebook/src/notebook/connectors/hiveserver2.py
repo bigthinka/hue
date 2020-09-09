@@ -15,31 +15,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
+from __future__ import division
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next, object
 import binascii
 import copy
-import hashlib
+import json
 import logging
 import re
-import StringIO
 import struct
-import urllib
+import sys
 
 from django.urls import reverse
 from django.utils.translation import ugettext as _
 
-from desktop.conf import USE_DEFAULT_CONFIGURATION
+from desktop.auth.backend import is_admin
+from desktop.conf import USE_DEFAULT_CONFIGURATION, has_connectors
 from desktop.lib.conf import BoundConfig
 from desktop.lib.exceptions import StructuredException
 from desktop.lib.exceptions_renderable import PopupException
-from desktop.lib.i18n import force_unicode, smart_str
+from desktop.lib.i18n import force_unicode
+from desktop.lib.paths import SAFE_CHARACTERS_URI_COMPONENTS
 from desktop.lib.rest.http_client import RestException
+from desktop.lib.thrift_util import unpack_guid, unpack_guid_base64
 from desktop.models import DefaultConfiguration, Document2
-from metadata.optimizer_client import OptimizerApi
 
-from notebook.connectors.base import Api, QueryError, QueryExpired, OperationTimeout, OperationNotSupported, _get_snippet_name, Notebook
+from notebook.connectors.base import Api, QueryError, QueryExpired, OperationTimeout, OperationNotSupported, _get_snippet_name, Notebook, \
+    get_interpreter, patch_snippet_for_connector
 
-from desktop.auth.backend import is_admin
+if sys.version_info[0] > 2:
+  from urllib.parse import quote as urllib_quote, unquote as urllib_unquote
+else:
+  from urllib import quote as urllib_quote, unquote as urllib_unquote
 
 LOG = logging.getLogger(__name__)
 
@@ -47,14 +55,15 @@ LOG = logging.getLogger(__name__)
 try:
   from beeswax import conf as beeswax_conf, data_export
   from beeswax.api import _autocomplete, _get_sample_data
-  from beeswax.conf import CONFIG_WHITELIST as hive_settings, DOWNLOAD_ROW_LIMIT, DOWNLOAD_BYTES_LIMIT
+  from beeswax.conf import CONFIG_WHITELIST as hive_settings, DOWNLOAD_ROW_LIMIT, DOWNLOAD_BYTES_LIMIT, MAX_NUMBER_OF_SESSIONS, \
+      has_session_pool, has_multiple_sessions, CLOSE_SESSIONS
   from beeswax.data_export import upload
-  from beeswax.design import hql_query, strip_trailing_semicolon, split_statements
+  from beeswax.design import hql_query
   from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, HiveServerQueryHistory, QueryHistory, Session
   from beeswax.server import dbms
   from beeswax.server.dbms import get_query_server_config, QueryServerException
-  from beeswax.views import parse_out_jobs
-except ImportError, e:
+  from beeswax.views import parse_out_jobs, parse_out_queries
+except ImportError as e:
   LOG.warn('Hive and HiveServer2 interfaces are not enabled: %s' % e)
   hive_settings = None
 
@@ -62,15 +71,22 @@ try:
   from impala import api   # Force checking if Impala is enabled
   from impala.conf import CONFIG_WHITELIST as impala_settings
   from impala.server import get_api as get_impalad_api, ImpalaDaemonApiException, _get_impala_server_url
-except ImportError, e:
+except ImportError as e:
   LOG.warn("Impala app is not enabled")
   impala_settings = None
 
 try:
+  from jobbrowser.apis.query_api import _get_api
+  from jobbrowser.conf import ENABLE_QUERY_BROWSER, ENABLE_HIVE_QUERY_BROWSER
   from jobbrowser.views import get_job
-  from jobbrowser.conf import ENABLE_QUERY_BROWSER
-except (AttributeError, ImportError), e:
+  has_query_browser = ENABLE_QUERY_BROWSER.get()
+  has_hive_query_browser = ENABLE_HIVE_QUERY_BROWSER.get()
+  has_jobbrowser = True
+except (AttributeError, ImportError, RuntimeError) as e:
   LOG.warn("Job Browser app is not enabled")
+  has_jobbrowser = False
+  has_query_browser = False
+  has_hive_query_browser = False
 
 
 DEFAULT_HIVE_ENGINE = 'mr'
@@ -80,13 +96,13 @@ def query_error_handler(func):
   def decorator(*args, **kwargs):
     try:
       return func(*args, **kwargs)
-    except StructuredException, e:
+    except StructuredException as e:
       message = force_unicode(str(e))
       if 'timed out' in message:
         raise OperationTimeout(e)
       else:
         raise QueryError(message)
-    except QueryServerException, e:
+    except QueryServerException as e:
       message = force_unicode(str(e))
       if 'Invalid query handle' in message or 'Invalid OperationHandle' in message:
         raise QueryExpired(e)
@@ -162,13 +178,19 @@ class HS2Api(Api):
 
   @query_error_handler
   def create_session(self, lang='hive', properties=None):
-    application = 'beeswax' if lang == 'hive' else lang
+    application = 'beeswax' if lang == 'hive' or lang == 'llap' else lang
 
-    session = Session.objects.get_session(self.user, application=application)
+    if has_session_pool():
+      session = Session.objects.get_tez_session(self.user, application, MAX_NUMBER_OF_SESSIONS.get())
+    elif not has_multiple_sessions():
+      session = Session.objects.get_session(self.user, application=application)
+    else:
+      session = None
 
     reuse_session = session is not None
     if not reuse_session:
-      session = dbms.get(self.user, query_server=get_query_server_config(name=lang)).open_session(self.user)
+      db = dbms.get(self.user, query_server=get_query_server_config(name=lang, connector=self.interpreter))
+      session = db.open_session(self.user)
 
     response = {
       'type': lang,
@@ -186,16 +208,17 @@ class HS2Api(Api):
         properties = self.get_properties(lang)
 
     response['properties'] = properties
+    response['configuration'] = json.loads(session.properties)
     response['reuse_session'] = reuse_session
     response['session_id'] = ''
 
     try:
       decoded_guid = session.get_handle().sessionId.guid
-      response['session_id'] = "%x:%x" % struct.unpack(b"QQ", decoded_guid)
-    except Exception, e:
+      response['session_id'] = unpack_guid(decoded_guid)
+    except Exception as e:
       LOG.warn('Failed to decode session handle: %s' % e)
 
-    if lang == 'impala':
+    if lang == 'impala' and session:
       http_addr = _get_impala_server_url(session)
       response['http_addr'] = http_addr
 
@@ -211,50 +234,83 @@ class HS2Api(Api):
     if not session_id:
       session = Session.objects.get_session(self.user, application=app_name)
       decoded_guid = session.get_handle().sessionId.guid
-      session_decoded_id = "%x:%x" % struct.unpack(b"QQ", decoded_guid)
+      session_decoded_id = unpack_guid(decoded_guid)
       if source_method == "dt_logout":
         LOG.debug("Closing Impala session id %s on logout for user %s" % (session_decoded_id, self.user.username))
 
     query_server = get_query_server_config(name=app_name)
 
     response = {'status': -1, 'message': ''}
+    session_record = None
 
     try:
       filters = {'id': session_id, 'application': query_server['server_name']}
       if not is_admin(self.user):
         filters['owner'] = self.user
-      session = Session.objects.get(**filters)
+      session_record = Session.objects.get(**filters)
     except Session.DoesNotExist:
       response['message'] = _('Session does not exist or you do not have permissions to close the session.')
 
-    if session:
-      session = dbms.get(self.user, query_server).close_session(session)
+    if session_record:
+      session_record = dbms.get(self.user, query_server).close_session(session_record)
       response['status'] = 0
       response['message'] = _('Session successfully closed.')
-      response['session'] = {'id': session_id, 'application': session.application, 'status': session.status_code}
+      response['session'] = {'id': session_id, 'application': session_record.application, 'status': session_record.status_code}
 
     return response
 
 
+  def close_session_idle(self, notebook, session):
+    idle = True
+    response = {'result': []}
+    for snippet in [_s for _s in notebook['snippets'] if _s['type'] == session['type']]:
+      try:
+        if snippet['status'] != 'running':
+          response['result'].append(self.close_statement(notebook, snippet))
+        else:
+          idle = False
+          LOG.info('Not closing SQL snippet as still running.')
+      except QueryExpired:
+        pass
+      except Exception as e:
+        LOG.exception('Error closing statement %s' % str(e))
+
+    try:
+      if idle and CLOSE_SESSIONS.get():
+        response['result'].append(self.close_session(session))
+    except QueryExpired:
+      pass
+    except Exception as e:
+      LOG.exception('Error closing statement %s' % str(e))
+
+    return response['result']
+
   @query_error_handler
   def execute(self, notebook, snippet):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
-    statement = self._get_current_statement(db, snippet)
+    statement = self._get_current_statement(notebook, snippet)
     session = self._get_session(notebook, snippet['type'])
 
     query = self._prepare_hql_query(snippet, statement['statement'], session)
+    _session = self._get_session_by_id(notebook, snippet['type'])
 
     try:
-      if statement.get('statement_id') == 0:
+      if statement.get('statement_id') == 0: # TODO: move this to client
         if query.database and not statement['statement'].lower().startswith('set'):
-          db.use(query.database)
-      handle = db.client.query(query, with_multiple_session=True)
-    except QueryServerException, ex:
+          result = db.use(query.database, session=_session)
+          if result.session:
+            _session = result.session
+      handle = db.client.query(query, session=_session)
+    except QueryServerException as ex:
       raise QueryError(ex.message, handle=statement)
 
     # All good
     server_id, server_guid = handle.get()
+    if sys.version_info[0] > 2:
+      server_id = server_id.decode('utf-8')
+      server_guid = server_guid.decode('utf-8')
+
     response = {
       'secret': server_id,
       'guid': server_guid,
@@ -262,7 +318,9 @@ class HS2Api(Api):
       'has_result_set': handle.has_result_set,
       'modified_row_count': handle.modified_row_count,
       'log_context': handle.log_context,
-      'session_guid': handle.session_guid
+      'session_guid': handle.session_guid,
+      'session_id': handle.session_id,
+      'session_type': snippet['type']
     }
     response.update(statement)
 
@@ -272,33 +330,39 @@ class HS2Api(Api):
   @query_error_handler
   def check_status(self, notebook, snippet):
     response = {}
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
     handle = self._get_handle(snippet)
     operation = db.get_operation_status(handle)
     status = HiveServerQueryHistory.STATE_MAP[operation.operationState]
 
     if status.value in (QueryHistory.STATE.failed.value, QueryHistory.STATE.expired.value):
-      if operation.errorMessage and 'transition from CANCELED to ERROR' in operation.errorMessage: # Hive case on canceled query
+      if operation.errorMessage and 'transition from CANCELED to ERROR' in operation.errorMessage:  # Hive case on canceled query
         raise QueryExpired()
-      elif  operation.errorMessage and re.search('Cannot validate serde: org.apache.hive.hcatalog.data.JsonSerDe', str(operation.errorMessage)):
+      elif operation.errorMessage and re.search(
+          'Cannot validate serde: org.apache.hive.hcatalog.data.JsonSerDe', str(operation.errorMessage)
+          ):
         raise QueryError(message=operation.errorMessage + _('. Is hive-hcatalog-core.jar registered?'))
       else:
         raise QueryError(operation.errorMessage)
 
-    response['status'] = 'running' if status.value in (QueryHistory.STATE.running.value, QueryHistory.STATE.submitted.value) else 'available'
+    response['status'] = 'running' if status.value in (
+        QueryHistory.STATE.running.value, QueryHistory.STATE.submitted.value
+      ) else 'available'
+    if operation.hasResultSet is not None:
+      response['has_result_set'] = operation.hasResultSet  # HIVE-12442 - With LLAP hasResultSet can change after get_operation_status
 
     return response
 
 
   @query_error_handler
   def fetch_result(self, notebook, snippet, rows, start_over):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
     handle = self._get_handle(snippet)
     try:
       results = db.fetch(handle, start_over=start_over, rows=rows)
-    except QueryServerException, ex:
+    except QueryServerException as ex:
       if re.search('(client inactivity)|(Invalid query handle)', str(ex)) and ex.message:
         raise QueryExpired(message=ex.message)
       else:
@@ -328,10 +392,17 @@ class HS2Api(Api):
     if snippet.get('status') != 'available':
       raise QueryError(_('Result status is not available'))
 
-    if snippet['type'] not in ('hive', 'impala'):
-      raise OperationNotSupported(_('Cannot fetch result metadata for snippet type: %s') % snippet['type'])
+    if has_connectors():
+      # TODO: Add dialect to snippet and update fetchResultSize() in notebook.ko
+      interpreter = get_interpreter(connector_type=snippet['type'])
+      snippet_dialect = interpreter['dialect']
+    else:
+      snippet_dialect = snippet['type']
 
-    if snippet['type'] == 'hive':
+    if snippet_dialect not in ('hive', 'impala'):
+      raise OperationNotSupported(_('Cannot fetch result metadata for snippet type: %s') % snippet_dialect)
+
+    if snippet_dialect == 'hive':
       resp['rows'], resp['size'], resp['message'] = self._get_hive_result_size(notebook, snippet)
     else:
       resp['rows'], resp['size'], resp['message'] = self._get_impala_result_size(notebook, snippet)
@@ -341,7 +412,7 @@ class HS2Api(Api):
 
   @query_error_handler
   def cancel(self, notebook, snippet):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
     handle = self._get_handle(snippet)
     db.cancel_operation(handle)
@@ -350,63 +421,44 @@ class HS2Api(Api):
 
   @query_error_handler
   def get_log(self, notebook, snippet, startFrom=None, size=None):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
     handle = self._get_handle(snippet)
     return db.get_log(handle, start_over=startFrom == 0)
 
 
   @query_error_handler
-  def close_statement(self, snippet):
-    if snippet['type'] == 'impala':
-      from impala import conf as impala_conf
+  def close_statement(self, notebook, snippet):
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
-    if (snippet['type'] == 'hive' and beeswax_conf.CLOSE_QUERIES.get()) or (snippet['type'] == 'impala' and impala_conf.CLOSE_QUERIES.get()):
-      db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-
-      try:
-        handle = self._get_handle(snippet)
-        db.close_operation(handle)
-      except Exception, e:
-        if 'no valid handle' in str(e):
-          return {'status': -1}  # skipped
-        else:
-          raise e
-      return {'status': 0}
-    else:
-      return {'status': -1}  # skipped
-
-
-  @query_error_handler
-  def download(self, notebook, snippet, format, user_agent=None):
     try:
-      db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+      handle = self._get_handle(snippet)
+      db.close_operation(handle)
+    except Exception as e:
+      if 'no valid handle' in str(e):
+        return {'status': -1}  # skipped
+      else:
+        raise e
+    return {'status': 0}
+
+
+  def can_start_over(self, notebook, snippet):
+    try:
+      db = self._get_db(snippet, interpreter=self.interpreter)
       handle = self._get_handle(snippet)
       # Test handle to verify if still valid
       db.fetch(handle, start_over=True, rows=1)
-
-      file_name = _get_snippet_name(notebook)
-
-      return data_export.download(handle, format, db, id=snippet['id'], file_name=file_name, user_agent=user_agent)
-    except Exception, e:
-      title = 'The query result cannot be downloaded.'
-      LOG.exception(title)
-
-      if hasattr(e, 'message') and e.message:
-        if 'generic failure: Unable to find a callback: 32775' in e.message:
-          message = e.message + " " + _("Increase the sasl_max_buffer value in hue.ini")
-        elif 'query result cache exceeded its limit' in e.message:
-          message = e.message.replace("Restarting the fetch is not possible.", _("Please execute the query again."))
-        else:
-          message = e.message
-      else:
-        message = e
-      raise PopupException(_(title), detail=message)
+      can_start_over = True
+    except Exception as e:
+      raise e
+    return can_start_over
 
 
   @query_error_handler
-  def progress(self, snippet, logs):
-    if snippet['type'] == 'hive':
+  def progress(self, notebook, snippet, logs=''):
+    patch_snippet_for_connector(snippet)
+
+    if snippet['dialect'] == 'hive':
       match = re.search('Total jobs = (\d+)', logs, re.MULTILINE)
       total = int(match.group(1)) if match else 1
 
@@ -415,7 +467,7 @@ class HS2Api(Api):
 
       progress = int((started + ended) * 100 / (total * 2))
       return max(progress, 5)  # Return 5% progress as a minimum
-    elif snippet['type'] == 'impala':
+    elif snippet['dialect'] == 'impala':
       match = re.findall('(\d+)% Complete', logs, re.MULTILINE)
       # Retrieve the last reported progress percentage if it exists
       return int(match[-1]) if match and isinstance(match, list) else 0
@@ -427,19 +479,38 @@ class HS2Api(Api):
   def get_jobs(self, notebook, snippet, logs):
     jobs = []
 
-    if snippet['type'] == 'hive':
+    patch_snippet_for_connector(snippet)
+
+    if snippet['dialect'] == 'hive':
       engine = self._get_hive_execution_engine(notebook, snippet)
       jobs_with_state = parse_out_jobs(logs, engine=engine, with_state=True)
+      queries_with_state = parse_out_queries(logs, engine=engine, with_state=True)
 
       jobs = [{
-        'name': job.get('job_id', ''),
-        'url': reverse('jobbrowser.views.single_job', kwargs={'job': job.get('job_id', '')}),
-        'started': job.get('started', False),
-        'finished': job.get('finished', False)
-      } for job in jobs_with_state]
-    elif snippet['type'] == 'impala' and ENABLE_QUERY_BROWSER.get():
-      query_id = "%x:%x" % struct.unpack(b"QQ", snippet['result']['handle']['guid'])
-      progress = min(self.progress(snippet, logs), 99) if snippet['status'] != 'available' and snippet['status'] != 'success' else 100
+          'name': job.get('job_id', ''),
+          'url': reverse('jobbrowser.views.single_job', kwargs={'job': job.get('job_id', '')}) if has_jobbrowser else '',
+          'started': job.get('started', False),
+          'finished': job.get('finished', False)
+        }
+        for job in jobs_with_state
+      ]
+      if has_hive_query_browser:
+        jobs += [{
+            'name': job.get('job_id', ''),
+            'url': 'api/job/queries-hive/',
+            'started': job.get('started', False),
+            'finished': job.get('finished', False)
+          }
+          for job in queries_with_state
+        ]
+    elif snippet['dialect'] == 'impala' and has_query_browser:
+      guid = snippet['result']['handle']['guid']
+      if isinstance(guid, str):
+        guid = guid.encode('utf-8')
+      query_id = unpack_guid_base64(guid)
+      progress = min(
+          self.progress(notebook, snippet, logs), 99
+        ) if snippet['status'] != 'available' and snippet['status'] != 'success' else 100
       jobs = [{
         'name': query_id,
         'url': '/hue/jobbrowser#!id=%s' % query_id,
@@ -452,8 +523,8 @@ class HS2Api(Api):
 
 
   @query_error_handler
-  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None):
-    db = self._get_db(snippet, cluster=self.cluster)
+  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None, operation=None):
+    db = self._get_db(snippet, interpreter=self.interpreter)
     query = None
 
     if snippet.get('query'):
@@ -463,25 +534,32 @@ class HS2Api(Api):
       document.can_read_or_exception(self.user)
       notebook = Notebook(document=document).get_data()
       snippet = notebook['snippets'][0]
-      query = self._get_current_statement(db, snippet)['statement']
+      query = self._get_current_statement(notebook, snippet)['statement']
       database, table = '', ''
 
-    return _autocomplete(db, database, table, column, nested, query=query, cluster=self.cluster)
+    resp = _autocomplete(db, database, table, column, nested, query=query, cluster=self.interpreter, operation=operation)
+
+    if resp.get('error'):
+      resp['message'] = resp.pop('error')
+      if 'Read timed out' in resp['message']:
+        raise QueryExpired(resp['message'])
+
+    return resp
 
 
   @query_error_handler
-  def get_sample_data(self, snippet, database=None, table=None, column=None, async=False, operation=None):
+  def get_sample_data(self, snippet, database=None, table=None, column=None, is_async=False, operation=None):
     try:
-      db = self._get_db(snippet, async, cluster=self.cluster)
-      return _get_sample_data(db, database, table, column, async, operation=operation)
-    except QueryServerException, ex:
+      db = self._get_db(snippet, is_async=is_async, interpreter=self.interpreter)
+      return _get_sample_data(db, database, table, column, is_async, operation=operation, cluster=self.interpreter)
+    except QueryServerException as ex:
       raise QueryError(ex.message)
 
 
   @query_error_handler
   def explain(self, notebook, snippet):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-    response = self._get_current_statement(db, snippet)
+    db = self._get_db(snippet, interpreter=self.interpreter)
+    response = self._get_current_statement(notebook, snippet)
     session = self._get_session(notebook, snippet['type'])
 
     query = self._prepare_hql_query(snippet, response.pop('statement'), session)
@@ -490,7 +568,7 @@ class HS2Api(Api):
       db.use(query.database)
 
       explanation = db.explain(query)
-    except QueryServerException, ex:
+    except QueryServerException as ex:
       raise QueryError(ex.message)
 
     return {
@@ -502,7 +580,7 @@ class HS2Api(Api):
 
   @query_error_handler
   def export_data_as_hdfs_file(self, snippet, target_file, overwrite):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
     handle = self._get_handle(snippet)
     max_rows = DOWNLOAD_ROW_LIMIT.get()
@@ -510,13 +588,15 @@ class HS2Api(Api):
 
     upload(target_file, handle, self.request.user, db, self.request.fs, max_rows=max_rows, max_bytes=max_bytes)
 
-    return '/filebrowser/view=%s' % urllib.quote(urllib.quote(target_file.encode('utf-8'), safe='~@#$&()*!+=:;,.?/\'')) # Quote twice, because of issue in the routing on client
+    return '/filebrowser/view=%s' % urllib_quote(
+        urllib_quote(target_file.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS)
+    ) # Quote twice, because of issue in the routing on client
 
 
   def export_data_as_table(self, notebook, snippet, destination, is_temporary=False, location=None):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
 
-    response = self._get_current_statement(db, snippet)
+    response = self._get_current_statement(notebook, snippet)
     session = self._get_session(notebook, snippet['type'])
     query = self._prepare_hql_query(snippet, response.pop('statement'), session)
 
@@ -531,16 +611,16 @@ class HS2Api(Api):
 
     db.use(query.database)
 
-    hql = 'CREATE %sTABLE `%s`.`%s` %sAS %s' % ('TEMPORARY ' if is_temporary else '', database, table, "LOCATION '%s' " % location if location else '', query.hql_query)
+    hql = 'CREATE %sTABLE `%s`.`%s` %sAS %s' % (
+        'TEMPORARY ' if is_temporary else '', database, table, "LOCATION '%s' " % location if location else '', query.hql_query
+    )
     success_url = reverse('metastore:describe_table', kwargs={'database': database, 'table': table})
 
     return hql, success_url
 
 
   def export_large_data_to_hdfs(self, notebook, snippet, destination):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-
-    response = self._get_current_statement(db, snippet)
+    response = self._get_current_statement(notebook, snippet)
     session = self._get_session(notebook, snippet['type'])
     query = self._prepare_hql_query(snippet, response.pop('statement'), session)
 
@@ -566,42 +646,9 @@ DROP TABLE IF EXISTS `%(table)s`;
       'location': self.request.fs.netnormpath(destination),
       'hql': query.hql_query
     }
-    success_url = '/filebrowser/view=%s' % urllib.quote(destination.encode('utf-8'), safe='~@#$&()*!+=:;,.?/\'')
+    success_url = '/filebrowser/view=%s' % urllib_quote(destination.encode('utf-8'), safe=SAFE_CHARACTERS_URI_COMPONENTS)
 
     return hql, success_url
-
-
-  def statement_risk(self, notebook, snippet):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-
-    response = self._get_current_statement(db, snippet)
-    query = response['statement']
-
-    api = OptimizerApi(self.user)
-
-    return api.query_risk(query=query, source_platform=snippet['type'], db_name=snippet.get('database') or 'default')
-
-
-  def statement_compatibility(self, notebook, snippet, source_platform, target_platform):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-
-    response = self._get_current_statement(db, snippet)
-    query = response['statement']
-
-    api = OptimizerApi(self.user)
-
-    return api.query_compatibility(source_platform, target_platform, query)
-
-
-  def statement_similarity(self, notebook, snippet, source_platform):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
-
-    response = self._get_current_statement(db, snippet)
-    query = response['statement']
-
-    api = OptimizerApi(self.user)
-
-    return api.similar_queries(source_platform, query)
 
 
   def upgrade_properties(self, lang='hive', properties=None):
@@ -632,6 +679,16 @@ DROP TABLE IF EXISTS `%(table)s`;
     session = next((session for session in notebook['sessions'] if session['type'] == type), None)
     return session
 
+  def _get_session_by_id(self, notebook, type='hive'):
+    session = self._get_session(notebook, type)
+    if session:
+      session_id = session.get('id')
+      if session_id:
+        filters = {'id': session_id, 'application': 'beeswax' if type == 'hive' or type == 'llap' else type}
+        if not is_admin(self.user):
+          filters['owner'] = self.user
+        return Session.objects.get(**filters)
+
 
   def _get_hive_execution_engine(self, notebook, snippet):
     # Get hive.execution.engine from snippet properties, if none, then get from session
@@ -642,6 +699,8 @@ DROP TABLE IF EXISTS `%(table)s`;
       session = self._get_session(notebook, 'hive')
       if not session:
         LOG.warn('Cannot get jobs, failed to find active HS2 session for user: %s' % self.user.username)
+      elif session.get('configuration') and session['configuration'].get('hive.execution.engine'):
+        return session['configuration'].get('hive.execution.engine')
       else:
         properties = session['properties']
         settings = next((prop['value'] for prop in properties if prop['key'] == 'settings'), None)
@@ -652,68 +711,6 @@ DROP TABLE IF EXISTS `%(table)s`;
       engine = DEFAULT_HIVE_ENGINE
 
     return engine
-
-
-  def _get_statements(self, hql_query):
-    hql_query = strip_trailing_semicolon(hql_query)
-    hql_query_sio = StringIO.StringIO(hql_query)
-
-    statements = []
-    for (start_row, start_col), (end_row, end_col), statement in split_statements(hql_query_sio.read()):
-      statements.append({
-        'start': {
-          'row': start_row,
-          'column': start_col
-        },
-        'end': {
-          'row': end_row,
-          'column': end_col
-        },
-        'statement': strip_trailing_semicolon(statement.rstrip())
-      })
-    return statements
-
-
-  def _get_current_statement(self, db, snippet):
-    # Multiquery, if not first statement or arrived to the last query
-    statement_id = snippet['result']['handle'].get('statement_id', 0)
-    statements_count = snippet['result']['handle'].get('statements_count', 1)
-
-    statements = self._get_statements(snippet['statement'])
-
-    statement_id = min(statement_id, len(statements) - 1) # In case of removal of statements
-    previous_statement_hash = self.__compute_statement_hash(statements[statement_id]['statement'])
-    non_edited_statement = previous_statement_hash == snippet['result']['handle'].get('previous_statement_hash') or not snippet['result']['handle'].get('previous_statement_hash')
-
-    if snippet['result']['handle'].get('has_more_statements'):
-      try:
-        handle = self._get_handle(snippet)
-        db.close_operation(handle)  # Close all the time past multi queries
-      except:
-        LOG.warn('Could not close previous multiquery query')
-
-      if non_edited_statement:
-        statement_id += 1
-    else:
-      if non_edited_statement:
-        statement_id = 0
-
-    if statements_count != len(statements):
-      statement_id = min(statement_id, len(statements) - 1)
-
-    resp = {
-      'statement_id': statement_id,
-      'has_more_statements': statement_id < len(statements) - 1,
-      'statements_count': len(statements),
-      'previous_statement_hash': self.__compute_statement_hash(statements[statement_id]['statement'])
-    }
-
-    resp.update(statements[statement_id])
-    return resp
-
-
-  def __compute_statement_hash(self, statement):
-    return hashlib.sha224(smart_str(statement)).hexdigest()
 
 
   def _prepare_hql_query(self, snippet, statement, session):
@@ -745,14 +742,14 @@ DROP TABLE IF EXISTS `%(table)s`;
 
 
   def get_browse_query(self, snippet, database, table, partition_spec=None):
-    db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+    db = self._get_db(snippet, interpreter=self.interpreter)
     table = db.get_table(database, table)
     if table.is_impala_only:
       snippet['type'] = 'impala'
-      db = self._get_db(snippet, cluster=snippet.get('selectedCompute'))
+      db = self._get_db(snippet, interpreter=self.interpreter)
 
     if partition_spec is not None:
-      decoded_spec = urllib.unquote(partition_spec)
+      decoded_spec = urllib_unquote(partition_spec)
       return db.get_partition(database, table.name, decoded_spec, generate_ddl_only=True)
     else:
       return db.get_select_star_query(database, table, limit=100)
@@ -760,30 +757,39 @@ DROP TABLE IF EXISTS `%(table)s`;
 
   def _get_handle(self, snippet):
     try:
-      snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+      handle = snippet['result']['handle'].copy()
+      handle['secret'], handle['guid'] = HiveServerQueryHandle.get_decoded(handle['secret'], handle['guid'])
     except KeyError:
       raise Exception('Operation has no valid handle attached')
     except binascii.Error:
       LOG.warn('Handle already base 64 decoded')
 
-    for key in snippet['result']['handle'].keys():
+    for key in list(handle.keys()):
       if key not in ('log_context', 'secret', 'has_result_set', 'operation_type', 'modified_row_count', 'guid'):
-        snippet['result']['handle'].pop(key)
+        handle.pop(key)
 
-    return HiveServerQueryHandle(**snippet['result']['handle'])
+    return HiveServerQueryHandle(**handle)
 
 
-  def _get_db(self, snippet, async=False, cluster=None):
-    if not async and snippet['type'] == 'hive':
+  def _get_db(self, snippet, is_async=False, interpreter=None):
+    if interpreter and interpreter.get('dialect'):
+      dialect = interpreter['dialect']
+    else:
+      dialect = snippet['type']  # Backward compatibility without connectors
+
+    if not is_async and dialect == 'hive':
       name = 'beeswax'
-    elif snippet['type'] == 'hive':
+    elif dialect == 'hive':
       name = 'hive'
-    elif snippet['type'] == 'impala':
+    elif dialect == 'llap':
+      name = 'llap'
+    elif dialect == 'impala':
       name = 'impala'
     else:
       name = 'sparksql'
 
-    return dbms.get(self.user, query_server=get_query_server_config(name=name, cluster=cluster))
+    # Note: name is not used if interpreter is present
+    return dbms.get(self.user, query_server=get_query_server_config(name=name, connector=interpreter))
 
 
   def _parse_job_counters(self, job_id):
@@ -799,14 +805,23 @@ DROP TABLE IF EXISTS `%(table)s`;
       # Extract totalCounterValue from HIVE counter group
       hive_counters = next((group for group in counter_groups if group.get('counterGroupName', '').upper() == 'HIVE'), None)
       if hive_counters:
-        total_records = next((counter.get('totalCounterValue') for counter in hive_counters['counter'] if counter['name'] == 'RECORDS_OUT_0'), None)
+        total_records = next(
+          (counter.get('totalCounterValue') for counter in hive_counters['counter'] if counter['name'] == 'RECORDS_OUT_0'),
+          None
+        )
       else:
         LOG.info("No HIVE counter group found for job: %s" % job_id)
 
       # Extract totalCounterValue from FileSystemCounter counter group
-      fs_counters = next((group for group in counter_groups if group.get('counterGroupName') == 'org.apache.hadoop.mapreduce.FileSystemCounter'), None)
+      fs_counters = next(
+          (group for group in counter_groups if group.get('counterGroupName') == 'org.apache.hadoop.mapreduce.FileSystemCounter'),
+          None
+        )
       if fs_counters:
-        total_size = next((counter.get('totalCounterValue') for counter in fs_counters['counter'] if counter['name'] == 'HDFS_BYTES_WRITTEN'), None)
+        total_size = next(
+          (counter.get('totalCounterValue') for counter in fs_counters['counter'] if counter['name'] == 'HDFS_BYTES_WRITTEN'),
+          None
+        )
       else:
         LOG.info("No FileSystemCounter counter group found for job: %s" % job_id)
 
@@ -845,20 +860,21 @@ DROP TABLE IF EXISTS `%(table)s`;
     total_records, total_size, msg = None, None, None
 
     query_id = self._get_impala_query_id(snippet)
-    session = Session.objects.get_session(self.user, application='impala')
-    server_url = _get_impala_server_url(session)
+    server_url = _get_api(self.user, snippet)._url
+
     if query_id:
       LOG.debug("Attempting to get Impala query profile at server_url %s for query ID: %s" % (server_url, query_id))
 
       fragment = self._get_impala_query_profile(server_url, query_id=query_id)
-      total_records_re = "Coordinator Fragment F\d\d.+?RowsReturned: \d+(?:.\d+[KMB])? \((?P<total_records>\d+)\).*?(Averaged Fragment F\d\d)"
+      total_records_re = \
+          "Coordinator Fragment F\d\d.+?RowsReturned: \d+(?:.\d+[KMB])? \((?P<total_records>\d+)\).*?(Averaged Fragment F\d\d)"
       total_records_match = re.search(total_records_re, fragment, re.MULTILINE | re.DOTALL)
 
     if total_records_match:
       total_records = int(total_records_match.group('total_records'))
       query_plan = self._get_impala_profile_plan(query_id, fragment)
       if query_plan:
-        LOG.info('Query plan for Impala query %s: %s' % (query_id, query_plan))
+        LOG.debug('Query plan for Impala query %s: %s' % (query_id, query_plan))
       else:
         LOG.info('Query plan for Impala query %s not found.' % query_id)
 
@@ -869,9 +885,8 @@ DROP TABLE IF EXISTS `%(table)s`;
     guid = None
     if 'result' in snippet and 'handle' in snippet['result'] and 'guid' in snippet['result']['handle']:
       try:
-        decoded_guid = base64.decodestring(snippet['result']['handle']['guid'])
-        guid = "%x:%x" % struct.unpack(b"QQ", decoded_guid)
-      except Exception, e:
+        guid = unpack_guid_base64(snippet['result']['handle']['guid'])
+      except Exception as e:
         LOG.warn('Failed to decode operation handle guid: %s' % e)
     else:
       LOG.warn('Snippet does not contain a valid result handle, cannot extract Impala query ID.')
@@ -884,7 +899,7 @@ DROP TABLE IF EXISTS `%(table)s`;
     try:
       query_profile = api.get_query_profile(query_id)
       profile = query_profile.get('profile')
-    except (RestException, ImpalaDaemonApiException), e:
+    except (RestException, ImpalaDaemonApiException) as e:
       raise PopupException(_("Failed to get query profile from Impala Daemon server: %s") % e)
 
     if not profile:
@@ -892,7 +907,40 @@ DROP TABLE IF EXISTS `%(table)s`;
 
     return profile
 
+
   def _get_impala_profile_plan(self, query_id, profile):
     query_plan_re = "Query \(id=%(query_id)s\):.+?Execution Profile %(query_id)s" % {'query_id': query_id}
     query_plan_match = re.search(query_plan_re, profile, re.MULTILINE | re.DOTALL)
     return query_plan_match.group() if query_plan_match else None
+
+
+  def describe_column(self, notebook, snippet, database=None, table=None, column=None):
+    db = self._get_db(snippet, self.interpreter)
+    return db.get_table_columns_stats(database, table, column)
+
+
+  def describe_table(self, notebook, snippet, database=None, table=None):
+    db = self._get_db(snippet, self.interpreter)
+    tb = db.get_table(database, table)
+
+    return {
+      'status': 0,
+      'name': tb.name,
+      'partition_keys': [{'name': part.name, 'type': part.type} for part in tb.partition_keys],
+      'primary_keys': [{'name': pk.name} for pk in tb.primary_keys],
+      'cols': [{'name': col.name, 'type': col.type, 'comment': col.comment} for col in tb.cols],
+      'path_location': tb.path_location,
+      'hdfs_link': tb.hdfs_link,
+      'comment': tb.comment,
+      'is_view': tb.is_view,
+      'properties': tb.properties,
+      'details': tb.details,
+      'stats': tb.stats
+    }
+
+  def describe_database(self, notebook, snippet, database=None):
+    db = self._get_db(snippet, interpreter=self.interpreter)
+    return db.get_database(database)
+
+  def get_log_is_full_log(self, notebook, snippet):
+    return snippet['type'] != 'hive' and snippet['type'] != 'impala'

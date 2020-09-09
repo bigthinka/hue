@@ -16,7 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cStringIO
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next, map, str, chr, range, object
 import gzip
 import json
 import logging
@@ -26,6 +28,7 @@ import re
 import shutil
 import socket
 import string
+import sys
 import tempfile
 import threading
 
@@ -36,27 +39,23 @@ from nose.plugins.skip import SkipTest
 
 from django.utils.encoding import smart_str
 from django.utils.html import escape
-from django.contrib.auth.models import User
 from django.urls import reverse
 from django.db import transaction
 
 from desktop.lib.exceptions_renderable import PopupException
-from desktop.conf import \
-    AUTH_USERNAME as DEFAULT_AUTH_USERNAME, \
-    AUTH_PASSWORD as DEFAULT_AUTH_PASSWORD, \
-    AUTH_PASSWORD_SCRIPT as DEFAULT_AUTH_PASSWORD_SCRIPT, \
-    LDAP_USERNAME, \
-    LDAP_PASSWORD, \
-    USE_NEW_EDITOR
+from desktop.conf import AUTH_USERNAME as DEFAULT_AUTH_USERNAME, AUTH_PASSWORD as DEFAULT_AUTH_PASSWORD, \
+  AUTH_PASSWORD_SCRIPT as DEFAULT_AUTH_PASSWORD_SCRIPT, LDAP_USERNAME, LDAP_PASSWORD, USE_NEW_EDITOR
 from desktop import redaction
 from desktop.redaction import logfilter
 from desktop.redaction.engine import RedactionPolicy, RedactionRule
 from desktop.lib.django_test_util import make_logged_in_client, assert_equal_mod_whitespace
 from desktop.lib.parameterization import substitute_variables
+from desktop.lib.python_util import from_string_to_bits, get_bytes_from_bits
 from desktop.lib.test_utils import grant_access, add_to_group
 from desktop.lib.security_util import get_localhost_name
-from desktop.lib.test_export_csvxls import _read_xls_sheet_data
+from desktop.lib.export_csvxls_tests import _read_xls_sheet_data
 from hadoop.fs.hadoopfs import Hdfs
+from useradmin.models import User
 
 from hadoop import ssl_client_site
 from hadoop.pseudo_hdfs4 import is_live_cluster
@@ -71,22 +70,30 @@ import beeswax.views
 from beeswax import conf, hive_site
 from beeswax.common import apply_natural_sort
 from beeswax.conf import HIVE_SERVER_HOST, AUTH_USERNAME, AUTH_PASSWORD, AUTH_PASSWORD_SCRIPT
-from beeswax.views import collapse_whitespace, _save_design, parse_out_jobs
-from beeswax.test_base import make_query, wait_for_query_to_finish, verify_history, get_query_server_config,\
-  fetch_query_result_data
-from beeswax.design import hql_query, strip_trailing_semicolon
+from beeswax.views import collapse_whitespace, _save_design, parse_out_jobs, parse_out_queries
+from beeswax.test_base import make_query, wait_for_query_to_finish, verify_history, get_query_server_config, fetch_query_result_data
+from beeswax.design import hql_query
 from beeswax.data_export import upload, download
 from beeswax.models import SavedQuery, QueryHistory, HQL, HIVE_SERVER2
 from beeswax.server import dbms
 from beeswax.server.dbms import QueryServerException
-from beeswax.server.hive_server2_lib import HiveServerClient,\
-  PartitionKeyCompatible, PartitionValueCompatible, HiveServerTable,\
-  HiveServerTColumnValue2
+from beeswax.server.hive_server2_lib import HiveServerClient, PartitionKeyCompatible, PartitionValueCompatible, HiveServerTable, \
+    HiveServerTColumnValue2
 from beeswax.test_base import BeeswaxSampleProvider, is_hive_on_spark, get_available_execution_engines
 from beeswax.hive_site import get_metastore, hiveserver2_jdbc_url
 
 
+if sys.version_info[0] > 2:
+  from unittest.mock import patch, Mock
+  from io import BytesIO as string_io
+  open_file = open
+else:
+  from mock import patch, Mock
+  from cStringIO import StringIO as string_io
+  open_file = file
+
 LOG = logging.getLogger(__name__)
+
 
 def _list_dir_without_temp_files(fs, target_dir):
   return [f for f in fs.listdir(target_dir) if not f.startswith('.')]
@@ -121,8 +128,49 @@ def get_csv(client, result_response):
   return ''.join(csv_resp.streaming_content)
 
 
+class TestHive(object):
+
+  def setUp(self):
+    self.client = make_logged_in_client(username="test_hive", groupname="default", recreate=True, is_superuser=False)
+    self.user = User.objects.get(username="test_hive")
+
+
+  def test_parse_out_queries(self):
+    text = """INFO  : Compiling command(queryId=hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6b): select 1
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Returning Hive schema: Schema(fieldSchemas:[FieldSchema(name:_c0, type:int, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6b); Time taken: 0.031 seconds
+INFO  : Executing command(queryId=hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6b): select 1
+INFO  : Completed executing command(queryId=hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6b); Time taken: 0.004 seconds
+INFO  : OK"""
+    jobs = parse_out_queries(text, engine='tez', with_state=True)
+    assert_true(jobs and jobs[0]['job_id'] == 'hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6b')
+    assert_true(jobs and jobs[0]['started'] == True)
+    assert_true(jobs and jobs[0]['finished'] == True)
+
+    text = """INFO  : Compiling command(queryId=hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6a): select 1
+INFO  : OK"""
+    jobs = parse_out_queries(text, engine='tez', with_state=True)
+    assert_true(jobs and jobs[0]['job_id'] == 'hive_20191029132605_17883ebe-d3d5-41bf-a1e9-01cf207a3c6a')
+    assert_true(jobs and jobs[0]['started'] == False)
+    assert_true(jobs and jobs[0]['finished'] == False)
+
+
+  def test_install_examples(self):
+    with patch('beeswax.management.commands.beeswax_install_examples.Command') as Command:
+      grant_access("test_hive", "default", "beeswax")
+      resp = self.client.get('/beeswax/install_examples')
+      assert_true('POST request is required.' in json.loads(resp.content)['message'])
+
+      resp = self.client.post('/beeswax/install_examples', {'db_name': 'default'})
+      data = json.loads(resp.content)
+      assert_equal(0, data['status'])
+
+
+# This test suite is not running currently, to split between integration and unit tests.
 class TestBeeswaxWithHadoop(BeeswaxSampleProvider):
   requires_hadoop = True
+  integration = True
 
   def setUp(self):
     self.user = User.objects.get(username='test')
@@ -392,7 +440,7 @@ for x in sys.stdin:
     # BeeswaxTest.jar is gone
     raise SkipTest
 
-    src = file(os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "BeeswaxTest.jar"))
+    src = open_file(os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "BeeswaxTest.jar"))
     udf = self.cluster.fs_prefix + "hive1157.jar"
     dest = self.cluster.fs.open(udf, "w")
     shutil.copyfileobj(src, dest)
@@ -443,25 +491,25 @@ for x in sys.stdin:
     query = hql_query(hql)
     try:
       self.db.execute_and_wait(query)
-    except QueryServerException, bex:
+    except QueryServerException as bex:
       assert_equal(bex.errorCode, 40000)
       assert_equal(bex.SQLState, "42000")
 
 
   def test_fetch_configuration(self):
-    class MockClient:
+    class MockClient(object):
       """Check if sent fetch correctly supports start_over."""
       def __init__(self, support_start_over):
         self.support_start_over = support_start_over
 
       def fetch(self, query_id, start_over, fetch_size):
         assert_equal(self.support_start_over, start_over)
-        class Result: pass
+        class Result(object): pass
         res = Result()
         res.ready = False
         return res
 
-    class ConfigVariable:
+    class ConfigVariable(object):
       def __init__(self, **entries):
         self.__dict__.update(entries)
 
@@ -556,7 +604,7 @@ for x in sys.stdin:
     if is_live_cluster():
       raise SkipTest('HUE-2884: Skipping test because we cannot guarantee live cluster supports utf8')
 
-    query = u"SELECT foo FROM `%(db)s`.`test_utf8` WHERE bar='%(val)s'" % {'val': unichr(200), 'db': self.db_name}
+    query = u"SELECT foo FROM `%(db)s`.`test_utf8` WHERE bar='%(val)s'" % {'val': chr(200), 'db': self.db_name}
     response = _make_query(self.client, query, settings=[('hive.explain.user', 'false')], submission_type="Explain")
     explanation = json.loads(response.content)['explanation']
     assert_true('STAGE DEPENDENCIES:' in explanation, explanation)
@@ -569,15 +617,15 @@ for x in sys.stdin:
     raise SkipTest
 
     # Selecting from utf-8 table should get correct result
-    query = u"SELECT * FROM `%(db)s`.`test_utf8` WHERE bar='%(val)s'" % {'val': unichr(200), 'db': self.db_name}
+    query = u"SELECT * FROM `%(db)s`.`test_utf8` WHERE bar='%(val)s'" % {'val': chr(200), 'db': self.db_name}
     response = _make_query(self.client, query, wait=True, database=self.db_name)
-    assert_equal(["200", unichr(200)], response.context[0]["results"][0], "selecting from utf-8 table should get correct result")
+    assert_equal(["200", chr(200)], response.context[0]["results"][0], "selecting from utf-8 table should get correct result")
 
     csv = get_csv(self.client, response)
-    assert_equal('"200","%s"' % (unichr(200).encode('utf-8'),), csv.split()[1])
+    assert_equal('"200","%s"' % (chr(200).encode('utf-8'),), csv.split()[1])
 
     # Selecting from latin1 table should not blow up
-    query = u"SELECT * FROM `%(db)s`.`test_latin1` WHERE bar='%(val)s'" % {'val': unichr(200), 'db': self.db_name}
+    query = u"SELECT * FROM `%(db)s`.`test_latin1` WHERE bar='%(val)s'" % {'val': chr(200), 'db': self.db_name}
     response = _make_query(self.client, query, wait=True, database=self.db_name)
     assert_true('results' in response.context, "selecting from latin1 table should not blow up")
 
@@ -597,7 +645,7 @@ for x in sys.stdin:
       result_holder[i] = response
       lock.release()
       LOG.info("Finished: " + str(i))
-    except Exception, e:
+    except Exception as e:
       LOG.exception("Saw exception in child thread: %s" % e)
 
 
@@ -844,8 +892,8 @@ for x in sys.stdin:
       handle = self.db.execute_and_wait(query)
       resp = download(handle, 'xls', self.db)
       sheet_data = _read_xls_sheet_data(resp)
-      # It should have 5 lines
-      assert_equal(len(sheet_data), 5, sheet_data)
+      # It should have 6 lines (header + 5 lines)
+      assert_equal(len(sheet_data), 6, sheet_data)
     finally:
       finish()
 
@@ -952,7 +1000,7 @@ for x in sys.stdin:
     assert_equal(resp.status_code, 302)
 
     # Delete designs
-    design_ids = map(str, designs.values_list('id', flat=True))
+    design_ids = list(map(str, designs.values_list('id', flat=True)))
     resp = cli.get('/beeswax/delete_designs', {u'designs_selection': design_ids})
     assert_true('Delete design(s)' in resp.content, resp.content)
     #@TODO@: Prakash fix this test
@@ -1211,7 +1259,7 @@ for x in sys.stdin:
       # Check that data is right. The SELECT may not give us the whole table.
       resp = _make_query(self.client, 'SELECT * FROM %s' % target_tbl, wait=True, local=False, database=self.db_name)
       content = fetch_query_result_data(self.client, resp)
-      for i in xrange(90):
+      for i in range(90):
         assert_equal([i, '0x%x' % (i,)], content['results'][i])
 
     TARGET_TBL_ROOT = 'test_copy'
@@ -1317,7 +1365,7 @@ for x in sys.stdin:
     }, follow=True)
 
     # Ensure we can see table.
-    response = self.client.get("/metastore/table/%s/my_table?format=json" % self.db_name)
+    response = self.client.post("/metastore/table/%s/my_table?format=json" % self.db_name, {'format': 'json'})
     data = json.loads(response.content)
     assert_true("my_col" in [col['name'] for col in data['cols']], data)
 
@@ -1443,7 +1491,7 @@ for x in sys.stdin:
       lines = [ delim.join(row) for row in raw_fields ]
       data = '\n'.join(lines)
       if do_gzip:
-        sio = cStringIO.StringIO()
+        sio = string_io()
         gzdat = gzip.GzipFile(fileobj=sio, mode='wb')
         gzdat.write(data)
         gzdat.close()
@@ -1568,7 +1616,7 @@ for x in sys.stdin:
     content = json.loads(resp.content)
     watch_url = content['query_history']['watch_url']
 
-    class MockResponse():
+    class MockResponse(object):
       def __init__(self, content):
         self.content = json.dumps(content)
 
@@ -1715,7 +1763,8 @@ for x in sys.stdin:
 
     history = beeswax.models.QueryHistory.objects.latest('id')
     assert_equal('beeswax', history.server_name)
-    assert_equal(HIVE_SERVER_HOST.get(), history.server_host)
+    assert_true(history.server_host in [HIVE_SERVER_HOST.get(), 'localhost'])
+
 
     query_server = history.get_query_server_config()
     assert_equal('beeswax', query_server['server_name'])
@@ -1887,7 +1936,8 @@ for x in sys.stdin:
       # Retrieve stats before analyze
       resp = self.client.get(reverse('beeswax:get_table_stats', kwargs={'database': self.db_name, 'table': 'test'}))
       stats = json.loads(resp.content)['stats']
-      assert_false([stat for stat in stats if stat['data_type'] == 'numRows'], resp.content)
+      assert_true(any([stat for stat in stats if stat['data_type'] == 'numFiles' and stat['comment'] == '1']), resp.content)
+
 
       resp = self.client.get(reverse('beeswax:get_table_stats', kwargs={'database': self.db_name, 'table': 'test', 'column': 'foo'}))
       stats = json.loads(resp.content)['stats']
@@ -2035,7 +2085,7 @@ for x in sys.stdin:
       resp = self.client.get(reverse("beeswax:get_settings"))
       json_resp = json.loads(resp.content)
       assert_equal(0, json_resp['status'])
-      assert_equal(2, len(json_resp['settings'].items()), json_resp)
+      assert_equal(2, len(list(json_resp['settings'].items())), json_resp)
       assert_true('hive.execution.engine' in json_resp['settings'])
       assert_true('mapreduce.job.queuename' in json_resp['settings'])
     finally:
@@ -2091,10 +2141,16 @@ for x in sys.stdin:
 def test_import_gzip_reader():
   """Test the gzip reader in create table"""
   # Make gzipped data
-  data = file(__file__).read()
-  data_gz_sio = cStringIO.StringIO()
+  if sys.version_info[0] > 2:
+    data = open(__file__, encoding='utf-8').read()
+  else:
+    data = file(__file__).read()
+  data_gz_sio = string_io()
   gz = gzip.GzipFile(fileobj=data_gz_sio, mode='wb')
-  gz.write(data)
+  gz_data = data
+  if not isinstance(gz_data, bytes):
+    gz_data = gz_data.encode('utf-8')
+  gz.write(gz_data)
   gz.close()
   data_gz = data_gz_sio.getvalue()
 
@@ -2118,6 +2174,8 @@ def test_index_page():
 
 
 def test_history_page():
+  raise SkipTest
+
   client = make_logged_in_client()
   test_user = User.objects.get(username='test')
 
@@ -2182,19 +2240,6 @@ def test_history_page():
   do_view('q-user=:all')
 
 
-def teststrip_trailing_semicolon():
-  # Note that there are two queries (both an execute and an explain) scattered
-  # in this file that use semicolons all the way through.
-
-  # Single semicolon
-  assert_equal("foo", strip_trailing_semicolon("foo;\n"))
-  assert_equal("foo\n", strip_trailing_semicolon("foo\n;\n\n\n"))
-  # Multiple semicolons: strip only last one
-  assert_equal("fo;o;", strip_trailing_semicolon("fo;o;;     "))
-  # No semicolons
-  assert_equal("foo", strip_trailing_semicolon("foo"))
-
-
 def test_hadoop_extraction():
   sample_log = """
 Starting Job = job_201003191517_0002, Tracking URL = http://localhost:50030/jobdetails.jsp?jobid=job_201003191517_0002
@@ -2241,7 +2286,7 @@ def test_hive_site():
         return tmpdir
 
     xml = hive_site_xml(is_local=True, use_sasl=False)
-    file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
+    open_file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
 
     beeswax.hive_site.reset()
     saved = beeswax.conf.HIVE_CONF_DIR
@@ -2269,7 +2314,7 @@ def test_hive_site_host_pattern_local_host():
 
     thrift_uris = 'thrift://%s:9999' % hostname
     xml = hive_site_xml(is_local=False, use_sasl=False, thrift_uris=thrift_uris, kerberos_principal='test/_HOST@TEST.COM', hs2_kerberos_principal='test/_HOST@TEST.COM')
-    file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
+    open_file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
 
     beeswax.hive_site.reset()
     saved = beeswax.conf.HIVE_CONF_DIR
@@ -2300,7 +2345,7 @@ def test_hive_site_null_hs2krb():
         return tmpdir
 
     xml = hive_site_xml(is_local=True, use_sasl=False, hs2_kerberos_principal=None)
-    file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
+    open_file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
 
     beeswax.hive_site.reset()
     saved = beeswax.conf.HIVE_CONF_DIR
@@ -2346,14 +2391,6 @@ def test_search_log_line():
     """
   assert_false(search_log_line('FAILED: Parse Error', logs))
 
-
-def test_split_statements():
-  assert_equal([''], hql_query(";;;").statements)
-  assert_equal(["select * where id == '10'"], hql_query("select * where id == '10'").statements)
-  assert_equal(["select * where id == '10'"], hql_query("select * where id == '10';").statements)
-  assert_equal(['select', "select * where id == '10;' limit 100"], hql_query("select; select * where id == '10;' limit 100;").statements)
-  assert_equal(['select', "select * where id == \"10;\" limit 100"], hql_query("select; select * where id == \"10;\" limit 100;").statements)
-  assert_equal(['select', "select * where id == '\"10;\"\"\"' limit 100"], hql_query("select; select * where id == '\"10;\"\"\"' limit 100;").statements)
 
   query_with_comments = """--First query;
 select concat('--', name)  -- The '--' in quotes is not a comment
@@ -2512,7 +2549,7 @@ class MockHiveServerTableForPartitions(HiveServerTable):
 
 
 
-class TestHiveServer2API():
+class TestHiveServer2API(object):
 
   def test_parsing_partition_values(self):
     table = MockHiveServerTable()
@@ -2679,7 +2716,42 @@ class TestHiveServer2API():
     assert_false(data is HiveServerTColumnValue2.set_nulls(data, nulls))
 
 
-class MockDbms:
+  def test_bits_to_bytes_conversion(self):
+    if sys.version_info[0] < 3:
+      raise SkipTest
+
+    nulls = '\x00'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('00000000', bitstring)
+    assert_equal([0, 0], get_bytes_from_bits(bitstring))
+
+    nulls = '\x03'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('00000011', bitstring)
+    assert_equal([3, 0], get_bytes_from_bits(bitstring))
+
+    nulls = 't'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('01110100', bitstring)
+    assert_equal([116, 0], get_bytes_from_bits(bitstring))
+
+    nulls = '\xff\xee\x03'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('111111111110111000000011', bitstring)
+    assert_equal([255, 238, 3, 0], get_bytes_from_bits(bitstring))
+
+    nulls = '\x41'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('01000001', bitstring)
+    assert_equal([65, 0], get_bytes_from_bits(bitstring))
+
+    nulls = '\x01\x23\x45\x67\x89\xab\xcd\xef'
+    bitstring = from_string_to_bits(nulls)
+    assert_equal('0000000100100011010001010110011110001001101010111100110111101111', bitstring)
+    assert_equal([1, 35, 69, 103, 137, 171, 205, 239, 0], get_bytes_from_bits(bitstring))
+
+
+class MockDbms(object):
 
   def __init__(self, client, server_type):
     pass
@@ -2838,7 +2910,7 @@ class TestWithMockedServer(object):
 
   def test_get_history_xss(self):
     sql = 'SELECT count(sample_07.salary) FROM sample_07;"><iFrAME>src="javascript:alert(\'Hue has an xss\');"></iFraME>'
-    sql_escaped = 'SELECT count(sample_07.salary) FROM sample_07;&quot;&gt;&lt;iFrAME&gt;src=&quot;javascript:alert(&#39;Hue has an xss&#39;);&quot;&gt;&lt;/iFraME&gt;'
+    sql_escaped = b'SELECT count(sample_07.salary) FROM sample_07;&quot;&gt;&lt;iFrAME&gt;src=&quot;javascript:alert(&#39;Hue has an xss&#39;);&quot;&gt;&lt;/iFraME&gt;'
 
     response = _make_query(self.client, sql, submission_type='Save', name='My Name 1', desc='My Description')
     content = json.loads(response.content)
@@ -2862,6 +2934,8 @@ class TestWithMockedServer(object):
 
     resp = self.client.get('/beeswax/query_history?format=json')
     assert_true(sql_escaped in resp.content, resp.content)
+    if not isinstance(sql, bytes):
+      sql = sql.encode('utf-8')
     assert_false(sql in resp.content, resp.content)
 
   def test_redact_saved_design(self):
@@ -2909,7 +2983,7 @@ class TestWithMockedServer(object):
   def test_search_designs(self):
     # Create 20 (DEFAULT_PAGE_SIZE) queries to fill page 1, plus a target query for page 2
     page_1 = []
-    for i in xrange(1, 21):
+    for i in range(1, 21):
       response = _make_query(self.client, 'SELECT', submission_type='Save', name='My Name %d' % i, desc='My Description')
       content = json.loads(response.content)
       query_id = content['design_id']
@@ -2978,7 +3052,7 @@ class TestWithMockedServer(object):
     assert_false(design_id in design_ids, json_resp)
 
 
-class TestDesign():
+class TestDesign(object):
 
   def test_hql_resource(self):
     design = hql_query('SELECT')
@@ -3016,7 +3090,7 @@ def test_hiveserver2_get_security():
     default_query_server = {'server_host': 'my_host', 'server_port': 12345}
 
     # Beeswax
-    beeswax_query_server = {'server_name': 'beeswax', 'principal': 'hive', 'auth_username': 'hue', 'auth_password': None}
+    beeswax_query_server = {'server_name': 'beeswax', 'principal': 'hive', 'auth_username': 'hue', 'auth_password': None, 'use_sasl': True}
     beeswax_query_server.update(default_query_server)
     assert_equal((True, 'PLAIN', 'hive', True, 'hue', None), HiveServerClient(beeswax_query_server, user).get_security())
 
@@ -3025,32 +3099,33 @@ def test_hiveserver2_get_security():
     assert_equal((True, 'PLAIN', 'hive', True, 'hueabcd', 'abcd'), HiveServerClient(beeswax_query_server, user).get_security())
     beeswax_query_server.update({'auth_username': 'hue', 'auth_password': None})
 
-    hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_AUTHENTICATION] = 'NOSASL'
-    hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_IMPERSONATION] = 'false'
-    assert_equal((False, 'NOSASL', 'hive', False, 'hue', None), HiveServerClient(beeswax_query_server, user).get_security())
     hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_AUTHENTICATION] = 'KERBEROS'
+    hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_IMPERSONATION] = 'false'
     assert_equal((True, 'GSSAPI', 'hive', False, 'hue', None), HiveServerClient(beeswax_query_server, user).get_security())
 
+    hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_AUTHENTICATION] = 'NOSASL'
+    beeswax_query_server.update({'use_sasl': False})
+    assert_equal((False, 'NOSASL', 'hive', False, 'hue', None), HiveServerClient(beeswax_query_server, user).get_security())
+
+
     # Impala
-    cluster_conf = hadoop.cluster.get_cluster_conf_for_job_submission()
+    impala_query_server = {
+        'server_name': 'impala', 'dialect': 'impala', 'principal': 'impala', 'impersonation_enabled': False, 'auth_username': 'hue',
+        'auth_password': None, 'use_sasl': False
+    }
+    impala_query_server.update(default_query_server)
+    assert_equal((False, 'GSSAPI', 'impala', False, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
 
-    finish = cluster_conf.SECURITY_ENABLED.set_for_testing(False)
-    try:
-      impala_query_server = {'server_name': 'impala', 'principal': 'impala', 'impersonation_enabled': False, 'auth_username': 'hue', 'auth_password': None}
-      impala_query_server.update(default_query_server)
-      assert_equal((False, 'GSSAPI', 'impala', False, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
+    impala_query_server = {
+        'server_name': 'impala', 'dialect': 'impala', 'principal': 'impala', 'impersonation_enabled': True, 'auth_username': 'hue',
+        'auth_password': None, 'use_sasl': False
+    }
+    impala_query_server.update(default_query_server)
+    assert_equal((False, 'GSSAPI', 'impala', True, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
 
-      impala_query_server = {'server_name': 'impala', 'principal': 'impala', 'impersonation_enabled': True, 'auth_username': 'hue', 'auth_password': None}
-      impala_query_server.update(default_query_server)
-      assert_equal((False, 'GSSAPI', 'impala', True, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
-    finally:
-      finish()
 
-    finish = cluster_conf.SECURITY_ENABLED.set_for_testing(True)
-    try:
-      assert_equal((True, 'GSSAPI', 'impala', True, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
-    finally:
-      finish()
+    impala_query_server.update({'use_sasl': True})
+    assert_equal((True, 'GSSAPI', 'impala', True, 'hue', None), HiveServerClient(impala_query_server, user).get_security())
   finally:
     if prev is not None:
       hive_site._HIVE_SITE_DICT[hive_site._CNF_HIVESERVER2_AUTHENTICATION] = prev
@@ -3058,7 +3133,7 @@ def test_hiveserver2_get_security():
       hive_site._HIVE_SITE_DICT.pop(hive_site._CNF_HIVESERVER2_AUTHENTICATION, None)
 
 
-class MockClient():
+class MockClient(object):
 
   def __init__(self):
     self.open_session_args = None
@@ -3113,7 +3188,7 @@ def test_metastore_security():
         return tmpdir
 
     xml = hive_site_xml(is_local=False, use_sasl=True, kerberos_principal='hive/_HOST@test.com')
-    file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
+    open_file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
 
     beeswax.hive_site.reset()
     saved = beeswax.conf.HIVE_CONF_DIR
@@ -3137,14 +3212,14 @@ def test_close_queries_flag():
   finish = conf.CLOSE_QUERIES.set_for_testing(False)
   try:
     resp = c.get('/beeswax/execute')
-    assert_false('closeQuery()' in resp.content, resp.content)
+    assert_false(b'closeQuery()' in resp.content, resp.content)
   finally:
     finish()
 
   finish = conf.CLOSE_QUERIES.set_for_testing(True)
   try:
     resp = c.get('/beeswax/execute')
-    assert_true('closeQuery()' in resp.content, resp.content)
+    assert_true(b'closeQuery()' in resp.content, resp.content)
   finally:
     finish()
 
@@ -3462,6 +3537,10 @@ def test_hiveserver2_jdbc_url():
     beeswax.hive_site.get_conf()[hive_site._CNF_HIVESERVER2_USE_SSL] = 'FALSE'
     url = hiveserver2_jdbc_url()
     assert_equal(url, 'jdbc:hive2://server-with-ssl-enabled.com:10000/default')
+
+    beeswax.hive_site.get_conf()[hive_site._CNF_HIVESERVER2_TRANSPORT_MODE] = 'HTTP'
+    url = hiveserver2_jdbc_url()
+    assert_equal(url, 'jdbc:hive2://server-with-ssl-enabled.com:10001/default;transportMode=http;httpPath=cliservice')
   finally:
     beeswax.hive_site.reset()
     hadoop.ssl_client_site.reset()
@@ -3488,9 +3567,9 @@ def test_sasl_auth_in_large_download():
   table_info = {'db': 'default', 'table_name': 'dummy_'+random_generator().lower()}
   drop_sql = "DROP TABLE IF EXISTS %(db)s.%(table_name)s" % table_info
   create_sql = "CREATE TABLE IF NOT EXISTS %(db)s.%(table_name)s (w0 CHAR(8),w1 CHAR(8),w2 CHAR(8),w3 CHAR(8),w4 CHAR(8),w5 CHAR(8),w6 CHAR(8),w7 CHAR(8),w8 CHAR(8),w9 CHAR(8))" % table_info
-  hql = cStringIO.StringIO()
+  hql = string_io()
   hql.write("INSERT INTO %(db)s.%(table_name)s VALUES " % (table_info))
-  for i in xrange(max_rows-1):
+  for i in range(max_rows-1):
     w = random_generator(size=7)
     hql.write("('%s0','%s1','%s2','%s3','%s4','%s5','%s6','%s7','%s8','%s9')," % (w,w,w,w,w,w,w,w,w,w))
   w = random_generator(size=7)
@@ -3506,7 +3585,7 @@ def test_sasl_auth_in_large_download():
     query = hql_query(hql.getvalue())
     handle = db.execute_and_wait(query, timeout_sec=300)
     hql.close()
-  except Exception, ex:
+  except Exception as ex:
     failed = True
 
   # Big table creation (data upload) is successful
@@ -3522,7 +3601,7 @@ def test_sasl_auth_in_large_download():
     query = hql_query(hql)
     handle = db.execute_and_wait(query)
     results = db.fetch(handle, True, max_rows-20)
-  except QueryServerException, ex:
+  except QueryServerException as ex:
     if 'Invalid OperationHandle' in ex.message and 'EXECUTE_STATEMENT' in ex.message:
       failed = True
   except:
@@ -3536,7 +3615,7 @@ def test_sasl_auth_in_large_download():
     query = hql_query(hql)
     handle = db.execute_and_wait(query)
     results = db.fetch(handle, True, max_rows)
-  except QueryServerException, ex:
+  except QueryServerException as ex:
     if 'Invalid OperationHandle' in ex.message and 'EXECUTE_STATEMENT' in ex.message:
       failed = True
   except:
@@ -3554,7 +3633,7 @@ def test_sasl_auth_in_large_download():
   try:
     query = hql_query(hql)
     handle = db.execute_and_wait(query)
-  except QueryServerException, ex:
+  except QueryServerException as ex:
     if 'Invalid OperationHandle' in ex.message and 'EXECUTE_STATEMENT' in ex.message:
       failed = True
   except:

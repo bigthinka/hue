@@ -24,16 +24,14 @@ DEVTOOLS += \
 	nose[0.11.3] \
 	coverage[3.7.1] \
 	nosetty[0.4] \
-	werkzeug[0.6] \
-	windmill[1.3] \
-	pylint[0.28.0]
+	werkzeug[0.14.1]
 
 # Install/download dev tools for SDK into the virtual environment
 .PHONY: $(DEVTOOLS)
 $(DEVTOOLS):
 	@echo "--- Installing development tool: $@"
-	$(ENV_EASY_INSTALL) -f http://archive.cloudera.com/desktop-sdk-python-packages/ \
-	   -H pypi.python.org,archive.cloudera.com $(SETUPTOOLS_OPTS) $(subst ],,$(subst [,==,$@))
+	$(ENV_PIP)  \
+	   install $(subst ],,$(subst [,==,$@))
 
 $(BLD_DIR):
 	@mkdir -p $@

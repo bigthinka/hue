@@ -359,7 +359,7 @@ ${ layout.menubar(section='coordinators') }
                 <tr title="${ _('Click to view the dataset') }" rel="tooltip">
                   <td>
                   % if coordinator.is_editable(user):
-                    <a href="javascript:void(0)" class="editDataset" data-url="${ url('oozie:edit_coordinator_dataset', dataset=form.instance.id) }" data-row-selector="true"/>
+                    <a href="javascript:void(0)" class="editDataset" data-url="${ url('oozie:edit_coordinator_dataset', dataset=form.instance.id) }" data-row-selector="true"></a>
                   % endif
                   ${ form.instance.name }
                   </td>
@@ -522,7 +522,7 @@ ${ layout.menubar(section='coordinators') }
       % endif
 
       $("#datasets-btn").click(function () {
-        $('[href=#datasets]').tab('show');
+        $('[href=\'#datasets\']').tab('show');
       });
 
       $('#add-dataset-btn').click(function () {
@@ -720,7 +720,7 @@ ${ layout.menubar(section='coordinators') }
           $("#nextBtn").addClass("disabled");
         }
         $("a.step").parent().removeClass("active");
-        $("a.step[href=#" + step + "]").parent().addClass("active");
+        $("a.step[href='#" + step + "']").parent().addClass("active");
         $(".stepDetails").hide();
         $("#" + step).show();
       }

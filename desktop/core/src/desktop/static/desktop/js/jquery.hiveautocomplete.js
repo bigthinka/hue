@@ -53,8 +53,12 @@
     if (self.options.namespace) {
       self.namespaceDeferred.resolve(self.options.namespace);
     } else {
-      ContextCatalog.getNamespaces({ sourceType: options.apiHelperType }).done(function (context) {
-        self.namespaceDeferred.resolve(context.namespaces[0]);
+      contextCatalog.getNamespaces({ connector: { id: options.apiHelperType } }).done(function (context) {
+        if (context.namespaces && context.namespaces.length) {
+          self.namespaceDeferred.resolve(context.namespaces[0]);
+        } else {
+          self.namespaceDeferred.reject();
+        }
       })
     }
     self.namespaceDeferred.done(function (namespace) {
@@ -80,7 +84,7 @@
       $("<div>").attr("id", "jHueGenericAutocomplete").addClass("jHueAutocomplete popover")
         .attr("style", "position:absolute;display:none;max-width:1000px;z-index:33000")
         .html('<div class="arrow"></div><div class="popover-inner"><h3 class="popover-title"></h3><div class="popover-content"><ul class="unstyled"></ul></div></div>')
-        .appendTo(HUE_CONTAINER);
+        .appendTo('body');
     }
 
     $el.wrap('<div class="inline">');
@@ -150,10 +154,34 @@
       $("#jHueGenericAutocomplete").css("top", $el.offset().top + $el.outerHeight() - 1).css("left", $el.offset().left).width($el.outerWidth() - 4);
     });
 
+    var validateTimeout = -1;
+    var onPathChange = function (path) {
+      window.clearTimeout(validateTimeout);
+      self.options.onPathChange(path);
+    };
+
+    var validateAndSet = function () {
+      var path = $el.val().split('.');
+      if (path.length > 1) {
+        window.clearTimeout(validateTimeout);
+        validateTimeout = window.setTimeout(function () {
+          $.when(self.namespaceDeferred, self.computeDeferred).done(function (namespace, compute) {
+            var target = path.pop();
+            dataCatalog.getChildren({ connector: connector, namespace: namespace, compute: compute, path: path }).done(function (childEntries) {
+              if (childEntries.some(function (childEntry) { return childEntry.name === target })) {
+                onPathChange($el.val());
+              }
+            });
+          });
+        }, 500);
+      }
+    };
+
     var _hiveAutocompleteSelectedIndex = -1;
     var _filterTimeout = -1;
     $el.keyup(function (e) {
       window.clearTimeout(_filterTimeout);
+      validateAndSet();
       if ($.inArray(e.keyCode, [17, 38, 40, 13, 32, 191]) === -1) {
         _hiveAutocompleteSelectedIndex = -1;
         _filterTimeout = window.setTimeout(function () {
@@ -245,16 +273,21 @@
     self.getDatabases = function (callback) {
       var self = this;
       $.when(self.namespaceDeferred, self.computeDeferred).done(function (namespace, compute) {
-        DataCatalog.getChildren({ sourceType: self.options.apiHelperType, namespace: namespace, compute: compute, path: [] }).done(function (dbEntries) {
+        dataCatalog.getChildren({ connector: { id: self.options.apiHelperType }, namespace: namespace, compute: compute, path: [] }).done(function (dbEntries) {
           callback($.map(dbEntries, function (entry) { return entry.name }));
         });
       })
     };
 
+    // TODO: Use connector for hive autocomplete
+    const connector = {
+      id: self.options.apiHelperType
+    };
+
     self.getTables = function (database, callback) {
       var self = this;
       $.when(self.namespaceDeferred, self.computeDeferred).done(function (namespace, compute) {
-        DataCatalog.getEntry({ sourceType: self.options.apiHelperType, namespace: namespace, compute: compute, path: [ database ] }).done(function (entry) {
+        dataCatalog.getEntry({ connector: connector, namespace: namespace, compute: compute, path: [ database ] }).done(function (entry) {
           entry.getSourceMeta().done(callback)
         });
       });
@@ -263,7 +296,7 @@
     self.getColumns = function (database, table, callback) {
       var self = this;
       $.when(self.namespaceDeferred, self.computeDeferred).done(function (namespace, compute) {
-        DataCatalog.getEntry({ sourceType: self.options.apiHelperType, namespace: namespace, compute: compute, path: [ database, table ] }).done(function (entry) {
+        dataCatalog.getEntry({ connector: connector, namespace: namespace, compute: compute, path: [ database, table ] }).done(function (entry) {
           entry.getSourceMeta().done(callback)
         });
       });
@@ -348,7 +381,7 @@
                 $el.val(item);
               }
               if (self.options.pathChangeLevel === '' || self.options.pathChangeLevel === 'database'){
-                self.options.onPathChange($el.val());
+                onPathChange($el.val());
               }
               $("#jHueGenericAutocomplete").hide();
               _hiveAutocompleteSelectedIndex = -1;
@@ -363,7 +396,7 @@
                 $el.val(item + ".");
               }
               if (self.options.pathChangeLevel === '' || self.options.pathChangeLevel === 'database') {
-                self.options.onPathChange($el.val());
+                onPathChange($el.val());
               }
               if (!self.options.skipTables) {
                 showAutocomplete();
@@ -388,7 +421,7 @@
                 $el.val($el.val() + ".");
               }
               if (self.options.pathChangeLevel === '' || self.options.pathChangeLevel === 'table') {
-                self.options.onPathChange($el.val());
+                onPathChange($el.val());
               }
               if (!self.options.skipColumns) {
                 showAutocomplete();

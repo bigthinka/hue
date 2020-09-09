@@ -15,9 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 import logging
 import json
-import urllib
+import sys
 
 from django.urls import reverse
 from django.utils.translation import ugettext as _
@@ -25,6 +28,11 @@ from django.utils.translation import ugettext as _
 from notebook.connectors.altus import AnalyticDbApi
 from notebook.connectors.base import Api, QueryError
 
+if sys.version_info[0] > 2:
+  import urllib.request, urllib.error
+  from urllib.parse import quote as urllib_quote, quote_plus as urllib_quote_plus
+else:
+  from urllib import quote as urllib_quote, quote_plus as urllib_quote_plus
 
 LOG = logging.getLogger(__name__)
 
@@ -55,10 +63,10 @@ class AltusAdbApi(Api):
     handle = snippet['result']['handle']
 
     return HueQuery(self.user, cluster_crn=self.cluster_name).do_fetch_result(handle)
-  
-  
-  def close_statement(self, snippet):
-    return {'status': -1} 
+
+
+  def close_statement(self, notebook, snippet):
+    return {'status': -1}
 
 
   def cancel(self, notebook, snippet):
@@ -69,15 +77,11 @@ class AltusAdbApi(Api):
     return '...'
 
 
-  def progress(self, snippet, logs):
-    return 50
-
-
   def get_jobs(self, notebook, snippet, logs):
     return []
 
 
-  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None):
+  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None, operation=None):
     url_path = '/notebook/api/autocomplete'
 
     if database is not None:
@@ -92,7 +96,7 @@ class AltusAdbApi(Api):
     return HueQuery(self.user, cluster_crn=self.cluster_name).do_post(url_path=url_path)
 
 
-class HueQuery():
+class HueQuery(object):
   def __init__(self, user, cluster_crn):
     self.user = user
     self.cluster_crn = cluster_crn
@@ -160,15 +164,18 @@ class HueQuery():
               }
             }'''
 
-    payload = payload.replace('SELECT+*+FROM+web_logs+LIMIT+100', urllib.quote_plus(query.replace('\n', ' ')))
+    payload = payload.replace('SELECT+*+FROM+web_logs+LIMIT+100', urllib_quote_plus(query.replace('\n', ' ')))
 
     resp = self.api.submit_hue_query(self.cluster_crn, payload)
-    resp_payload = json.loads(resp['payload'])
-    
-    if 'handle' in resp_payload:
-      return resp_payload['handle']
+
+    if 'payload' in resp:
+      resp_payload = json.loads(resp['payload'])
+      if 'handle' in resp_payload:
+        return resp_payload['handle']
+      else:
+        raise QueryError(resp_payload.get('message'))
     else:
-      raise QueryError(resp_payload.get('message'))
+      raise QueryError(resp.get('message'))
 
 
   def do_check_status(self, handle):
@@ -177,8 +184,8 @@ class HueQuery():
 
     snippet['result']['handle'] = handle
 
-    notebook_payload = urllib.quote(json.dumps(notebook))
-    snippet_payload = urllib.quote(json.dumps(snippet))
+    notebook_payload = urllib_quote(json.dumps(notebook))
+    snippet_payload = urllib_quote(json.dumps(snippet))
 
     payload = '''
             {
@@ -228,7 +235,7 @@ class HueQuery():
 
     resp = self.api.submit_hue_query(self.cluster_crn, payload)
     resp_payload = json.loads(resp['payload'])
-    
+
     if 'query_status' in resp_payload:
       return resp_payload['query_status']
     else:
@@ -244,10 +251,10 @@ class HueQuery():
 
     snippet['result']['handle'] = handle
 
-    notebook_payload = urllib.quote(json.dumps(notebook))
-    snippet_payload = urllib.quote(json.dumps(snippet))
-    rows_payload = urllib.quote(json.dumps(rows))
-    start_over_payload = urllib.quote(json.dumps(start_over))
+    notebook_payload = urllib_quote(json.dumps(notebook))
+    snippet_payload = urllib_quote(json.dumps(snippet))
+    rows_payload = urllib_quote(json.dumps(rows))
+    start_over_payload = urllib_quote(json.dumps(start_over))
 
     payload = '''
             {

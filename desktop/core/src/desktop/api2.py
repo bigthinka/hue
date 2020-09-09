@@ -15,17 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import map
 import logging
+import os
 import json
-import StringIO
+import sys
 import tempfile
 import zipfile
 
 from datetime import datetime
 
-from django.contrib.auth.models import Group, User
 from django.core import management
-
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.utils.html import escape
@@ -33,20 +36,30 @@ from django.utils.translation import ugettext as _
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from metadata.conf import has_navigator
+from metadata.conf import has_catalog
 from metadata.catalog_api import search_entities as metadata_search_entities, _highlight, search_entities_interactive as metadata_search_entities_interactive
-from notebook.connectors.altus import SdxApi, AnalyticDbApi, DataEngApi
-from notebook.connectors.base import Notebook
-from notebook.views import upgrade_session_properties
+from notebook.connectors.altus import SdxApi, AnalyticDbApi, DataEngApi, DataWarehouse2Api
+from notebook.connectors.base import Notebook, get_interpreter
+from notebook.models import Analytics
+from useradmin.models import User, Group
 
-from desktop.lib.django_util import JsonResponse
+from desktop import appmanager
+from desktop.auth.backend import is_admin
+from desktop.conf import ENABLE_CONNECTORS, ENABLE_GIST_PREVIEW, get_clusters, IS_K8S_ONLY, ENABLE_SHARING
+from desktop.lib.conf import BoundContainer, GLOBAL_CONFIG, is_anonymous
+from desktop.lib.django_util import JsonResponse, login_notrequired, render
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.export_csvxls import make_response
 from desktop.lib.i18n import smart_str, force_unicode
+from desktop.lib.paths import get_desktop_root
 from desktop.models import Document2, Document, Directory, FilesystemException, uuid_default, \
-  UserPreferences, get_user_preferences, set_user_preferences, get_cluster_config
-from desktop.conf import get_clusters
+  UserPreferences, get_user_preferences, set_user_preferences, get_cluster_config, __paginate, _get_gist_document
+from desktop.views import serve_403_error
 
+if sys.version_info[0] > 2:
+  from io import StringIO as string_io
+else:
+  from StringIO import StringIO as string_io
 
 LOG = logging.getLogger(__name__)
 
@@ -57,7 +70,7 @@ def api_error_handler(func):
 
     try:
       return func(*args, **kwargs)
-    except Exception, e:
+    except Exception as e:
       LOG.exception('Error running %s' % func)
       response['status'] = -1
       response['message'] = force_unicode(str(e))
@@ -71,18 +84,78 @@ def api_error_handler(func):
 @api_error_handler
 def get_config(request):
   config = get_cluster_config(request.user)
+  config['hue_config']['is_admin'] = is_admin(request.user);
+  config['clusters'] = list(get_clusters(request.user).values())
+  config['documents'] = {
+    'types': list(Document2.objects.documents(user=request.user).order_by().values_list('type', flat=True).distinct())
+  }
   config['status'] = 0
 
   return JsonResponse(config)
 
 
 @api_error_handler
+def get_hue_config(request):
+  if not is_admin(request.user):
+    raise PopupException(_('You must be a superuser.'))
+
+  show_private = request.GET.get('private', False)
+
+  app_modules = appmanager.DESKTOP_MODULES
+  config_modules = GLOBAL_CONFIG.get().values()
+
+  if ENABLE_CONNECTORS.get():
+    app_modules = [app_module for app_module in app_modules if app_module.name == 'desktop']
+    config_modules = [config_module for config_module in config_modules if config_module.config.key == 'desktop']
+
+  apps = [{
+    'name': app.name,
+    'has_ui': app.menu_index != 999,
+    'display_name': app.display_name
+  } for app in sorted(app_modules, key=lambda app: app.name)]
+
+  def recurse_conf(modules):
+    attrs = []
+    for module in modules:
+      if not show_private and module.config.private:
+        continue
+
+      conf = {
+        'help': module.config.help or _('No help available.'),
+        'key': module.config.key,
+        'is_anonymous': is_anonymous(module.config.key)
+      }
+      if isinstance(module, BoundContainer):
+        conf['values'] = recurse_conf(module.get().values())
+      else:
+        conf['default'] = str(module.config.default)
+        if 'password' in module.config.key:
+          conf['value'] = '*' * 10
+        elif sys.version_info[0] > 2:
+          conf['value'] = str(module.get_raw())
+        else:
+          conf['value'] = str(module.get_raw()).decode('utf-8', 'replace')
+      attrs.append(conf)
+
+    return attrs
+
+  return JsonResponse({
+    'config': sorted(recurse_conf(config_modules), key=lambda conf: conf.get('key')),
+    'conf_dir': os.path.realpath(os.getenv('HUE_CONF_DIR', get_desktop_root('conf'))),
+    'apps': apps
+  })
+
+@api_error_handler
 def get_context_namespaces(request, interface):
+  '''
+  Namespaces are node cluster contexts (e.g. Hive + Ranger) that can be queried by computes.
+  '''
   response = {}
   namespaces = []
 
-  clusters = get_clusters(request.user).values()
+  clusters = list(get_clusters(request.user).values())
 
+  # Currently broken if not sent
   namespaces.extend([{
       'id': cluster['id'],
       'name': cluster['name'],
@@ -92,30 +165,37 @@ def get_context_namespaces(request, interface):
   ])
 
   if interface == 'hive' or interface == 'impala' or interface == 'report':
-    # From Altus SDX
-    if [cluster for cluster in clusters if cluster['type'] == 'altus']:
+    if get_cluster_config(request.user)['has_computes']:
       # Note: attaching computes to namespaces might be done via the frontend in the future
       if interface == 'impala':
-        adb_clusters = AnalyticDbApi(request.user).list_clusters()['clusters']
+        if IS_K8S_ONLY.get():
+          adb_clusters = DataWarehouse2Api(request.user).list_clusters()['clusters']
+        else:
+          adb_clusters = AnalyticDbApi(request.user).list_clusters()['clusters']
         for _cluster in adb_clusters: # Add "fake" namespace if needed
           if not _cluster.get('namespaceCrn'):
             _cluster['namespaceCrn'] = _cluster['crn']
             _cluster['id'] = _cluster['crn']
             _cluster['namespaceName'] = _cluster['clusterName']
             _cluster['name'] = _cluster['clusterName']
+            _cluster['compute_end_point'] = '%(publicHost)s' % _cluster['coordinatorEndpoint'] if IS_K8S_ONLY.get() else '',
       else:
         adb_clusters = []
 
-      sdx_namespaces = SdxApi(request.user).list_namespaces()
+      if IS_K8S_ONLY.get():
+        sdx_namespaces = []
+      else:
+        sdx_namespaces = SdxApi(request.user).list_namespaces()
+
       # Adding "fake" namespace for cluster without one
-      sdx_namespaces.extend([_cluster for _cluster in adb_clusters if not _cluster.get('namespaceCrn')])
+      sdx_namespaces.extend([_cluster for _cluster in adb_clusters if not _cluster.get('namespaceCrn') or (IS_K8S_ONLY.get() and 'TERMINAT' not in _cluster['status'])])
 
       namespaces.extend([{
           'id': namespace.get('crn', 'None'),
           'name': namespace.get('namespaceName'),
           'status': namespace.get('status'),
           'computes': [_cluster for _cluster in adb_clusters if _cluster.get('namespaceCrn') == namespace.get('crn')]
-        } for namespace in sdx_namespaces if namespace.get('status') == 'CREATED'
+        } for namespace in sdx_namespaces if namespace.get('status') == 'CREATED' or IS_K8S_ONLY.get()
       ])
 
   response[interface] = namespaces
@@ -126,69 +206,82 @@ def get_context_namespaces(request, interface):
 
 @api_error_handler
 def get_context_computes(request, interface):
+  '''
+  Some clusters like Snowball can have multiple computes for a certain languages (Hive, Impala...).
+  '''
   response = {}
   computes = []
 
-  clusters = get_clusters(request.user).values()
+  clusters = list(get_clusters(request.user).values())
 
-  if interface == 'hive' or interface == 'impala' or interface == 'oozie' or interface == 'report':
-    computes.extend([{
-        'id': cluster['id'],
-        'name': cluster['name'],
-        'namespace': cluster['id'],
-        'interface': interface,
-        'type': cluster['type']
-      } for cluster in clusters if cluster.get('type') == 'direct'
-    ])
-
-  if interface == 'impala' or interface == 'report':
-    if [cluster for cluster in clusters if cluster['type'] == 'altus']:
+  if get_cluster_config(request.user)['has_computes']: # TODO: only based on interface selected?
+    interpreter = get_interpreter(connector_type=interface, user=request.user)
+    if interpreter['dialect'] == 'impala':
+      # dw_clusters = DataWarehouse2Api(request.user).list_clusters()['clusters']
+      dw_clusters = [
+        {'crn': 'c1', 'clusterName': 'c1', 'status': 'created', 'options': {'server_host': 'c1.gethue.com', 'server_port': 10000}},
+        {'crn': 'c2', 'clusterName': 'c2', 'status': 'created', 'options': {'server_host': 'c2.gethue.com', 'server_port': 10000}},
+      ]
       computes.extend([{
           'id': cluster.get('crn'),
           'name': cluster.get('clusterName'),
           'status': cluster.get('status'),
           'namespace': cluster.get('namespaceCrn', cluster.get('crn')),
-          'type': 'altus-dw'
-        } for cluster in AnalyticDbApi(request.user).list_clusters()['clusters'] if cluster.get('status') == 'CREATED' and cluster.get('cdhVersion') >= 'CDH515']
+          'type': interpreter['dialect'],
+          'options': cluster['options'],
+        } for cluster in dw_clusters]
       )
-
-  if interface == 'oozie' or interface == 'spark2':
-    if [cluster for cluster in clusters if cluster['type'] == 'altus']:
-      computes.extend([{
-          'id': cluster.get('crn'),
-          'name': cluster.get('clusterName'),
-          'status': cluster.get('status'),
-          'environmentType': cluster.get('environmentType'),
-          'serviceType': cluster.get('serviceType'),
-          'namespace': cluster.get('namespaceCrn'),
-          'type': 'altus-de'
-        } for cluster in DataEngApi(request.user).list_clusters()['clusters']]
-      )
-      # TODO if interface == 'spark2' keep only SPARK type
-
-  if interface == 'jobs':
-    for cluster in clusters:
-      cluster = {
-        'id': cluster.get('id'),
-        'name': cluster.get('name'),
-        'status': 'CREATED',
-        'environmentType': cluster.get('type'),
-        'serviceType': cluster.get('interface'),
-        'namespace': '',
-        'type': cluster.get('type')
-      }
-        
-      if cluster.get('type') == 'altus':
-        cluster['name'] = 'Altus DE'
-        cluster['type'] = 'altus-de'
-        computes.append(cluster)
-        cluster = cluster.copy()
-        cluster['name'] = 'Altus Data Warehouse'
-        cluster['type'] = 'altus-dw'
-
-      computes.append(cluster)
+  else:
+    # Currently broken if not sent
+    computes.extend([{
+        'id': cluster['id'],
+        'name': cluster['name'],
+        'namespace': cluster['id'],
+        'interface': interface,
+        'type': cluster['type'],
+        'options': {}
+      } for cluster in clusters if cluster.get('type') == 'direct'
+    ])
 
   response[interface] = computes
+  response['status'] = 0
+
+  return JsonResponse(response)
+
+
+# Deprecated, not used.
+@api_error_handler
+def get_context_clusters(request, interface):
+  response = {}
+  clusters = []
+
+  cluster_configs = list(get_clusters(request.user).values())
+
+  for cluster in cluster_configs:
+    cluster = {
+      'id': cluster.get('id'),
+      'name': cluster.get('name'),
+      'status': 'CREATED',
+      'environmentType': cluster.get('type'),
+      'serviceType': cluster.get('interface'),
+      'namespace': '',
+      'type': cluster.get('type')
+    }
+
+    if cluster.get('type') == 'altus':
+      cluster['name'] = 'Altus DE'
+      cluster['type'] = 'altus-de'
+      clusters.append(cluster)
+      cluster = cluster.copy()
+      cluster['name'] = 'Altus Data Warehouse'
+      cluster['type'] = 'altus-dw'
+    elif cluster.get('type') == 'altusv2':
+      cluster['name'] = 'Data Warehouse'
+      cluster['type'] = 'altus-dw2'
+
+    clusters.append(cluster)
+
+  response[interface] = clusters
   response['status'] = 0
 
   return JsonResponse(response)
@@ -339,6 +432,7 @@ def _get_document_helper(request, uuid, with_data, with_dependencies, path):
     data = json.loads(document.data)
     # Upgrade session properties for Hive and Impala
     if document.type.startswith('query'):
+      from notebook.models import upgrade_session_properties
       notebook = Notebook(document=document)
       notebook = upgrade_session_properties(request, notebook)
       data = json.loads(notebook.data)
@@ -489,11 +583,10 @@ def delete_document(request):
 @api_error_handler
 @require_POST
 def copy_document(request):
-  uuid = json.loads(request.POST.get('uuid'), '""')
+  uuid = json.loads(request.POST.get('uuid', '""'))
 
   if not uuid:
     raise PopupException(_('copy_document requires uuid'))
-
 
   # Document2 and Document model objects are linked and both are saved when saving
   document = Document2.objects.get_by_uuid(user=request.user, uuid=uuid)
@@ -555,6 +648,7 @@ def copy_document(request):
     'document': copy_document.to_dict()
   })
 
+
 @api_error_handler
 @require_POST
 def restore_document(request):
@@ -585,8 +679,11 @@ def share_document(request):
 
   Example of input: {'read': {'user_ids': [1, 2, 3], 'group_ids': [1, 2, 3]}}
   """
-  perms_dict = request.POST.get('data')
+  if not is_admin(request.user) and not ENABLE_SHARING.get():
+    return serve_403_error(request)
+
   uuid = request.POST.get('uuid')
+  perms_dict = request.POST.get('data')
 
   if not uuid or not perms_dict:
     raise PopupException(_('share_document requires uuid and perms_dict'))
@@ -596,7 +693,7 @@ def share_document(request):
 
   doc = Document2.objects.get_by_uuid(user=request.user, uuid=uuid)
 
-  for name, perm in perms_dict.iteritems():
+  for name, perm in perms_dict.items():
     users = groups = None
     if perm.get('user_ids'):
       users = User.objects.in_bulk(perm.get('user_ids'))
@@ -616,6 +713,35 @@ def share_document(request):
   })
 
 
+@api_error_handler
+@require_POST
+def share_document_link(request):
+  """
+  Globally activate of de-activate access to a document for logged-in users.
+
+  Example of input: {"uuid": "xxxx", "perm": "read" / "write" / "off"}
+  """
+  if not is_admin(request.user) and not ENABLE_SHARING.get():
+    return serve_403_error(request)
+
+  uuid = request.POST.get('uuid')
+  perm = request.POST.get('perm')
+
+  if not uuid or not perm:
+    raise PopupException(_('share_document_link requires uuid and permission data'))
+  else:
+    uuid = json.loads(uuid)
+    perm = json.loads(perm)
+
+  doc = Document2.objects.get_by_uuid(user=request.user, uuid=uuid)
+  doc = doc.share_link(request.user, perm=perm)
+
+  return JsonResponse({
+    'status': 0,
+    'document': doc.to_dict()
+  })
+
+
 @ensure_csrf_cookie
 def export_documents(request):
   if request.GET.get('documents'):
@@ -623,12 +749,14 @@ def export_documents(request):
   else:
     selection = json.loads(request.POST.get('documents'))
 
+  include_history = request.GET.get('history', 'false') == 'true'
+
   # Only export documents the user has permissions to read
   docs = Document2.objects.documents(user=request.user, perms='both', include_history=True, include_trashed=True).\
     filter(id__in=selection).order_by('-id')
 
   # Add any dependencies to the set of exported documents
-  export_doc_set = _get_dependencies(docs)
+  export_doc_set = _get_dependencies(docs, include_history=include_history)
 
   # For directories, add any children docs to the set of exported documents
   export_doc_set.update(_get_dependencies(docs, deps_mode=False))
@@ -642,7 +770,7 @@ def export_documents(request):
   else:
     filename = 'hue-documents-%s-(%s)' % (datetime.today().strftime('%Y-%m-%d'), num_docs)
 
-  f = StringIO.StringIO()
+  f = string_io()
 
   if doc_ids:
     doc_ids = ','.join(map(str, doc_ids))
@@ -658,12 +786,12 @@ def export_documents(request):
         try:
           from spark.models import Notebook
           zfile.writestr("notebook-%s-%s.txt" % (doc.name, doc.id), smart_str(Notebook(document=doc).get_str()))
-        except Exception, e:
+        except Exception as e:
           LOG.exception(e)
     zfile.close()
     response = HttpResponse(content_type="application/zip")
     response["Content-Length"] = len(f.getvalue())
-    response['Content-Disposition'] = 'attachment; filename="%s".zip' % filename
+    response['Content-Disposition'] = b'attachment; filename="%s".zip' % filename
     response.write(f.getvalue())
     return response
   else:
@@ -682,7 +810,7 @@ def import_documents(request):
       documents = json.loads(request.POST.get('documents'))
 
     documents = json.loads(documents)
-  except ValueError, e:
+  except ValueError as e:
     raise PopupException(_('Failed to import documents, the file does not contain valid JSON.'))
 
   # Validate documents
@@ -730,10 +858,11 @@ def import_documents(request):
   f.write(json.dumps(docs))
   f.flush()
 
-  stdout = StringIO.StringIO()
+  stdout = string_io()
   try:
-    management.call_command('loaddata', f.name, verbosity=2, traceback=True, stdout=stdout)
-    Document.objects.sync()
+    with transaction.atomic(): # We wrap both commands to commit loaddata & sync
+      management.call_command('loaddata', f.name, verbosity=3, traceback=True, stdout=stdout, commit=False) # We need to use commit=False because commit=True will close the connection and make Document.objects.sync fail.
+      Document.objects.sync()
 
     if request.POST.get('redirect'):
       return redirect(request.POST.get('redirect'))
@@ -753,14 +882,14 @@ def import_documents(request):
             ('owner', doc['fields']['owner'][0])
           ]) for doc in docs]
       })
-  except Exception, e:
+  except Exception as e:
     LOG.error('Failed to run loaddata command in import_documents:\n %s' % stdout.getvalue())
     return JsonResponse({'status': -1, 'message': smart_str(e)})
   finally:
     stdout.close()
 
 def _update_imported_oozie_document(doc, uuids_map):
-  for key, value in uuids_map.iteritems():
+  for key, value in uuids_map.items():
     if value:
       doc['fields']['data'] = doc['fields']['data'].replace(key, value)
 
@@ -786,6 +915,68 @@ def user_preferences(request, key=None):
   return JsonResponse(response)
 
 
+@api_error_handler
+def gist_create(request):
+  '''
+  Only supporting Editor App currently.
+  '''
+  response = {'status': 0}
+
+  statement = request.POST.get('statement', '')
+  gist_type = request.POST.get('doc_type', 'hive')
+  name = request.POST.get('name', '')
+  description = request.POST.get('description', '')
+
+  if not name:
+    name = _('%s Query') % gist_type.capitalize()
+  statement_raw = statement
+  if not statement.strip().startswith('--'):
+    statement = '-- Created by %s\n\n%s' % (request.user.get_full_name() or request.user.username, statement)
+
+  gist_doc = Document2.objects.create(
+    name=name,
+    type='gist',
+    owner=request.user,
+    data=json.dumps({'statement': statement, 'statement_raw': statement_raw}),
+    extra=gist_type,
+    parent_directory=Document2.objects.get_gist_directory(request.user)
+  )
+
+  response['id'] = gist_doc.id
+  response['uuid'] = gist_doc.uuid
+  response['link'] = '%(scheme)s://%(host)s/hue/gist?uuid=%(uuid)s' % {
+    'scheme': 'https' if request.is_secure() else 'http',
+    'host': request.get_host(),
+    'uuid': gist_doc.uuid,
+  }
+
+  return JsonResponse(response)
+
+
+@login_notrequired
+@api_error_handler
+def gist_get(request):
+  gist_uuid = request.GET.get('uuid')
+
+  gist_doc = _get_gist_document(uuid=gist_uuid)
+
+  if ENABLE_GIST_PREVIEW.get() and 'Slackbot-LinkExpanding' in request.META.get('HTTP_USER_AGENT', ''):
+    statement = json.loads(gist_doc.data)['statement_raw']
+    return render(
+      'unfurl_link.mako',
+      request, {
+        'title': _('SQL gist from %s') % (gist_doc.owner.get_full_name() or gist_doc.owner.username),
+        'description': statement if len(statement) < 150 else (statement[:150] + '...'),
+        'image_link': None
+      }
+    )
+  else:
+    return redirect('/hue/editor?gist=%(uuid)s&type=%(type)s' % {
+      'uuid': gist_doc.uuid,
+      'type': gist_doc.extra
+    })
+
+
 def search_entities(request):
   sources = json.loads(request.POST.get('sources')) or []
 
@@ -797,6 +988,8 @@ def search_entities(request):
           'hue_name': _highlight(search_text, escape(e.name)),
           'hue_description': _highlight(search_text, escape(e.description)),
           'type': 'HUE',
+          'last_modified': e.last_modified,
+          'owner': escape(e.owner),
           'doc_type': escape(e.type),
           'originalName': escape(e.name),
           'link': e.get_absolute_url()
@@ -808,7 +1001,7 @@ def search_entities(request):
 
     return JsonResponse(response)
   else:
-    if has_navigator(request.user):
+    if has_catalog(request.user):
       return metadata_search_entities(request)
     else:
       return JsonResponse({'status': 1, 'message': _('Navigator not enabled')})
@@ -827,11 +1020,14 @@ def search_entities_interactive(request):
           'hue_description': _highlight(search_text, escape(e.description)),
           'link': e.get_absolute_url(),
           'doc_type': escape(e.type),
+          'last_modified': e.last_modified,
+          'owner': escape(e.owner),
           'type': 'HUE',
           'uuid': e.uuid,
           'parentUuid': e.parent_directory.uuid,
           'originalName': escape(e.name)
-        } for e in entities['documents']
+        }
+        for e in entities['documents']
       ],
       'count': len(entities['documents']),
       'status': 0
@@ -839,7 +1035,7 @@ def search_entities_interactive(request):
 
     return JsonResponse(response)
   else:
-    if has_navigator(request.user):
+    if has_catalog(request.user):
       return metadata_search_entities_interactive(request)
     else:
       return JsonResponse({'status': 1, 'message': _('Navigator not enabled')})
@@ -857,7 +1053,7 @@ def _is_import_valid(documents):
     all(all(k in d['fields'] for k in ('uuid', 'owner')) for d in documents)
 
 
-def _get_dependencies(documents, deps_mode=True):
+def _get_dependencies(documents, deps_mode=True, include_history=False):
   """
   Given a list of Document2 objects, perform a depth-first search and return a set of documents with all
    dependencies (excluding history docs) included
@@ -870,7 +1066,7 @@ def _get_dependencies(documents, deps_mode=True):
     stack = [doc]
     while stack:
       curr_doc = stack.pop()
-      if curr_doc not in doc_set and not curr_doc.is_history:
+      if curr_doc not in doc_set and (include_history or not curr_doc.is_history):
         doc_set.add(curr_doc)
         if deps_mode:
           deps_set = set(curr_doc.dependencies.all())
@@ -906,7 +1102,7 @@ def _copy_document_with_owner(doc, owner, uuids_map):
   if doc['fields'].get('parent_directory'):
     parent_uuid = doc['fields']['parent_directory'][0]
 
-  if parent_uuid is not None and parent_uuid in uuids_map.keys():
+  if parent_uuid is not None and parent_uuid in list(uuids_map.keys()):
     if uuids_map[parent_uuid] is None:
       uuids_map[parent_uuid] = uuid_default()
     doc['fields']['parent_directory'] = [uuids_map[parent_uuid], 1, False]
@@ -919,7 +1115,7 @@ def _copy_document_with_owner(doc, owner, uuids_map):
   # Remap dependencies if needed
   idx = 0
   for dep_uuid, dep_version, dep_is_history in doc['fields']['dependencies']:
-    if dep_uuid not in uuids_map.keys():
+    if dep_uuid not in list(uuids_map.keys()):
       LOG.warn('Could not find dependency UUID: %s in JSON import, may cause integrity errors if not found.' % dep_uuid)
     else:
       if uuids_map[dep_uuid] is None:
@@ -941,7 +1137,7 @@ def _create_or_update_document_with_owner(doc, owner, uuids_map):
       doc['pk'] = existing_doc.pk
     else:
       create_new = True
-  except FilesystemException, e:
+  except FilesystemException as e:
     create_new = True
 
   if create_new:
@@ -952,7 +1148,7 @@ def _create_or_update_document_with_owner(doc, owner, uuids_map):
   # Verify that parent exists, log warning and set parent to user's home directory if not found
   if doc['fields']['parent_directory']:
     uuid, version, is_history = doc['fields']['parent_directory']
-    if uuid not in uuids_map.keys() and \
+    if uuid not in list(uuids_map.keys()) and \
             not Document2.objects.filter(uuid=uuid, version=version, is_history=is_history).exists():
       LOG.warn('Could not find parent document with UUID: %s, will set parent to home directory' % uuid)
       doc['fields']['parent_directory'] = [home_dir.uuid, home_dir.version, home_dir.is_history]
@@ -962,7 +1158,7 @@ def _create_or_update_document_with_owner(doc, owner, uuids_map):
   if doc['fields']['dependencies']:
     history_deps_list = []
     for index, (uuid, version, is_history) in enumerate(doc['fields']['dependencies']):
-      if not uuid in uuids_map.keys() and not is_history and \
+      if not uuid in list(uuids_map.keys()) and not is_history and \
               not Document2.objects.filter(uuid=uuid, version=version).exists():
           raise PopupException(_('Cannot import document, dependency with UUID: %s not found.') % uuid)
       elif is_history:
@@ -995,7 +1191,8 @@ def __filter_documents(type_filters, sort, search_text, queryset, flatten=True):
   documents = queryset.search_documents(
       types=type_filters,
       search_text=search_text,
-      order_by=sort)
+      order_by=sort
+  )
 
   # Roll up documents to common directory
   if not flatten:
@@ -1023,17 +1220,3 @@ def _paginate(request, queryset):
   limit = int(request.GET.get('limit', 0))
 
   return __paginate(page, limit, queryset)
-
-
-def __paginate(page, limit, queryset):
-
-  if limit > 0:
-    offset = (page - 1) * limit
-    last = offset + limit
-    queryset = queryset.all()[offset:last]
-
-  return {
-    'documents': queryset,
-    'page': page,
-    'limit': limit
-  }

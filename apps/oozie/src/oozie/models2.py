@@ -15,10 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import division
+from builtins import str
+from past.builtins import basestring
+from builtins import object
 import json
 import logging
+import math
 import os
 import re
+import sys
 import time
 import uuid
 
@@ -29,7 +35,6 @@ from xml.sax.saxutils import escape
 
 from django.urls import reverse
 from django.db.models import Q
-from django.utils.encoding import force_unicode
 from django.utils.translation import ugettext as _
 
 from desktop.conf import USE_DEFAULT_CONFIGURATION
@@ -52,6 +57,11 @@ from oozie.conf import REMOTE_SAMPLE_DIR
 from oozie.utils import utc_datetime_format, UTC_TIME_FORMAT, convert_to_server_timezone
 from oozie.importlib.workflows import generate_v2_graph_nodes, MalformedWfDefException, InvalidTagWithNamespaceException
 
+if sys.version_info[0] > 2:
+    from django.utils.encoding import force_text as force_unicode
+else:
+    from django.utils.encoding import force_unicode
+
 WORKFLOW_DEPTH_LIMIT = 24
 LOG = logging.getLogger(__name__)
 
@@ -67,7 +77,7 @@ class Job(object):
     if params.get('nominal_time') == '':
       params['nominal_time'] = datetime.today().strftime(UTC_TIME_FORMAT)
 
-    return  [{'name': name, 'value': value} for name, value in params.iteritems() if with_lib_path or name != 'oozie.use.system.libpath']
+    return  [{'name': name, 'value': value} for name, value in params.items() if with_lib_path or name != 'oozie.use.system.libpath']
 
   @classmethod
   def get_workspace(cls, user):
@@ -99,7 +109,7 @@ class Job(object):
   def import_workspace(self, fs, source_deployment_dir, owner):
     try:
       fs.copy_remote_dir(source_deployment_dir, self.deployment_dir, owner=owner)
-    except WebHdfsException, e:
+    except WebHdfsException as e:
       msg = _('The copy of the deployment directory failed: %s.') % e
       LOG.error(msg)
       raise PopupException(msg)
@@ -251,9 +261,9 @@ class Workflow(Job):
     node_list = []
     try:
       node_list = generate_v2_graph_nodes(oozie_workflow.definition)
-    except MalformedWfDefException, e:
+    except MalformedWfDefException as e:
       LOG.exception("Could not find any nodes in Workflow definition. Maybe it's malformed?")
-    except InvalidTagWithNamespaceException, e:
+    except InvalidTagWithNamespaceException as e:
       LOG.exception(
         "Tag with namespace %(namespace)s is not valid. Please use one of the following namespaces: %(namespaces)s" % {
           'namespace': e.namespace,
@@ -553,7 +563,7 @@ class Workflow(Job):
 # To avoid case-sensitive failures
 def _to_lowercase(node_list):
   for node in node_list:
-    for key in node.keys():
+    for key in list(node.keys()):
       if hasattr(node[key], 'lower'):
         node[key] = node[key].lower()
 
@@ -563,7 +573,7 @@ def _update_adj_list(adj_list):
   id = 1
   first_kill_node_seen = False
 
-  for node in adj_list.keys():
+  for node in list(adj_list.keys()):
     adj_list[node]['id'] = id
 
     # Oozie uses same action for streaming and mapreduce but Hue manages them differently
@@ -587,7 +597,7 @@ def _update_adj_list(adj_list):
     elif adj_list[node]['node_type'] == 'end':
       adj_list[node]['uuid'] = '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'
     else:
-      adj_list[node]['uuid'] = node[-4:] + str(uuid.uuid4())[4:]
+      adj_list[node]['uuid'] = node + str(uuid.uuid4())[len(node):]
 
     uuids[id] = adj_list[node]['uuid']
     id += 1
@@ -642,7 +652,7 @@ def _dig_nodes(nodes, adj_list, user, wf_nodes, nodes_uuid_set):
 
         children = []
         if node['node_type'] in ('fork', 'decision'):
-          for key in node.keys():
+          for key in list(node.keys()):
             if key.startswith('path'):
               children.append({'to': adj_list[node[key]]['uuid'], 'condition': '${ 1 gt 0 }'})
           if node['node_type'] == 'decision':
@@ -686,14 +696,14 @@ def _create_workflow_layout(nodes, adj_list, nodes_uuid_set, size=12):
           "columns":[
              {
                 "id": str(uuid.uuid4()),
-                "size": (size / len(node[1])),
+                "size": (math.floor(size / len(node[1]))),
                 "rows":
                    [{
                       "id": str(uuid.uuid4()),
                       "widgets": c['widgets'],
                       "columns":c.get('columns') or []
                     } for c in col],
-                "klass":"card card-home card-column span%s" % (size / len(node[1]))
+                "klass":"card card-home card-column span%s" % (math.floor(size / len(node[1])))
              }
              for col in [_create_workflow_layout(item, adj_list, nodes_uuid_set, size) for item in node[1]]
           ]
@@ -707,7 +717,7 @@ def _create_workflow_layout(nodes, adj_list, nodes_uuid_set, size=12):
 
 def _get_widget_type(node_type):
   widget_name = "%s-widget" % node_type
-  return widget_name if widget_name in NODES.keys() else 'generic-widget'
+  return widget_name if widget_name in list(NODES.keys()) else 'generic-widget'
 
 
 # Prevent duplicate nodes in graph layout
@@ -722,10 +732,10 @@ def _get_hierarchy_from_adj_list(adj_list, curr_node, node_hierarchy):
   _get_hierarchy_from_adj_list_helper(adj_list, curr_node, node_hierarchy, WORKFLOW_DEPTH_LIMIT)
 
   # Add End and Kill nodes to node_hierarchy
-  for key in adj_list.keys():
+  for key in list(adj_list.keys()):
     if adj_list[key]['node_type'] == 'kill':
       node_hierarchy.append([adj_list[key]['name']])
-  node_hierarchy.append([adj_list[key]['name'] for key in adj_list.keys() if adj_list[key]['node_type'] == 'end'])
+  node_hierarchy.append([adj_list[key]['name'] for key in list(adj_list.keys()) if adj_list[key]['node_type'] == 'end'])
 
 
 def _get_hierarchy_from_adj_list_helper(adj_list, curr_node, node_hierarchy, workflow_depth):
@@ -742,7 +752,7 @@ def _get_hierarchy_from_adj_list_helper(adj_list, curr_node, node_hierarchy, wor
 
     join_node = None
     children = []
-    for key in adj_list[curr_node].keys():
+    for key in list(adj_list[curr_node].keys()):
       if key.startswith('path') or key == 'default':
         child = []
         return_node = _get_hierarchy_from_adj_list_helper(adj_list, adj_list[curr_node][key], child, workflow_depth - 1)
@@ -774,7 +784,7 @@ def _create_graph_adjaceny_list(nodes):
   return adj_list
 
 
-class Node():
+class Node(object):
 
   def __init__(self, data, user=None):
     self.data = data
@@ -959,7 +969,7 @@ class Node():
 #             'archives': [],
 #             'capture_output': True
 #             #       <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
-# 
+#
 #             #  Node(dict(AltusAction().get_fields()))
 #           }
 #         }
@@ -1084,7 +1094,7 @@ class Action(object):
   @classmethod
   def get_fields(cls):
     credentials = [cls.DEFAULT_CREDENTIALS] if hasattr(cls, 'DEFAULT_CREDENTIALS') and cls.DEFAULT_CREDENTIALS else []
-    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()] + [('sla', WorkflowConfiguration.SLA_DEFAULT), ('credentials', credentials)]
+    return [(f['name'], f['value']) for f in cls.FIELDS.values()] + [('sla', WorkflowConfiguration.SLA_DEFAULT), ('credentials', credentials)]
 
 
 class StartNode(Action):
@@ -1356,7 +1366,7 @@ def _get_hiveserver2_url():
   try:
     from beeswax.hive_site import hiveserver2_jdbc_url
     return hiveserver2_jdbc_url()
-  except Exception, e:
+  except Exception as e:
     # Might fail is Hive is disabled
     LOG.exception('Could not guess HiveServer2 URL: %s' % smart_str(e))
     return 'jdbc:hive2://localhost:10000/default'
@@ -1463,7 +1473,7 @@ def _get_impala_url():
   try:
     from impala.dbms import get_query_server_config
     return get_query_server_config()['server_host']
-  except Exception, e:
+  except Exception as e:
     # Might fail is Impala is disabled
     LOG.exception('Could not get Impalad URL: %s' % smart_str(e))
     return 'localhost'
@@ -2125,7 +2135,14 @@ class SparkAction(Action):
           'help_text': _('Path to file to put in the running directory.'),
           'type': ''
      },
-    'class': {
+     'archives': {
+          'name': 'archives',
+          'label': _('Archives'),
+          'value': [],
+          'help_text': _('zip, tar and tgz/tar.gz uncompressed into the running directory.'),
+          'type': ''
+     },
+     'class': {
           'name': 'class',
           'label': _('Main class'),
           'value': '',
@@ -2987,7 +3004,7 @@ NODES = {
 
 
 WORKFLOW_NODE_PROPERTIES = {}
-for node in NODES.itervalues():
+for node in NODES.values():
   WORKFLOW_NODE_PROPERTIES.update(node.FIELDS)
 
 
@@ -2995,7 +3012,7 @@ for node in NODES.itervalues():
 def find_parameters(instance, fields=None):
   """Find parameters in the given fields"""
   if fields is None:
-    fields = NODES['%s-widget' % instance.data['type']].FIELDS.keys()
+    fields = list(NODES['%s-widget' % instance.data['type']].FIELDS.keys())
 
   params = []
   for field in fields:
@@ -3017,7 +3034,7 @@ def find_json_parameters(fields):
   params = []
 
   for field in fields:
-    for data in field.values():
+    for data in list(field.values()):
       if isinstance(data, basestring):
         for match in Template.pattern.finditer(data):
           name = match.group('braced')
@@ -3110,7 +3127,7 @@ def import_workflow_from_hue_3_7(old_wf):
             "columns":[
                {
                   "id": str(uuid.uuid4()),
-                  "size": (size / len(node[1])),
+                  "size": (math.floor(size / len(node[1]))),
                   "rows":
                      [{
                         "id": str(uuid.uuid4()),
@@ -3124,7 +3141,7 @@ def import_workflow_from_hue_3_7(old_wf):
                       }
                    ]
                   ,
-                  "klass":"card card-home card-column span%s" % (size / len(node[1]))
+                  "klass":"card card-home card-column span%s" % (math.floor(size / len(node[1])))
                }
                for col in _create_layout(node[1], size)
             ]
@@ -3345,11 +3362,11 @@ class Coordinator(Job):
   def get_data_for_json(self):
     _data = self.data.copy()
 
-    start_date = filter(lambda a: a['name'] == 'start_date', self._data['properties']['parameters'])
+    start_date = [a for a in self._data['properties']['parameters'] if a['name'] == 'start_date']
     if start_date and type(start_date[0]['value']) == datetime:
       start_date[0]['value'] = start_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%S')
 
-    end_date = filter(lambda a: a['name'] == 'end_date', self._data['properties']['parameters'])
+    end_date = [a for a in self._data['properties']['parameters'] if a['name'] == 'end_date']
     if end_date and type(end_date[0]['value']) == datetime:
       end_date[0]['value'] = end_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%S')
 
@@ -3502,12 +3519,12 @@ class Coordinator(Job):
     if self.data['properties']['document']:
       document = Document2.objects.get_by_uuid(user=self.document.owner, uuid=self.data['properties']['document'])
       wf_doc = WorkflowBuilder().create_workflow(document=document, user=self.document.owner, managed=True)
-      wf = Workflow(data=wf_doc.data)
+      wf = Workflow(data=wf_doc.data, user=self.document.owner)
       wf_doc.delete()
       return wf
     else:
       wf_doc = Document2.objects.get_by_uuid(user=self.document.owner, uuid=self.data['properties']['workflow'])
-      return Workflow(document=wf_doc)
+      return Workflow(document=wf_doc, user=self.document.owner)
 
   def get_absolute_url(self):
     return reverse('oozie:edit_coordinator') + '?coordinator=%s' % self.id
@@ -3517,7 +3534,7 @@ class Coordinator(Job):
     return 'oozie.coord.application.path'
 
 
-class Dataset():
+class Dataset(object):
 
   def __init__(self, data, coordinator):
     self._data = data
@@ -3619,7 +3636,7 @@ class Bundle(Job):
               'description': '',
               'deployment_dir': '',
               'schema_version': 'uri:oozie:bundle:0.2',
-              'kickoff': datetime.today(),
+              'kickoff': datetime.utcnow(),
               'parameters': [{'name': 'oozie.use.system.libpath', 'value': 'true'}]
           }
       }
@@ -3635,7 +3652,8 @@ class Bundle(Job):
   def get_data_for_json(self):
     _data = self.data.copy()
 
-    _data['properties']['kickoff'] = _data['properties']['kickoff'].strftime('%Y-%m-%dT%H:%M:%S')
+    if _data['properties']['kickoff'] and type(_data['properties']['kickoff']) is datetime:
+      _data['properties']['kickoff'] = _data['properties']['kickoff'].strftime('%Y-%m-%dT%H:%M:%S')
 
     return _data
 
@@ -3647,7 +3665,7 @@ class Bundle(Job):
 
   @property
   def data(self):
-    if type(self._data['properties']['kickoff']) == unicode:
+    if type(self._data['properties']['kickoff']) == str and sys.version_info[2] == 2:
       self._data['properties']['kickoff'] = parse(self._data['properties']['kickoff'])
 
     if self.document is not None:
@@ -3787,7 +3805,7 @@ def _save_workflow(workflow, layout, user, fs=None):
   return workflow_doc
 
 
-class WorkflowBuilder():
+class WorkflowBuilder(object):
   """
   Building a workflow that has saved Documents for nodes (e.g Saved Hive query, saved Pig script...).
   """
@@ -4194,11 +4212,20 @@ class WorkflowBuilder():
     }
 
   def get_pig_document_node(self, document, user):
-    node = self._get_pig_node(document.uuid, is_document_node=True)
+    statement = json.loads(document.data)['snippets'][0]['statement']
+    credentials = []
+    if self._use_hcatalog(statement) and SECURITY_ENABLED.get():
+      credentials.append('hcat')
+
+    node = self._get_pig_node(document.uuid, credentials=credentials, is_document_node=True)
 
     node['properties']['uuid'] = document.uuid
 
     return node
+
+  def _use_hcatalog(self, statement):
+    return ('org.apache.hcatalog.pig.HCatStorer' in statement or 'org.apache.hcatalog.pig.HCatLoader' in statement) or \
+           ('org.apache.hive.hcatalog.pig.HCatLoader' in statement or 'org.apache.hive.hcatalog.pig.HCatStorer' in statement)
 
   def _get_pig_node(self, node_id, credentials=None, is_document_node=False):
     if credentials is None:

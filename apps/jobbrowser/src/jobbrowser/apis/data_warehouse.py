@@ -17,11 +17,16 @@
 
 import logging
 
+from datetime import datetime
+from dateutil import parser
+
+from django.utils import timezone
 from django.utils.translation import ugettext as _
 
-from notebook.connectors.altus import AnalyticDbApi
+from notebook.connectors.altus import AnalyticDbApi, DataWarehouse2Api
 
 from jobbrowser.apis.base_api import Api
+
 
 
 LOG = logging.getLogger(__name__)
@@ -32,10 +37,15 @@ RUNNING_STATES = ('QUEUED', 'RUNNING', 'SUBMITTING')
 
 class DataWarehouseClusterApi(Api):
 
-  def apps(self, filters):
-    api = AnalyticDbApi(self.user)
+  def __init__(self, user, version=1):
+    super(DataWarehouseClusterApi, self).__init__(user)
 
-    jobs = api.list_clusters()
+    self.version = version
+    self.api = DataWarehouse2Api(self.user) if version == 2 else AnalyticDbApi(self.user) 
+
+
+  def apps(self, filters):
+    jobs = self.api.list_clusters()
 
     return {
       'apps': [{
@@ -43,30 +53,47 @@ class DataWarehouseClusterApi(Api):
         'name': '%(clusterName)s' % app,
         'status': app['status'],
         'apiStatus': self._api_status(app['status']),
-        'type': 'Altus %(workersGroupSize)s %(instanceType)s %(cdhVersion)s' % app,
+        'type': '%(instanceType)s' % app, #'Altus %(workersGroupSize)sX %(instanceType)s %(cdhVersion)s' % app,
         'user': app['clusterName'].split('-', 1)[0],
-        'progress': 100,
+        'progress': app.get('progress', 100),
         'queue': 'group',
-        'duration': 1,
+        'duration': ((datetime.now() - parser.parse(app['creationDate']).replace(tzinfo=None)).seconds * 1000) if app['creationDate'] else 0,
         'submitted': app['creationDate'],
         'canWrite': True
       } for app in sorted(jobs['clusters'], key=lambda a: a['creationDate'], reverse=True)],
-      'total': len(jobs)
+      'total': len(jobs['clusters'])
     }
 
 
   def app(self, appid):
-    return {}
+    handle = self.api.describe_cluster(cluster_id=appid)
 
+    cluster = handle['cluster']
+
+    common = {
+        'id': cluster['crn'],
+        'name': cluster['clusterName'],
+        'status': cluster['status'],
+        'apiStatus': self._api_status(cluster['status']),
+        'progress': 50 if self._api_status(cluster['status']) == 'RUNNING' else 100,
+        'duration': 10 * 3600,
+        'submitted': cluster['creationDate'],
+        'type': 'dataware2-cluster' if self.version == 2 else 'dataware-cluster',
+        'canWrite': True
+    }
+
+    common['properties'] = {
+      'properties': cluster
+    }
+
+    return common
 
   def action(self, appid, action):
     message = {'message': '', 'status': 0}
 
     if action.get('action') == 'kill':
-      api = AnalyticDbApi(self.user)
-
       for _id in appid:
-        result = api.delete_cluster(_id)
+        result = self.api.delete_cluster(_id)
         if result.get('error'):
           message['message'] = result.get('error')
           message['status'] = -1
@@ -80,13 +107,15 @@ class DataWarehouseClusterApi(Api):
     return {'logs': ''}
 
 
-  def profile(self, appid, app_type, app_property):
+  def profile(self, app_id, app_type, app_property, app_filters):
     return {}
 
   def _api_status(self, status):
-    if status in ['CREATING', 'CREATED']:
+    if status in ['CREATING', 'CREATED', 'ONLINE', 'SCALING_UP', 'SCALING_DOWN', 'STARTING']:
       return 'RUNNING'
-    elif status in ['ARCHIVING', 'COMPLETED', 'TERMINATING']:
+    elif status == 'STOPPED':
+      return 'PAUSED'
+    elif status in ['ARCHIVING', 'COMPLETED', 'TERMINATING', 'TERMINATED']:
       return 'SUCCEEDED'
     else:
       return 'FAILED' # KILLED and FAILED

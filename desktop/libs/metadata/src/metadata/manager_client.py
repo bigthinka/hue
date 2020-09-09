@@ -16,9 +16,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
+import base64
 import json
 import logging
-import urllib
+import sys
 
 from django.core.cache import cache
 from django.utils.translation import ugettext as _
@@ -29,6 +33,11 @@ from desktop.lib.i18n import smart_unicode
 
 from metadata.conf import MANAGER, get_navigator_auth_username, get_navigator_auth_password
 
+
+if sys.version_info[0] > 2:
+  from urllib.parse import quote as urllib_quote
+else:
+  from urllib import quote as urllib_quote
 
 LOG = logging.getLogger(__name__)
 VERSION = 'v19'
@@ -76,9 +85,95 @@ class ManagerApi(object):
       })['items']
 
       return service_name in services
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
+
+  def get_spark_history_server_configs(self, cluster_name=None):
+    service_name = "SPARK_ON_YARN"
+    shs_role_type = "SPARK_YARN_HISTORY_SERVER"
+
+    try:
+      cluster = self._get_cluster(cluster_name)
+      services = self._root.get('clusters/%(cluster_name)s/services' % {
+        'cluster_name': cluster['name'],
+        'service_name': service_name
+      })['items']
+
+      service_display_names = [service['displayName'] for service in services if service['type'] == service_name]
+
+
+      if service_display_names:
+        spark_service_display_name = service_display_names[0]
+
+        servers = self._root.get('clusters/%(cluster_name)s/services/%(spark_service_display_name)s/roles' % {
+          'cluster_name': cluster['name'],
+          'spark_service_display_name': spark_service_display_name
+        })['items']
+
+        shs_server_names = [server['name'] for server in servers if server['type'] == shs_role_type]
+        shs_server_name = shs_server_names[0] if shs_server_names else None
+        shs_server_hostRef = [server['hostRef'] for server in servers if server['type'] == shs_role_type]
+        shs_server_hostId = shs_server_hostRef[0]['hostId'] if shs_server_hostRef else None
+
+        if shs_server_name and shs_server_hostId:
+          shs_server_configs = self._root.get('clusters/%(cluster_name)s/services/%(spark_service_display_name)s/roles/%(shs_server_name)s/config' % {
+            'cluster_name': cluster['name'],
+            'spark_service_display_name': spark_service_display_name,
+            'shs_server_name': shs_server_name
+          }, params={'view': 'full'})['items']
+          return shs_server_hostId, shs_server_configs
+    except Exception as e:
+      LOG.warn("Check Spark History Server via ManagerApi: %s" % e)
+
+    return None, None
+
+  def get_spark_history_server_url(self, cluster_name=None):
+    shs_server_hostId, shs_server_configs = self.get_spark_history_server_configs(cluster_name=cluster_name)
+
+    if shs_server_hostId and shs_server_configs:
+      shs_ui_port = None
+      shs_ssl_port = None
+      shs_ssl_enabled = None
+      for config in shs_server_configs:
+        if 'relatedName' in config and 'default' in config:
+          if config['relatedName'] == 'spark.history.ui.port':
+            shs_ui_port = config['default']
+          if config['relatedName'] == 'spark.ssl.historyServer.port':
+            shs_ssl_port = config['default']
+          if config['relatedName'] == 'spark.ssl.historyServer.enabled':
+            shs_ssl_enabled = config['default']
+      shs_ui_host = self._root.get('hosts/%(hostId)s' % {'hostId': shs_server_hostId})
+      shs_ui_hostname = shs_ui_host['hostname'] if shs_ui_host else None
+
+      return self.assemble_shs_url(shs_ui_hostname, shs_ui_port, shs_ssl_port, shs_ssl_enabled)
+
+    return None
+
+  def get_spark_history_server_security_enabled(self, cluster_name=None):
+    shs_server_hostId, shs_server_configs = self.get_spark_history_server_configs(cluster_name=cluster_name)
+
+    if shs_server_configs:
+      for config in shs_server_configs:
+        if 'relatedName' in config and 'default' in config and config['relatedName'] == 'history_server_spnego_enabled':
+          shs_security_enabled = config['default']
+          return shs_security_enabled and shs_security_enabled == 'true'
+
+    return False
+
+  def assemble_shs_url(self, shs_ui_hostname, shs_ui_port=None, shs_ssl_port=None, shs_ssl_enabled=None):
+    if not shs_ui_hostname or not shs_ui_port or not shs_ssl_port or not shs_ssl_enabled:
+      LOG.warn("Spark conf not found!")
+      return None
+
+    protocol = 'https' if shs_ssl_enabled.lower() == 'true' else 'http'
+    shs_url = '%(protocol)s://%(hostname)s:%(port)s' % {
+      'protocol': protocol,
+      'hostname': shs_ui_hostname,
+      'port': shs_ssl_port if shs_ssl_enabled.lower() == 'true' else shs_ui_port,
+    }
+
+    return shs_url
 
   def tools_echo(self):
     try:
@@ -88,24 +183,19 @@ class ManagerApi(object):
 
       LOG.info(params)
       return self._root.get('tools/echo', params=params)
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
 
   def get_kafka_brokers(self, cluster_name=None):
     try:
-      cluster = self._get_cluster(cluster_name)
-      services = self._root.get('clusters/%(name)s/services' % cluster)['items']
 
-      service = [service for service in services if service['type'] == 'KAFKA'][0]
-      broker_hosts = self._get_roles(cluster['name'], service['name'], 'KAFKA_BROKER')
-      broker_hosts_ids = [broker_host['hostRef']['hostId'] for broker_host in broker_hosts]
+      hosts = self._get_hosts('KAFKA', 'KAFKA_BROKER', cluster_name=cluster_name)
 
-      hosts = self._root.get('hosts')['items']
-      brokers_hosts = [host['hostname'] + ':9092' for host in hosts if host['hostId'] in broker_hosts_ids]
+      brokers_hosts = [host['hostname'] + ':9092' for host in hosts]
 
       return ','.join(brokers_hosts)
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
 
@@ -120,7 +210,7 @@ class ManagerApi(object):
       master_host = self._root.get('hosts/%(hostId)s' % master['hostRef'])
 
       return master_host['hostname']
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
 
@@ -130,19 +220,20 @@ class ManagerApi(object):
       root = Resource(client)
 
       return root.get('/api/topics')
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
 
-  def update_flume_config(self, cluster_name, config):
+  def update_flume_config(self, cluster_name, config_name, config_value):
     service = 'FLUME-1'
-    roleConfigGroup = [role['roleConfigGroupRef']['roleConfigGroupName'] for role in self._get_roles(cluster_name, service, 'AGENT')]
+    cluster = self._get_cluster(cluster_name)
+    roleConfigGroup = [role['roleConfigGroupRef']['roleConfigGroupName'] for role in self._get_roles(cluster['name'], service, 'AGENT')]
     data = {
       u'items': [{
-        u'url': u'/api/v8/clusters/%(cluster_name)s/services/%(service)s/roleConfigGroups/%(roleConfigGroups)s/config?message=Updated%20service%20and%20role%20type%20configurations.'.replace('%(cluster_name)s', urllib.quote(cluster_name)).replace('%(service)s', service).replace('%(roleConfigGroups)s', roleConfigGroup),
+        u'url': u'/api/v8/clusters/%(cluster_name)s/services/%(service)s/roleConfigGroups/%(roleConfigGroups)s/config?message=Updated%20service%20and%20role%20type%20configurations.'.replace('%(cluster_name)s', urllib_quote(cluster['name'])).replace('%(service)s', service).replace('%(roleConfigGroups)s', roleConfigGroup[0]),
         u'body': {
           u'items': [
-            {u'name': u'agent_config_file', u'value': config}
+            {u'name': config_name, u'value': config_value}
           ]
         },
         u'contentType': u'application/json',
@@ -155,12 +246,34 @@ class ManagerApi(object):
     )
 
 
-  def update_and_refresh_flume(self, cluster_name, config):
-    service = 'FLUME-1'
-    roles = [role['name'] for role in self._get_roles(cluster_name, service, 'AGENT')]
+  def get_flume_agents(self, cluster_name=None):
+    return [host['hostname'] for host in self._get_hosts('FLUME', 'AGENT', cluster_name=cluster_name)]
 
-    self.update_flume_config(cluster_name, config)
-    self.refresh_configs(cluster_name, service, roles)
+
+  def _get_hosts(self, service_name, role_name, cluster_name=None):
+    try:
+      cluster = self._get_cluster(cluster_name)
+      services = self._root.get('clusters/%(name)s/services' % cluster)['items']
+
+      service = [service for service in services if service['type'] == service_name][0]
+      hosts = self._get_roles(cluster['name'], service['name'], role_name)
+      hosts_ids = [host['hostRef']['hostId'] for host in hosts]
+
+      hosts = self._root.get('hosts')['items']
+      return [host for host in hosts if host['hostId'] in hosts_ids]
+    except RestException as e:
+      raise ManagerApiException(e)
+
+
+  def refresh_flume(self, cluster_name, restart=False):
+    service = 'FLUME-1'
+    cluster = self._get_cluster(cluster_name)
+    roles = [role['name'] for role in self._get_roles(cluster['name'], service, 'AGENT')]
+
+    if restart:    
+      return self.restart_services(cluster['name'], service, roles)
+    else:
+      return self.refresh_configs(cluster['name'], service, roles)
 
 
   def refresh_configs(self, cluster_name, service=None, roles=None):
@@ -168,21 +281,37 @@ class ManagerApi(object):
       if service is None:
         return self._root.post('clusters/%(cluster_name)s/commands/refresh' % {'cluster_name': cluster_name}, contenttype="application/json")
       elif roles is None:
-        return self._root.post('clusters/%(cluster_name)s/services/%(service)s/commands/refresh' % {'cluster_name': cluster_name, 'service': service}, contenttype="application/json")
+        return self._root.post('clusters/%(cluster_name)s/services/%(service)s/roleCommands/refresh' % {'cluster_name': cluster_name, 'service': service}, contenttype="application/json")
       else:
         return self._root.post(
-            'clusters/%(cluster_name)s/services/%(service)s/commands/refresh' % {'cluster_name': cluster_name, 'service': service},
-            data=json.dump({"items": roles}),
+            'clusters/%(cluster_name)s/services/%(service)s/roleCommands/refresh' % {'cluster_name': cluster_name, 'service': service},
+            data=json.dumps({"items": roles}),
             contenttype="application/json"
         )
-    except RestException, e:
+    except RestException as e:
+      raise ManagerApiException(e)
+
+
+  def restart_services(self, cluster_name, service=None, roles=None):
+    try:
+      if service is None:
+        return self._root.post('clusters/%(cluster_name)s/commands/restart' % {'cluster_name': cluster_name}, contenttype="application/json")
+      elif roles is None:
+        return self._root.post('clusters/%(cluster_name)s/services/%(service)s/roleCommands/restart' % {'cluster_name': cluster_name, 'service': service}, contenttype="application/json")
+      else:
+        return self._root.post(
+            'clusters/%(cluster_name)s/services/%(service)s/roleCommands/restart' % {'cluster_name': cluster_name, 'service': service},
+            data=json.dumps({"items": roles}),
+            contenttype="application/json"
+        )
+    except RestException as e:
       raise ManagerApiException(e)
 
 
   def batch(self, items):
     try:
       return self._root.post('batch', data=json.dumps(items), contenttype='application/json')
-    except RestException, e:
+    except RestException as e:
       raise ManagerApiException(e)
 
 
@@ -190,7 +319,7 @@ class ManagerApi(object):
     clusters = self._root.get('clusters/')['items']
 
     if cluster_name is not None:
-      cluster = [cluster for cluster in clusters if cluster['name'] == cluster_name]
+      cluster = [cluster for cluster in clusters if cluster['name'] == cluster_name][0]
     else:
       cluster = clusters[0]
 
@@ -200,3 +329,52 @@ class ManagerApi(object):
   def _get_roles(self, cluster_name, service_name, role_type):
     roles = self._root.get('clusters/%(cluster_name)s/services/%(service_name)s/roles' % {'cluster_name': cluster_name, 'service_name': service_name})['items']
     return [role for role in roles if role['type'] == role_type]
+
+
+  def get_impalad_config(self, key=None, impalad_host=None, cluster_name=None):
+    if not key or not impalad_host:
+      return None
+
+    service_name = "IMPALA"
+    role_type = 'IMPALAD'
+
+    try:
+      cluster = self._get_cluster(cluster_name)
+      services = self._root.get('clusters/%(cluster_name)s/services' % {
+        'cluster_name': cluster['name'],
+        'service_name': service_name
+      })['items']
+
+      service_display_names = [service['displayName'] for service in services if service['type'] == service_name]
+
+      hosts = self._root.get('hosts')['items']
+      impalad_hostIds = [host['hostId'] for host in hosts if host['hostname'] == impalad_host]
+
+      if impalad_hostIds and service_display_names:
+        impalad_hostId = impalad_hostIds[0]
+        impala_service_display_name = service_display_names[0]
+
+        servers = self._root.get('clusters/%(cluster_name)s/services/%(spark_service_display_name)s/roles' % {
+          'cluster_name': cluster['name'],
+          'spark_service_display_name': impala_service_display_name
+        })['items']
+
+        impalad_server_names = [server['name'] for server in servers if server['type'] == role_type and server['hostRef']['hostId'] == impalad_hostId]
+        impalad_server_name = impalad_server_names[0] if impalad_server_names else None
+
+        if impalad_server_name:
+          server_configs = self._root.get('clusters/%(cluster_name)s/services/%(spark_service_display_name)s/roles/%(shs_server_name)s/config' % {
+            'cluster_name': cluster['name'],
+            'spark_service_display_name': impala_service_display_name,
+            'shs_server_name': impalad_server_name
+          }, params={'view': 'full'})['items']
+
+          for config in server_configs:
+            if 'relatedName' in config and 'value' in config:
+              if config['relatedName'] == key:
+                return config['value']
+
+    except Exception as e:
+      LOG.warn("Get Impala Daemon API configurations via ManangerAPI: %s" % e)
+
+    return None

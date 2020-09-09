@@ -18,13 +18,16 @@
 """
 Common library to export either CSV or XLS.
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next, object
 import gc
 import logging
 import numbers
 import openpyxl
 import re
 import six
-import StringIO
+import sys
 import tablib
 
 from django.http import StreamingHttpResponse, HttpResponse
@@ -32,18 +35,39 @@ from django.utils.encoding import smart_str
 from django.utils.http import urlquote
 from desktop.lib import i18n
 
+if sys.version_info[0] > 2:
+  from io import BytesIO as string_io
+else:
+  from StringIO import StringIO as string_io
+
 
 LOG = logging.getLogger(__name__)
 
+DOWNLOAD_CHUNK_SIZE = 1 * 1024 * 1024 # 1MB
 ILLEGAL_CHARS = r'[\000-\010]|[\013-\014]|[\016-\037]'
+FORMAT_TO_CONTENT_TYPE = {
+    'csv': 'application/csv',
+    'xls': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'json': 'application/json'
+}
 
 
 def nullify(cell):
   return cell if cell is not None else "NULL"
 
+def file_reader(fh):
+  """Generator that reads a file, chunk-by-chunk."""
+  while True:
+    chunk = fh.read(DOWNLOAD_CHUNK_SIZE)
+    if chunk == '':
+      fh.close()
+      break
+    yield chunk
 
 def encode_row(row, encoding=None, make_excel_links=False):
   encoded_row = []
+  encoding = encoding or i18n.get_site_encoding()
+
   for cell in row:
     if isinstance(cell, six.string_types):
       cell = re.sub(ILLEGAL_CHARS, '?', cell)
@@ -51,7 +75,7 @@ def encode_row(row, encoding=None, make_excel_links=False):
         cell = re.compile('(https?://.+)', re.IGNORECASE).sub(r'=HYPERLINK("\1")', cell)
     cell = nullify(cell)
     if not isinstance(cell, numbers.Number):
-      cell = smart_str(cell, encoding or i18n.get_site_encoding(), strings_only=True, errors='replace')
+      cell = smart_str(cell, encoding, strings_only=True, errors='replace')
     encoded_row.append(cell)
   return encoded_row
 
@@ -73,13 +97,13 @@ def dataset(headers, data, encoding=None):
   return dataset
 
 
-class XlsWrapper():
+class XlsWrapper(object):
   def __init__(self, xls):
     self.xls = xls
 
 
 def xls_dataset(workbook):
-  output = StringIO.StringIO()
+  output = string_io()
   workbook.save(output)
   output.seek(0)
   return XlsWrapper(output.read())
@@ -113,15 +137,15 @@ def create_generator(content_generator, format, encoding=None):
     raise Exception("Unknown format: %s" % format)
 
 
-def make_response(generator, format, name, encoding=None, user_agent=None):
+def make_response(generator, format, name, encoding=None, user_agent=None): #TODO: Add support for 3rd party (e.g. nginx file serving)
   """
   @param data An iterator of rows, where every row is a list of strings
   @param format Either "csv" or "xls"
   @param name Base name for output file
   @param encoding Unicode encoding for data
   """
+  content_type = FORMAT_TO_CONTENT_TYPE.get(format, 'application/octet-stream')
   if format == 'csv':
-    content_type = 'application/csv'
     resp = StreamingHttpResponse(generator, content_type=content_type)
     try:
       del resp['Content-Length']
@@ -129,18 +153,16 @@ def make_response(generator, format, name, encoding=None, user_agent=None):
       pass
   elif format == 'xls':
     format = 'xlsx'
-    content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     resp = HttpResponse(next(generator), content_type=content_type)
-
-  elif format == 'json':
-    content_type = 'application/json'
+  elif format == 'json' or format == 'txt':
     resp = HttpResponse(generator, content_type=content_type)
   else:
     raise Exception("Unknown format: %s" % format)
 
   try:
     name = name.encode('ascii')
-    resp['Content-Disposition'] = 'attachment; filename="%s.%s"' % (name, format)
+    format = format.encode('ascii')
+    resp['Content-Disposition'] = b'attachment; filename="%s.%s"' % (name, format)
   except UnicodeEncodeError:
     name = urlquote(name)
     if user_agent is not None and 'Firefox' in user_agent:

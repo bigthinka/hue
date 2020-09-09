@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import next
+from builtins import object
 import logging
+import sys
 
 from desktop.lib.i18n import force_unicode
 
@@ -32,19 +35,19 @@ def query_error_handler(func):
   def decorator(*args, **kwargs):
     try:
       return func(*args, **kwargs)
-    except Exception, e:
+    except Exception as e:
       message = force_unicode(e)
       if 'Invalid query handle' in message or 'Invalid OperationHandle' in message:
         raise QueryExpired(e)
       else:
-        raise QueryError(message)
+        raise QueryError, message, sys.exc_info()[2]
   return decorator
 
 
 class RdbmsApi(Api):
 
   def _execute(self, notebook, snippet):
-    query_server = dbms.get_query_server_config(server=self.interpreter)
+    query_server = self._get_query_server()
     db = dbms.get(self.user, query_server)
 
     db.use(snippet['database'])  # TODO: only do the use on the first statement in a multi query
@@ -106,23 +109,13 @@ class RdbmsApi(Api):
 
 
   @query_error_handler
-  def download(self, notebook, snippet, format, user_agent=None):
-
-    file_name = _get_snippet_name(notebook)
-    results = self._execute(notebook, snippet)
-    db = FixedResult(results)
-
-    return data_export.download(None, format, db, id=snippet['id'], file_name=file_name, user_agent=user_agent)
-
-
-  @query_error_handler
-  def close_statement(self, snippet):
+  def close_statement(self, notebook, snippet):
     return {'status': -1}
 
 
   @query_error_handler
-  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None):
-    query_server = dbms.get_query_server_config(server=self.interpreter)
+  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None, operation=None):
+    query_server = self._get_query_server()
     db = dbms.get(self.user, query_server)
 
     assist = Assist(db)
@@ -149,12 +142,12 @@ class RdbmsApi(Api):
 
 
   @query_error_handler
-  def get_sample_data(self, snippet, database=None, table=None, column=None, async=False, operation=None):
-    query_server = dbms.get_query_server_config(server=self.interpreter)
+  def get_sample_data(self, snippet, database=None, table=None, column=None, is_async=False, operation=None):
+    query_server = self._get_query_server()
     db = dbms.get(self.user, query_server)
 
     assist = Assist(db)
-    response = {'status': -1}
+    response = {'status': -1, 'result': {}}
 
     sample_data = assist.get_sample_data(database, table, column)
 
@@ -174,7 +167,7 @@ class RdbmsApi(Api):
 
   @query_error_handler
   def explain(self, notebook, snippet):
-    query_server = dbms.get_query_server_config(server=self.interpreter)
+    query_server = self._get_query_server()
     db = dbms.get(self.user, query_server)
 
     db.use(snippet['database'])
@@ -201,8 +194,14 @@ class RdbmsApi(Api):
       'statement': snippet['statement'],
     }
 
+  def _get_query_server(self):
+    if self.query_server:
+      return self.query_server
+    else:
+      return dbms.get_query_server_config(server=self.interpreter)
 
-class Assist():
+
+class Assist(object):
 
   def __init__(self, db):
     self.db = db
@@ -221,7 +220,7 @@ class Assist():
     return self.db.get_sample_data(database, table, column)
 
 
-class FixedResult():
+class FixedResult(object):
 
   def __init__(self, result):
     self.result = result

@@ -17,12 +17,12 @@
 
 import logging
 
-from dashboard.dashboard_api import DashboardApi
-from dashboard.models import augment_solr_response
 from libsolr.api import SolrApi
 from indexer.solr_client import SolrClient
-
 from search.conf import SOLR_URL
+
+from dashboard.dashboard_api import DashboardApi
+from dashboard.models import augment_solr_response
 
 
 LOG = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class SearchApi(DashboardApi):
     response = self.api.query(collection, query)
     return augment_solr_response(response, collection, query)
 
-  def datasets(self, show_all=False): # True if non Solr Cloud
+  def datasets(self, show_all=False, database=None): # True if non Solr Cloud
     client = SolrClient(user=self.user)
     show_all = show_all or not client.is_solr_cloud_mode()
     return [index['name'] for index in client.get_indexes(include_cores=show_all)]

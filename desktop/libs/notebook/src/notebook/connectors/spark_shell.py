@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import range, object
 import logging
 import re
 import time
@@ -36,8 +37,8 @@ LOG = logging.getLogger(__name__)
 
 try:
   from spark.conf import LIVY_SERVER_SESSION_KIND
-  from spark.job_server_api import get_api as get_spark_api
-except ImportError, e:
+  from spark.livy_client import get_api as get_spark_api
+except ImportError as e:
   LOG.exception('Spark is not enabled')
 
 
@@ -104,6 +105,15 @@ class SparkConfiguration(object):
       "defaultValue": 1,
       "value": 1,
     }, {
+      "name": "numExecutors",
+      "nice_name": _("numExecutors"),
+      "help_text": _("Number of executors to launch for this session (Default: 2)"),
+      "type": "number",
+      "is_yarn": True,
+      "multiple": False,
+      "defaultValue": 2,
+      "value": 2,
+    }, {
       "name": "executorMemory",
       "nice_name": _("Executor Memory"),
       "help_text": _("Amount of memory to use per executor process in GB. (Default: 1)"),
@@ -150,22 +160,10 @@ class SparkApi(Api):
   STANDALONE_JOB_RE = re.compile("Got job (\d+)")
 
   @staticmethod
-  def get_properties():
-    return SparkConfiguration.PROPERTIES
-
-  def create_session(self, lang='scala', properties=None):
-    if not properties:
-      config = None
-      if USE_DEFAULT_CONFIGURATION.get():
-        config = DefaultConfiguration.objects.get_configuration_for_user(app='spark', user=self.user)
-
-      if config is not None:
-        properties = config.properties_list
-      else:
-        properties = self.get_properties()
-
-    props = dict([(p['name'], p['value']) for p in properties]) if properties is not None else {}
-
+  def get_livy_props(lang, properties=None):
+    props = dict([(p['name'], p['value']) for p in SparkConfiguration.PROPERTIES])
+    if properties is not None:
+      props.update(dict([(p['name'], p['value']) for p in properties]))
 
     # HUE-4761: Hue's session request is causing Livy to fail with "JsonMappingException: Can not deserialize
     # instance of scala.collection.immutable.List out of VALUE_STRING token" due to List type values
@@ -176,42 +174,46 @@ class SparkApi(Api):
     # empty list '[]' for these four values.
     # Note also that Livy has a 90 second timeout for the session request to complete, this needs to
     # be increased for requests that take longer, for example when loading large archives.
-    tmparchives = props['archives']
-    if type(tmparchives) is not list:
-      props['archives'] = tmparchives.split(",")
-      LOG.debug("Check List type: archives was not a list")
-
-    tmpjars = props['jars']
-    if type(tmpjars) is not list:
-      props['jars'] = tmpjars.split(",")
-      LOG.debug("Check List type: jars was not a list")
-
-    tmpfiles = props['files']
-    if type(tmpfiles) is not list:
-      props['files'] = tmpfiles.split(",")
-      LOG.debug("Check List type: files was not a list")
-
-    tmppyFiles = props['pyFiles']
-    if type(tmppyFiles) is not list:
-      props['pyFiles'] = tmppyFiles.split(",")
-      LOG.debug("Check List type: pyFiles was not a list")
-
+    for key in ['archives','jars','files','pyFiles']:
+      if key not in props:
+        continue
+      if type(props[key]) is list:
+        continue
+      LOG.debug("Check List type: {} was not a list".format(key))
+      _tmp = props[key]
+      props[key] = _tmp.split(",")
+    
     # Convert the conf list to a dict for Livy
-    listitems = props['conf']
-    LOG.debug("Property Spark Conf kvp list from UI is: " + str(listitems))
-    confDict = {}
-    for i in range(len(listitems)):
-      kvp = listitems[i]
-      LOG.debug("Property Spark Conf key " + str(i) + " = " + str(kvp.get('key')))
-      LOG.debug("Property Spark Conf value " + str(i) + " = " + str(kvp.get('value')))
-      confDict[kvp.get('key')] = kvp.get('value')
-    props['conf'] = confDict
-    LOG.debug("Property Spark Conf dictionary is: " + str(confDict))
-
+    LOG.debug("Property Spark Conf kvp list from UI is: " + str(props['conf']))
+    props['conf'] = {conf.get('key'): conf.get('value') for i, conf in enumerate(props['conf'])}
+    LOG.debug("Property Spark Conf dictionary is: " + str(props['conf']))
+    
     props['kind'] = lang
+      
+    return props
+
+  @staticmethod
+  def to_properties(props=None):
+    properties = list()
+    for p in SparkConfiguration.PROPERTIES:
+      properties.append(p.copy())
+
+    if props is not None:
+      for p in properties:
+        if p['name'] in props:
+          p['value'] = props[p['name']]
+
+    return properties
+
+  def create_session(self, lang='scala', properties=None):
+    if not properties and USE_DEFAULT_CONFIGURATION.get():
+      user_config = DefaultConfiguration.objects.get_configuration_for_user(app='spark', user=self.user)
+      if user_config is not None:
+        properties = user_config.properties_list
+
+    props = self.get_livy_props(lang, properties)
 
     api = get_spark_api(self.user)
-
     response = api.create_session(**props)
 
     status = api.get_session(response['id'])
@@ -229,7 +231,7 @@ class SparkApi(Api):
     return {
         'type': lang,
         'id': response['id'],
-        'properties': properties
+        'properties': self.to_properties(props)
     }
 
   def execute(self, notebook, snippet):
@@ -241,8 +243,9 @@ class SparkApi(Api):
       return {
           'id': response['id'],
           'has_result_set': True,
+          'sync': False
       }
-    except Exception, e:
+    except Exception as e:
       message = force_unicode(str(e)).lower()
       if re.search("session ('\d+' )?not found", message) or 'connection refused' in message or 'session is in state busy' in message:
         raise SessionExpired(e)
@@ -259,7 +262,7 @@ class SparkApi(Api):
       return {
           'status': response['state'],
       }
-    except Exception, e:
+    except Exception as e:
       message = force_unicode(str(e)).lower()
       if re.search("session ('\d+' )?not found", message):
         raise SessionExpired(e)
@@ -273,7 +276,7 @@ class SparkApi(Api):
 
     try:
       response = api.fetch_data(session['id'], cell)
-    except Exception, e:
+    except Exception as e:
       message = force_unicode(str(e)).lower()
       if re.search("session ('\d+' )?not found", message):
         raise SessionExpired(e)
@@ -293,9 +296,15 @@ class SparkApi(Api):
           images = [data['image/png']]
         except KeyError:
           images = []
-        data = [[data['text/plain']]]
-        meta = [{'name': 'Header', 'type': 'STRING_TYPE', 'comment': ''}]
-        type = 'text'
+        if 'application/json' in data:
+          result = data['application/json']
+          data = result['data']
+          meta = [{'name': field['name'], 'type': field['type'], 'comment': ''} for field in result['schema']['fields']]
+          type = 'table'
+        else:
+          data = [[data['text/plain']]]
+          meta = [{'name': 'Header', 'type': 'STRING_TYPE', 'comment': ''}]
+          type = 'text'
       else:
         data = table['data']
         headers = table['headers']
@@ -326,16 +335,6 @@ class SparkApi(Api):
 
       raise QueryError(msg)
 
-  def download(self, notebook, snippet, format, user_agent=None):
-    try:
-      api = get_spark_api(self.user)
-      session = _get_snippet_session(notebook, snippet)
-      cell = snippet['result']['handle']['id']
-
-      return spark_download(api, session['id'], cell, format, user_agent=None)
-    except Exception, e:
-      raise PopupException(e)
-
   def cancel(self, notebook, snippet):
     api = get_spark_api(self.user)
     session = _get_snippet_session(notebook, snippet)
@@ -349,10 +348,7 @@ class SparkApi(Api):
 
     return api.get_log(session['id'], startFrom=startFrom, size=size)
 
-  def progress(self, snippet, logs):
-    return 50
-
-  def close_statement(self, snippet): # Individual statements cannot be closed
+  def close_statement(self, notebook, snippet): # Individual statements cannot be closed
     pass
 
   def close_session(self, session):
@@ -365,7 +361,7 @@ class SparkApi(Api):
           'session': session['id'],
           'status': 0
         }
-      except RestException, e:
+      except RestException as e:
         if e.code == 404 or e.code == 500: # TODO remove the 500
           raise SessionExpired(e)
     else:
@@ -378,6 +374,29 @@ class SparkApi(Api):
       return self._get_yarn_jobs(start_logs)
     else:
       return self._get_standalone_jobs(logs)
+
+  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None, operation=None):
+    response = {}
+
+    # As booting a new SQL session is slow and we don't send the id of the current one in /autocomplete
+    # we could implement this by introducing an API cache per user similarly to SqlAlchemy.
+
+    return response
+
+  def get_sample_data(self, snippet, database=None, table=None, column=None, is_async=False, operation=None):
+    if operation != 'hello':
+      raise NotImplementedError()
+
+    response = {}
+
+    api = get_spark_api(self.user)
+
+    api.get_status()
+
+    response['status'] = 0
+    response['rows'] = []
+
+    return response
 
   def _get_standalone_jobs(self, logs):
     job_ids = set([])

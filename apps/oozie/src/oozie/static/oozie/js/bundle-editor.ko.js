@@ -20,7 +20,7 @@ var Bundle = function (vm, bundle) {
   var self = this;
 
   self.id = ko.observable(typeof bundle.id != "undefined" && bundle.id != null ? bundle.id : null);
-  self.uuid = ko.observable(typeof bundle.uuid != "undefined" && bundle.uuid != null ? bundle.uuid : UUID());
+  self.uuid = ko.observable(typeof bundle.uuid != "undefined" && bundle.uuid != null ? bundle.uuid : hueUtils.UUID());
   self.name = ko.observable(typeof bundle.name != "undefined" && bundle.name != null ? bundle.name : "");
 
   self.coordinators = ko.mapping.fromJS(typeof bundle.coordinators != "undefined" && bundle.coordinators != null ? bundle.coordinators : []);
@@ -55,6 +55,17 @@ var Bundle = function (vm, bundle) {
 
 var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_json) {
   var self = this;
+
+  self.sharingEnabled = ko.observable(false);
+
+  var updateFromConfig = function (hueConfig) {
+    self.sharingEnabled(
+      hueConfig && (hueConfig.hue_config.is_admin || hueConfig.hue_config.enable_sharing)
+    );
+  };
+
+  updateFromConfig(window.getLastKnownConfig());
+  huePubSub.subscribe('cluster.config.set.config', updateFromConfig);
 
   self.canEdit = ko.mapping.fromJS(can_edit_json);
   self.isEditing = ko.observable(bundle_json.id == null);
@@ -111,12 +122,7 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
           self.bundle.id(data.id);
           self.bundle.tracker().markCurrentStateAsClean();
           $(document).trigger("info", data.message);
-          if (window.location.search.indexOf("bundle") == -1 && !IS_HUE_4) {
-            window.location.hash = '#bundle=' + data.id;
-          }
-          else if (IS_HUE_4) {
-            hueUtils.changeURL('/hue/oozie/editor/bundle/edit/?bundle=' + data.id);
-          }
+          hueUtils.changeURL('/hue/oozie/editor/bundle/edit/?bundle=' + data.id);
         }
         else {
           $(document).trigger("error", data.message);
@@ -135,7 +141,7 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
     if (!self.bundle.isDirty()) {
       hueAnalytics.log('oozie/editor/bundle', 'submit');
       $.get("/oozie/editor/bundle/submit/" + self.bundle.id(), {
-        format: IS_HUE_4 ? 'json' : 'html'
+        format: 'json'
       }, function (data) {
         $(document).trigger("showSubmitPopup", data);
       }).fail(function (xhr, textStatus, errorThrown) {

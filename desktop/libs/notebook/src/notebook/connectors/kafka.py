@@ -35,7 +35,7 @@ def query_error_handler(func):
   def decorator(*args, **kwargs):
     try:
       return func(*args, **kwargs)
-    except Exception, e:
+    except Exception as e:
       message = force_unicode(str(e))
       raise QueryError(message)
   return decorator
@@ -44,7 +44,7 @@ def query_error_handler(func):
 class KafkaApi(Api):
 
   @query_error_handler
-  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None):
+  def autocomplete(self, snippet, database=None, table=None, column=None, nested=None, operation=None):
     response = {}
 
     try:
@@ -96,7 +96,7 @@ class KafkaApi(Api):
           u'is_view': False
         }
 
-    except Exception, e:
+    except Exception as e:
       LOG.warn('Autocomplete data fetching error: %s' % e)
       response['code'] = 500
       response['error'] = e.message

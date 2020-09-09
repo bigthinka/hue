@@ -16,11 +16,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from future import standard_library
+from functools import reduce
+standard_library.install_aliases()
+from builtins import str
+from past.builtins import basestring
+from builtins import object
 import json
 import logging
 import re
+import sys
 import os
-import StringIO
 import shutil
 import tempfile
 import zipfile
@@ -29,13 +35,13 @@ from datetime import datetime
 from itertools import chain
 
 from nose.plugins.skip import SkipTest
+from nose.plugins.attrib import attr
 from nose.tools import raises, assert_true, assert_false, assert_equal, assert_not_equal
-from django.contrib.auth.models import User
 from django.urls import reverse
 
 from desktop.lib.django_test_util import make_logged_in_client
 from desktop.lib.test_utils import grant_access, add_permission, add_to_group, reformat_json, reformat_xml
-from desktop.models import Document, Document2
+from desktop.models import Document, Document2, User
 import desktop.views as views
 
 from hadoop import cluster as originalCluster
@@ -44,16 +50,22 @@ from jobsub.models import OozieDesign, OozieMapreduceAction
 from liboozie import oozie_api
 from liboozie.conf import OOZIE_URL
 from liboozie.oozie_api_tests import OozieServerProvider
+from liboozie.submission2 import Submission
 from liboozie.types import WorkflowList, Workflow as OozieWorkflow, Coordinator as OozieCoordinator,\
   Bundle as OozieBundle, CoordinatorList, WorkflowAction, BundleList
 
 from oozie.conf import ENABLE_CRON_SCHEDULING, ENABLE_V2
 from oozie.models import Dataset, Workflow, Node, Kill, Link, Job, Coordinator, History,\
   find_parameters, NODE_TYPES, Bundle
-from oozie.models2 import _get_hiveserver2_url
+from oozie.models2 import _get_hiveserver2_url, Bundle as Bundle2
 from oozie.utils import workflow_to_dict, model_to_dict, smart_path, contains_symlink, convert_to_server_timezone
 from oozie.importlib.workflows import import_workflow
 from oozie.importlib.jobdesigner import convert_jobsub_design
+
+if sys.version_info[0] > 2:
+  from io import BytesIO as string_io
+else:
+  from cStringIO import StringIO as string_io
 
 
 LOG = logging.getLogger(__name__)
@@ -62,7 +74,7 @@ LOG = logging.getLogger(__name__)
 _INITIALIZED = False
 
 
-class MockOozieApi:
+class MockOozieApi(object):
   JSON_WORKFLOW_LIST = [{u'status': u'RUNNING', u'run': 0, u'startTime': u'Mon, 30 Jul 2012 22:35:48 GMT', u'appName': u'WordCount1', u'lastModTime': u'Mon, 30 Jul 2012 22:37:00 GMT', u'actions': [], u'acl': None, u'appPath': None, u'externalId': 'job_201208072118_0044', u'consoleUrl': u'http://runreal:11000/oozie?job=0000012-120725142744176-oozie-oozi-W', u'conf': None, u'parentId': None, u'createdTime': u'Mon, 30 Jul 2012 22:35:48 GMT', u'toString': u'Workflow id[0000012-120725142744176-oozie-oozi-W] status[SUCCEEDED]', u'endTime': u'Mon, 30 Jul 2012 22:37:00 GMT', u'id': u'0000012-120725142744176-oozie-oozi-W', u'group': None, u'user': u'test'},
                         {u'status': u'KILLED', u'run': 0, u'startTime': u'Mon, 30 Jul 2012 22:31:08 GMT', u'appName': u'WordCount2', u'lastModTime': u'Mon, 30 Jul 2012 22:32:20 GMT', u'actions': [], u'acl': None, u'appPath': None, u'externalId': '-', u'consoleUrl': u'http://runreal:11000/oozie?job=0000011-120725142744176-oozie-oozi-W', u'conf': None, u'parentId': None, u'createdTime': u'Mon, 30 Jul 2012 22:31:08 GMT', u'toString': u'Workflow id[0000011-120725142744176-oozie-oozi-W] status[SUCCEEDED]', u'endTime': u'Mon, 30 Jul 2012 22:32:20 GMT', u'id': u'0000011-120725142744176-oozie-oozi-W', u'group': None, u'user': u'test'},
                         {u'status': u'SUCCEEDED', u'run': 0, u'startTime': u'Mon, 30 Jul 2012 22:20:48 GMT', u'appName': u'WordCount3', u'lastModTime': u'Mon, 30 Jul 2012 22:22:00 GMT', u'actions': [], u'acl': None, u'appPath': None, u'externalId': '', u'consoleUrl': u'http://runreal:11000/oozie?job=0000009-120725142744176-oozie-oozi-W', u'conf': None, u'parentId': None, u'createdTime': u'Mon, 30 Jul 2012 22:20:48 GMT', u'toString': u'Workflow id[0000009-120725142744176-oozie-oozi-W] status[SUCCEEDED]', u'endTime': u'Mon, 30 Jul 2012 22:22:00 GMT', u'id': u'0000009-120725142744176-oozie-oozi-W', u'group': None, u'user': u'test'},
@@ -129,7 +141,7 @@ class MockOozieApi:
     workflows = MockOozieApi.JSON_WORKFLOW_LIST
     user_filters = [val for key, val in kwargs['filters'] if key == 'user']
     if user_filters:
-      workflows = filter(lambda wf: wf['user'] == user_filters[0], workflows)
+      workflows = [wf for wf in workflows if wf['user'] == user_filters[0]]
 
     return WorkflowList(self, {'offset': 0, 'total': 5, 'workflows': workflows})
 
@@ -137,7 +149,7 @@ class MockOozieApi:
     coordinatorjobs = MockOozieApi.JSON_COORDINATOR_LIST
     user_filters = [val for key, val in kwargs['filters'] if key == 'user']
     if user_filters:
-      coordinatorjobs = filter(lambda coord: coord['user'] == user_filters[0], coordinatorjobs)
+      coordinatorjobs = [coord for coord in coordinatorjobs if coord['user'] == user_filters[0]]
 
     return CoordinatorList(self, {'offset': 0, 'total': 5, 'coordinatorjobs': coordinatorjobs})
 
@@ -145,7 +157,7 @@ class MockOozieApi:
     bundlejobs = MockOozieApi.JSON_BUNDLE_LIST
     user_filters = [val for key, val in kwargs['filters'] if key == 'user']
     if user_filters:
-      bundlejobs = filter(lambda coord: coord['user'] == user_filters[0], bundlejobs)
+      bundlejobs = [coord for coord in bundlejobs if coord['user'] == user_filters[0]]
 
     return BundleList(self, {'offset': 0, 'total': 4, 'bundlejobs': bundlejobs})
 
@@ -229,14 +241,15 @@ class MockOozieApi:
            hive2=org.apache.oozie.action.hadoop.Hive2Credentials
     """
     return {
-        'oozie.credentials.credentialclasses': oozie_credentialclasses
+        'oozie.credentials.credentialclasses': oozie_credentialclasses,
+        'oozie.processing.timezone': 'GMT-0800'
     }
 
   def get_job_status(self, job_id):
     return {'status': "RUNNING"}
 
 
-class MockFs():
+class MockFs(object):
   def __init__(self, logical_name=None):
 
     self.fs_defaultfs = 'hdfs://curacao:8020'
@@ -270,6 +283,9 @@ class MockFs():
         self.isDir = True
     return MockWebHdfsStat()
 
+  def filebrowser_action(self):
+    return None
+
 
 class OozieMockBase(object):
 
@@ -287,6 +303,8 @@ class OozieMockBase(object):
     grant_access("test", "test", "oozie")
     add_to_group("test")
     self.user = User.objects.get(username='test')
+    self.user.email = 'test@localhost'
+    self.user.save()
 
     self.wf = create_workflow(self.c, self.user)
     self.original_fs = originalCluster.FS_CACHE["default"]
@@ -386,6 +404,7 @@ class OozieMockBase(object):
 
 class OozieBase(OozieServerProvider):
   requires_hadoop = True
+  integration = True
 
   def setUp(self):
     OozieServerProvider.setup_class()
@@ -464,6 +483,7 @@ class TestAPI(OozieMockBase):
 
     self.wf = Workflow.objects.get(name='wf-name-1', managed=True)
 
+  @attr('integration')
   def test_workflow_save(self):
     if is_live_cluster():
       raise SkipTest('HUE-2897: Skipping because DB may not support unicode')
@@ -806,7 +826,7 @@ class TestAPI(OozieMockBase):
   def test_autocomplete(self):
     response = self.c.get(reverse('oozie:autocomplete_properties'))
     test_response_json = response.content
-    assert_true('mapred.input.dir' in test_response_json)
+    assert_true(b'mapred.input.dir' in test_response_json)
 
 
 class TestApiPermissionsWithOozie(OozieBase):
@@ -940,15 +960,17 @@ class TestEditor(OozieMockBase):
         {'key': 'enabled', 'value': False},
         {'key': 'nominal-time', 'value': '${time}'},]}
     )
-    assert_equal([{'name': u'output', 'value': u''}, {'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}],
-                 self.wf.find_all_parameters())
+    all_parameters = sorted(self.wf.find_all_parameters(), key=lambda k: k['name'])
+    assert_equal([{'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}, {'name': u'output', 'value': u''}],
+                 all_parameters)
 
     self.wf.data = json.dumps({'sla': [
         {'key': 'enabled', 'value': True},
         {'key': 'nominal-time', 'value': '${time}'},]}
     )
-    assert_equal([{'name': u'output', 'value': u''}, {'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}, {'name': u'time', 'value': u''}],
-                 self.wf.find_all_parameters())
+    all_parameters = sorted(self.wf.find_all_parameters(), key=lambda k: k['name'])
+    assert_equal([{'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}, {'name': u'output', 'value': u''}, {'name': u'time', 'value': u''}],
+                 all_parameters)
 
 
   def test_workflow_has_cycle(self):
@@ -1377,7 +1399,7 @@ class TestEditor(OozieMockBase):
           return tmpdir
 
       xml = hive_site_xml(is_local=False, use_sasl=True, kerberos_principal='hive/_HOST@test.com')
-      file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
+      open(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
 
       beeswax.hive_site.reset()
       saved = beeswax.conf.HIVE_CONF_DIR
@@ -1623,8 +1645,8 @@ class TestEditor(OozieMockBase):
     coord = create_coordinator(self.wf, client_another_me, self.user)
 
     response = client_another_me.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-    assert_true('Editor' in response.content, response.content)
-    assert_true('Save coordinator' in response.content, response.content)
+    assert_true(b'Editor' in response.content, response.content)
+    assert_true(b'Save coordinator' in response.content, response.content)
 
     # Check can schedule a non personal/shared workflow
     workflow_select = '%s</option>' % self.wf
@@ -1666,7 +1688,7 @@ class TestEditor(OozieMockBase):
 
     try:
       assert_true(
-  """<controls>
+  b"""<controls>
     <timeout>100</timeout>
     <concurrency>3</concurrency>
     <execution>FIFO</execution>
@@ -1696,7 +1718,7 @@ class TestEditor(OozieMockBase):
       finish()
 
     assert_true(
-"""<controls>
+b"""<controls>
     <timeout>100</timeout>
     <concurrency>3</concurrency>
     <execution>FIFO</execution>
@@ -1728,9 +1750,9 @@ class TestEditor(OozieMockBase):
     coord = create_coordinator(self.wf, self.c, self.user)
     xml = coord.to_xml()
 
-    assert_false('<sla' in xml, xml)
-    assert_false('xmlns="uri:oozie:coordinator:0.4"' in xml, xml)
-    assert_false('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
+    assert_false(b'<sla' in xml, xml)
+    assert_false(b'xmlns="uri:oozie:coordinator:0.4"' in xml, xml)
+    assert_false(b'xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
 
     sla = coord.sla
     sla[0]['value'] = True
@@ -1740,9 +1762,9 @@ class TestEditor(OozieMockBase):
     coord.save()
 
     xml = coord.to_xml()
-    assert_true('xmlns="uri:oozie:coordinator:0.4"' in xml, xml)
-    assert_true('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
-    assert_true("""</workflow>
+    assert_true(b'xmlns="uri:oozie:coordinator:0.4"' in xml, xml)
+    assert_true(b'xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
+    assert_true(b"""</workflow>
           <sla:info>
             <sla:nominal-time>now</sla:nominal-time>
             <sla:should-end>${ 10 * MINUTES}</sla:should-end>
@@ -1773,7 +1795,7 @@ class TestEditor(OozieMockBase):
 
 
     assert_true(
-"""<uri-template>s3n://a-server/data/out/${YEAR}${MONTH}${DAY}</uri-template>
+b"""<uri-template>s3n://a-server/data/out/${YEAR}${MONTH}${DAY}</uri-template>
       <done-flag></done-flag>
     </dataset>
   </datasets>
@@ -1876,8 +1898,9 @@ class TestEditor(OozieMockBase):
 
 
   def test_get_workflow_parameters(self):
-    assert_equal([{'name': u'output', 'value': ''}, {'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}],
-                 self.wf.find_all_parameters())
+    all_parameters = sorted(self.wf.find_all_parameters(), key=lambda k: k['name'])
+    assert_equal([{'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}, {'name': u'output', 'value': ''}],
+                 all_parameters)
 
 
   def test_get_coordinator_parameters(self):
@@ -1892,8 +1915,8 @@ class TestEditor(OozieMockBase):
 
   def test_workflow_data_binds(self):
     response = self.c.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-    assert_equal(1, response.content.count('checked: is_shared'), response.content)
-    assert_true('checked: capture_output' in response.content, response.content)
+    assert_equal(1, response.content.count(b'checked: is_shared'), response.content)
+    assert_true(b'checked: capture_output' in response.content, response.content)
 
 
   def test_xss_escape_js(self):
@@ -1915,18 +1938,19 @@ class TestEditor(OozieMockBase):
     self.wf = create_workflow(self.c, self.user, workflow_dict=data)
 
     resp = self.c.get('/oozie/list_workflows/')
-    assert_false('"><script>alert(1);</script>' in resp.content, resp.content)
-    assert_true('&quot;&gt;&lt;script&gt;alert(1);&lt;/script&gt;' in resp.content, resp.content)
+    assert_false(b'"><script>alert(1);</script>' in resp.content, resp.content)
+    assert_true(b'&quot;&gt;&lt;script&gt;alert(1);&lt;/script&gt;' in resp.content, resp.content)
 
 
   def test_submit_workflow(self):
     # Check param popup
     response = self.c.get(reverse('oozie:submit_workflow', args=[self.wf.id]))
-    assert_equal([{'name': u'output', 'value': ''},
-                  {'name': u'SLEEP', 'value': ''},
-                  {'name': u'market', 'value': u'US'}
+    sorted_parameters = sorted(response.context[0]['params_form'].initial, key=lambda k: k['name'])
+    assert_equal([{'name': u'SLEEP', 'value': ''},
+                  {'name': u'market', 'value': u'US'},
+                  {'name': u'output', 'value': ''}
                   ],
-                  response.context[0]['params_form'].initial)
+                  sorted_parameters)
 
   def test_submit_coordinator(self):
     coord = create_coordinator(self.wf, self.c, self.user)
@@ -1949,7 +1973,7 @@ class TestEditor(OozieMockBase):
 
   def test_workflow_export(self):
     response = self.c.get(reverse('oozie:export_workflow', args=[self.wf.id]))
-    zfile = zipfile.ZipFile(StringIO.StringIO(response.content))
+    zfile = zipfile.ZipFile(string_io(response.content))
     assert_true('workflow.xml' in zfile.namelist(), 'workflow.xml not in response')
     assert_true('workflow-metadata.json' in zfile.namelist(), 'workflow-metadata.json not in response')
     assert_equal(2, len(zfile.namelist()))
@@ -2102,7 +2126,6 @@ class TestEditorBundle(OozieMockBase):
 
 
   def test_bundle_gen_xml(self):
-    raise SkipTest()
     bundle = create_bundle(self.c, self.user)
 
     assert_true(
@@ -2116,10 +2139,31 @@ class TestEditorBundle(OozieMockBase):
     </property>
   </parameters>
   <controls>
-     <kick-off-time>2012-07-01T00:00Z</kick-off-time>
+     <kick-off-time>%s</kick-off-time>
   </controls>
 </bundle-app>
-""" in bundle.to_xml(), bundle.to_xml())
+""" % bundle.kick_off_time_utc in bundle.to_xml(), bundle.to_xml())
+
+  def test_model2_bundle_gen_xml(self):
+    bundle = Bundle2()
+    converted_kickoff_time = convert_to_server_timezone(bundle.kick_off_time_utc)
+    Submission(self.user, bundle)
+
+    assert_true(
+"""<bundle-app name="My Bundle"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="uri:oozie:bundle:0.2">
+  <parameters>
+    <property>
+        <name>oozie.use.system.libpath</name>
+        <value>true</value>
+    </property>
+  </parameters>
+  <controls>
+     <kick-off-time>%s</kick-off-time>
+  </controls>
+</bundle-app>
+""" % converted_kickoff_time in bundle.to_xml(), bundle.to_xml() + '\nconverted_kickoff_time: ' + converted_kickoff_time)
 
 
   def test_create_bundled_coordinator(self):
@@ -2137,14 +2181,14 @@ class TestEditorBundle(OozieMockBase):
     }
 
     response = self.c.get(reverse('oozie:create_bundled_coordinator', args=[bundle.id]))
-    assert_true('Add coordinator' in response.content, response.content)
+    assert_true(b'Add coordinator' in response.content, response.content)
 
     response = self.c.post(reverse('oozie:create_bundled_coordinator', args=[bundle.id]), post, follow=True)
-    assert_true('This field is required' in response.content, response.content)
+    assert_true(b'This field is required' in response.content, response.content)
 
     post['create-bundled-coordinator-coordinator'] = ['%s' % coord.id]
     response = self.c.post(reverse('oozie:create_bundled_coordinator', args=[bundle.id]), post, follow=True)
-    assert_true('Coordinators' in response.content, response.content)
+    assert_true(b'Coordinators' in response.content, response.content)
 
     xml = bundle.to_xml({
        'wf_%s_dir' % self.wf.id: '/deployment_path_wf',
@@ -2609,8 +2653,8 @@ class TestPermissions(OozieBase):
     raise SkipTest
 
     response = self.c.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-    assert_true('Editor' in response.content, response.content)
-    assert_true('Save' in response.content, response.content)
+    assert_true(b'Editor' in response.content, response.content)
+    assert_true(b'Save' in response.content, response.content)
     assert_false(self.wf.is_shared)
 
     # Login as someone else
@@ -2621,13 +2665,13 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:list_workflows'))
-      assert_false('wf-name-1' in response.content, response.content)
+      assert_false(b'wf-name-1' in response.content, response.content)
     finally:
       finish()
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:list_workflows'))
-      assert_false('wf-name-1' in response.content, response.content)
+      assert_false(b'wf-name-1' in response.content, response.content)
     finally:
       finish()
 
@@ -2635,14 +2679,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2657,7 +2701,7 @@ class TestPermissions(OozieBase):
     try:
       response = client_not_me.get(reverse('oozie:list_workflows'))
       assert_equal(200, response.status_code)
-      assert_true('wf-name-1' in response.content, response.content)
+      assert_true(b'wf-name-1' in response.content, response.content)
     finally:
       finish()
 
@@ -2665,14 +2709,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-      assert_false('Permission denied' in response.content, response.content)
+      assert_false(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_workflow', args=[self.wf.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2680,7 +2724,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:submit_workflow', args=[self.wf.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2688,7 +2732,7 @@ class TestPermissions(OozieBase):
     try:
       try:
         response = client_not_me.post(reverse('oozie:submit_workflow', args=[self.wf.id]))
-        assert_false('Permission denied' in response.content, response.content)
+        assert_false(b'Permission denied' in response.content, response.content)
       except IOError:
         pass
     finally:
@@ -2698,7 +2742,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:delete_workflow'), {'job_selection': [self.wf.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2720,7 +2764,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:restore_workflow'), {'job_selection': [self.wf.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2734,8 +2778,8 @@ class TestPermissions(OozieBase):
     coord = create_coordinator(self.wf, self.c, self.user)
 
     response = self.c.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-    assert_true('Editor' in response.content, response.content)
-    assert_true('Save coordinator' in response.content, response.content)
+    assert_true(b'Editor' in response.content, response.content)
+    assert_true(b'Save coordinator' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test')
@@ -2745,14 +2789,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:list_coordinators'))
-      assert_false('MyCoord' in response.content, response.content)
+      assert_false(b'MyCoord' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:list_coordinators'))
-      assert_false('MyCoord' in response.content, response.content)
+      assert_false(b'MyCoord' in response.content, response.content)
     finally:
       finish()
 
@@ -2760,14 +2804,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-      assert_false('MyCoord' in response.content, response.content)
+      assert_false(b'MyCoord' in response.content, response.content)
     finally:
       finish()
 
@@ -2796,7 +2840,7 @@ class TestPermissions(OozieBase):
     try:
       response = client_not_me.get(reverse('oozie:list_coordinators'))
       assert_equal(200, response.status_code)
-      assert_true('MyCoord' in response.content, response.content)
+      assert_true(b'MyCoord' in response.content, response.content)
     finally:
       finish()
 
@@ -2804,15 +2848,15 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-      assert_false('Permission denied' in response.content, response.content)
-      assert_false('Save coordinator' in response.content, response.content)
+      assert_false(b'Permission denied' in response.content, response.content)
+      assert_false(b'Save coordinator' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_coordinator', args=[coord.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2820,8 +2864,8 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.post(reverse('oozie:edit_coordinator', args=[coord.id]))
-      assert_false('MyCoord' in response.content, response.content)
-      assert_true('Not allowed' in response.content, response.content)
+      assert_false(b'MyCoord' in response.content, response.content)
+      assert_true(b'Not allowed' in response.content, response.content)
     finally:
       finish()
 
@@ -2829,7 +2873,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:submit_coordinator', args=[coord.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2837,7 +2881,7 @@ class TestPermissions(OozieBase):
     try:
       try:
         response = client_not_me.post(reverse('oozie:submit_coordinator', args=[coord.id]))
-        assert_false('Permission denied' in response.content, response.content)
+        assert_false(b'Permission denied' in response.content, response.content)
       except IOError:
         pass
     finally:
@@ -2847,7 +2891,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:delete_coordinator'), {'job_selection': [coord.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2870,7 +2914,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:restore_coordinator'), {'job_selection': [coord.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2883,9 +2927,9 @@ class TestPermissions(OozieBase):
     bundle = create_bundle(self.c, self.user)
 
     response = self.c.get(reverse('oozie:edit_bundle', args=[bundle.id]))
-    assert_true('Editor' in response.content, response.content)
-    assert_true('MyBundle' in response.content, response.content)
-    assert_true('Save' in response.content, response.content)
+    assert_true(b'Editor' in response.content, response.content)
+    assert_true(b'MyBundle' in response.content, response.content)
+    assert_true(b'Save' in response.content, response.content)
     assert_false(bundle.is_shared)
 
     # Login as someone else
@@ -2896,13 +2940,13 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:list_bundles'))
-      assert_false('MyBundle' in response.content, response.content)
+      assert_false(b'MyBundle' in response.content, response.content)
     finally:
       finish()
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:list_bundles'))
-      assert_false('MyBundle' in response.content, response.content)
+      assert_false(b'MyBundle' in response.content, response.content)
     finally:
       finish()
 
@@ -2910,14 +2954,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_bundle', args=[bundle.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_bundle', args=[bundle.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2930,7 +2974,7 @@ class TestPermissions(OozieBase):
     try:
       response = client_not_me.get(reverse('oozie:list_bundles'))
       assert_equal(200, response.status_code)
-      assert_true('MyBundle' in response.content, response.content)
+      assert_true(b'MyBundle' in response.content, response.content)
     finally:
       finish()
 
@@ -2938,14 +2982,14 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(True)
     try:
       response = client_not_me.get(reverse('oozie:edit_bundle', args=[bundle.id]))
-      assert_false('Permission denied' in response.content, response.content)
+      assert_false(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.get(reverse('oozie:edit_bundle', args=[bundle.id]))
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2955,7 +2999,7 @@ class TestPermissions(OozieBase):
       response = client_not_me.post(reverse('oozie:submit_bundle', args=[bundle.id]),{
                      u'form-MAX_NUM_FORMS': [u''], u'form-INITIAL_FORMS': [u'0'], u'form-TOTAL_FORMS': [u'0']
                  })
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2965,7 +3009,7 @@ class TestPermissions(OozieBase):
         response = client_not_me.post(reverse('oozie:submit_bundle', args=[bundle.id]), {
                        u'form-MAX_NUM_FORMS': [u''], u'form-INITIAL_FORMS': [u'0'], u'form-TOTAL_FORMS': [u'0']
                    })
-        assert_false('Permission denied' in response.content, response.content)
+        assert_false(b'Permission denied' in response.content, response.content)
       except IOError:
         pass
     finally:
@@ -2975,7 +3019,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:delete_bundle'), {'job_selection': [bundle.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -2998,7 +3042,7 @@ class TestPermissions(OozieBase):
     finish = SHARE_JOBS.set_for_testing(False)
     try:
       response = client_not_me.post(reverse('oozie:restore_bundle'), {'job_selection': [bundle.id]})
-      assert_true('Permission denied' in response.content, response.content)
+      assert_true(b'Permission denied' in response.content, response.content)
     finally:
       finish()
 
@@ -3177,15 +3221,15 @@ class TestOozieSubmissions(OozieBase):
       raise SkipTest('HUE-2898: Skipping test until it can be debugged')
 
     response = self.c.get(reverse('oozie:list_oozie_info'))
-    assert_true('version' in response.content, response.content)
-    assert_true('NORMAL' in response.content, response.content)
+    assert_true(b'version' in response.content, response.content)
+    assert_true(b'NORMAL' in response.content, response.content)
 
-    assert_true('variables' in response.content, response.content)
-    assert_true('timers' in response.content, response.content)
-    assert_true('counters' in response.content, response.content)
+    assert_true(b'variables' in response.content, response.content)
+    assert_true(b'timers' in response.content, response.content)
+    assert_true(b'counters' in response.content, response.content)
 
-    assert_true('ownMinTime' in response.content, response.content)
-    assert_true('oozie.base.url' in response.content, response.content)
+    assert_true(b'ownMinTime' in response.content, response.content)
+    assert_true(b'oozie.base.url' in response.content, response.content)
 
   def test_imported_workflow_submission(self):
     # Workflow owned by "temp_user"
@@ -3266,7 +3310,7 @@ my_prop_not_filtered=10
         u'form-2-value': [u'/path/output'],
     }, follow=True)
 
-    assert_true('oozie_workflow' in response.context[0]._data.keys(), response.content)
+    assert_true(b'oozie_workflow' in list(response.context[0]._data.keys()), response.content)
     wf_id = response.context[0]._data['oozie_workflow'].id
 
     # Check if response contains log data
@@ -3287,7 +3331,7 @@ my_prop_not_filtered=10
     finish = OOZIE_URL.set_for_testing('http://not_localhost:11000/bad')
     try:
       response = self.c.get(reverse('oozie:list_oozie_workflows'))
-      assert_true('The Oozie server is not running' in response.content, response.content)
+      assert_true(b'The Oozie server is not running' in response.content, response.content)
     finally:
       finish()
 
@@ -3314,27 +3358,39 @@ class TestDashboard(OozieMockBase):
   def test_manage_workflow_dashboard(self):
     # Display of buttons happens in js now
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]), {}, follow=True)
-    assert_true(('%s/kill' % MockOozieApi.WORKFLOW_IDS[0]) in response.content, response.content)
-    assert_true(('rerun_oozie_job/%s' % MockOozieApi.WORKFLOW_IDS[0]) in response.content, response.content)
-    assert_true(('%s/suspend' % MockOozieApi.WORKFLOW_IDS[0]) in response.content, response.content)
-    assert_true(('%s/resume' % MockOozieApi.WORKFLOW_IDS[0]) in response.content, response.content)
+    wf_id = MockOozieApi.WORKFLOW_IDS[0]
+    if not isinstance(wf_id, bytes):
+      wf_id = wf_id.encode('utf-8')
+    assert_true((b'%s/kill' % wf_id) in response.content, response.content)
+    assert_true((b'rerun_oozie_job/%s' % wf_id) in response.content, response.content)
+    assert_true((b'%s/suspend' % wf_id) in response.content, response.content)
+    assert_true((b'%s/resume' % wf_id) in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[1]]), {}, follow=True)
-    assert_true(('%s/kill' % MockOozieApi.WORKFLOW_IDS[1]) in response.content, response.content)
-    assert_true(('rerun_oozie_job/%s' % MockOozieApi.WORKFLOW_IDS[1]) in response.content, response.content)
+    wf_id = MockOozieApi.WORKFLOW_IDS[1]
+    if not isinstance(wf_id, bytes):
+      wf_id = wf_id.encode('utf-8')
+    assert_true((b'%s/kill' % wf_id) in response.content, response.content)
+    assert_true((b'rerun_oozie_job/%s' % wf_id) in response.content, response.content)
 
 
   def test_manage_coordinator_dashboard(self):
     # Display of buttons happens in js now
     response = self.c.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[0]]), {}, follow=True)
-    assert_true(('%s/kill' % MockOozieApi.COORDINATOR_IDS[0]) in response.content, response.content)
-    assert_true(('rerun_oozie_coord/%s' % MockOozieApi.COORDINATOR_IDS[0]) in response.content, response.content)
-    assert_true(('%s/suspend' % MockOozieApi.COORDINATOR_IDS[0]) in response.content, response.content)
-    assert_true(('%s/resume' % MockOozieApi.COORDINATOR_IDS[0]) in response.content, response.content)
+    coor_id = MockOozieApi.COORDINATOR_IDS[0]
+    if not isinstance(coor_id, bytes):
+      coor_id = coor_id.encode('utf-8')
+    assert_true((b'%s/kill' % coor_id) in response.content, response.content)
+    assert_true((b'rerun_oozie_coord/%s' % coor_id) in response.content, response.content)
+    assert_true((b'%s/suspend' % coor_id) in response.content, response.content)
+    assert_true((b'%s/resume' % coor_id) in response.content, response.content)
 
     # Test log filtering
     url = reverse('oozie:get_oozie_job_log', args=[MockOozieApi.COORDINATOR_IDS[0]])
-    assert_true(url in response.content, response.content)
+    url_bytes = url
+    if not isinstance(url_bytes, bytes):
+      url_bytes = url_bytes.encode('utf-8')
+    assert_true(url_bytes in response.content, response.content)
     response = self.c.get(url + "?format=json&limit=100&loglevel=INFO&text=MapReduce")
     data = json.loads(response.content)
     assert_true(len(data['log'].split('\n')) <= 100)
@@ -3345,15 +3401,18 @@ class TestDashboard(OozieMockBase):
   def test_manage_bundles_dashboard(self):
     # Display of buttons happens in js now
     response = self.c.get(reverse('oozie:list_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0]]), {}, follow=True)
-    assert_true(('%s/kill' % MockOozieApi.BUNDLE_IDS[0]) in response.content, response.content)
-    assert_true(('rerun_oozie_bundle/%s' % MockOozieApi.BUNDLE_IDS[0]) in response.content, response.content)
-    assert_true(('%s/suspend' % MockOozieApi.BUNDLE_IDS[0]) in response.content, response.content)
-    assert_true(('%s/resume' % MockOozieApi.BUNDLE_IDS[0]) in response.content, response.content)
+    bndl_id = MockOozieApi.BUNDLE_IDS[0]
+    if not isinstance(bndl_id, bytes):
+      bndl_id = bndl_id.encode('utf-8')
+    assert_true((b'%s/kill' % bndl_id) in response.content, response.content)
+    assert_true((b'rerun_oozie_bundle/%s' % bndl_id) in response.content, response.content)
+    assert_true((b'%s/suspend' % bndl_id) in response.content, response.content)
+    assert_true((b'%s/resume' % bndl_id) in response.content, response.content)
 
 
   def test_rerun_coordinator(self):
     response = self.c.get(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.WORKFLOW_IDS[0], '/path']))
-    assert_true('Rerun' in response.content, response.content)
+    assert_true(b'Rerun' in response.content, response.content)
 
   def test_sync_coord_workflow(self):
     wf_doc = save_temp_workflow(MockOozieApi.JSON_WORKFLOW_LIST[5], self.user)
@@ -3376,19 +3435,19 @@ class TestDashboard(OozieMockBase):
     }
 
     response = self.c.post(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.COORDINATOR_IDS[0], '/path']), post_data)
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test')
     grant_access("not_me", "test", "oozie")
 
     response = client_not_me.post(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.COORDINATOR_IDS[0], '/path']), post_data)
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
 
   def test_rerun_bundle(self):
     response = self.c.get(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.WORKFLOW_IDS[0], '/path']))
-    assert_true('Rerun' in response.content, response.content)
+    assert_true(b'Rerun' in response.content, response.content)
 
 
   def test_rerun_bundle_permissions(self):
@@ -3413,118 +3472,132 @@ class TestDashboard(OozieMockBase):
     }
 
     response = self.c.post(reverse('oozie:rerun_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0], '/path']), post_data)
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test')
     grant_access("not_me", "test", "oozie")
 
     response = client_not_me.post(reverse('oozie:rerun_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0], '/path']), post_data)
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
 
   def test_list_workflows(self):
     response = self.c.get(reverse('oozie:list_oozie_workflows'))
-    assert_true('Running' in response.content, response.content)
-    assert_true('Completed' in response.content, response.content)
+    assert_true(b'Running' in response.content, response.content)
+    assert_true(b'Completed' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json")
     assert_true(len(json.loads(response.content)['jobs']) == 0)
 
     response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json&status=RUNNING&status=PREP&status=SUSPENDED")
     for wf_id in MockOozieApi.WORKFLOW_IDS:
+      if not isinstance(wf_id, bytes):
+        wf_id = wf_id.encode('utf-8')
       assert_true(wf_id in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json&status=KILLED&status=FAILED")
     for wf_id in MockOozieApi.WORKFLOW_IDS:
+      if not isinstance(wf_id, bytes):
+        wf_id = wf_id.encode('utf-8')
       assert_true(wf_id in response.content, response.content)
 
 
   def test_list_coordinators(self):
     response = self.c.get(reverse('oozie:list_oozie_coordinators'))
-    assert_true('Running' in response.content, response.content)
-    assert_true('Completed' in response.content, response.content)
+    assert_true(b'Running' in response.content, response.content)
+    assert_true(b'Completed' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json")
     assert_true(len(json.loads(response.content)['jobs']) == 0)
 
     response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json&status=RUNNING&status=PREP&status=SUSPENDED")
     for coord_id in MockOozieApi.COORDINATOR_IDS:
+      if not isinstance(coord_id, bytes):
+        coord_id = coord_id.encode('utf-8')
       assert_true(coord_id in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json&status=KILLED&status=FAILED&status=DONEWITHERROR")
     for coord_id in MockOozieApi.COORDINATOR_IDS:
+      if not isinstance(coord_id, bytes):
+        coord_id = coord_id.encode('utf-8')
       assert_true(coord_id in response.content, response.content)
 
 
   def test_list_bundles(self):
     response = self.c.get(reverse('oozie:list_oozie_bundles'))
-    assert_true('Running' in response.content, response.content)
-    assert_true('Completed' in response.content, response.content)
+    assert_true(b'Running' in response.content, response.content)
+    assert_true(b'Completed' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&status=RUNNING")
     for coord_id in MockOozieApi.BUNDLE_IDS:
+      if not isinstance(coord_id, bytes):
+        coord_id = coord_id.encode('utf-8')
       assert_true(coord_id in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&status=SUCCEEDED")
     for coord_id in MockOozieApi.BUNDLE_IDS:
+      if not isinstance(coord_id, bytes):
+        coord_id = coord_id.encode('utf-8')
       assert_true(coord_id in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&status=KILLED")
     for coord_id in MockOozieApi.BUNDLE_IDS:
+      if not isinstance(coord_id, bytes):
+        coord_id = coord_id.encode('utf-8')
       assert_true(coord_id in response.content, response.content)
 
 
   def test_list_workflow(self):
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]))
-    assert_true('Workflow WordCount1' in response.content, response.content)
-    assert_true('Workflow' in response.content, response.content)
+    assert_true(b'Workflow WordCount1' in response.content, response.content)
+    assert_true(b'Workflow' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]) + '?coordinator_job_id=%s' % MockOozieApi.COORDINATOR_IDS[0])
-    assert_true('Workflow WordCount1' in response.content, response.content)
-    assert_true('Workflow' in response.content, response.content)
-    assert_true('DailyWordCount1' in response.content, response.content)
-    assert_true('Coordinator' in response.content, response.content)
+    assert_true(b'Workflow WordCount1' in response.content, response.content)
+    assert_true(b'Workflow' in response.content, response.content)
+    assert_true(b'DailyWordCount1' in response.content, response.content)
+    assert_true(b'Coordinator' in response.content, response.content)
 
     # Test for unicode character '�' rendering
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[6]]))
-    assert_false('UnicodeEncodeError' in response.content, response.content)
-    assert_true('TestUnicodeParam' in response.content, response.content)
+    assert_false(b'UnicodeEncodeError' in response.content, response.content)
+    assert_true(b'TestUnicodeParam' in response.content, response.content)
 
 
   def test_list_workflow_action(self):
     response = self.c.get(reverse('oozie:list_oozie_workflow_action', args=['XXX']))
-    assert_true('Action WordCount' in response.content, response.content)
-    assert_true('job_201302280955_0018' in response.content, response.content)
-    assert_true('job_201302280955_0019' in response.content, response.content)
-    assert_true('job_201302280955_0020' in response.content, response.content)
+    assert_true(b'Action WordCount' in response.content, response.content)
+    assert_true(b'job_201302280955_0018' in response.content, response.content)
+    assert_true(b'job_201302280955_0019' in response.content, response.content)
+    assert_true(b'job_201302280955_0020' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflow_action', args=['XXX']) + '?coordinator_job_id=%s&bundle_job_id=%s' % (MockOozieApi.COORDINATOR_IDS[0], MockOozieApi.BUNDLE_IDS[0]))
-    assert_true('Bundle' in response.content, response.content)
-    assert_true('MyBundle1' in response.content, response.content)
-    assert_true('Coordinator' in response.content, response.content)
-    assert_true('DailyWordCount1' in response.content, response.content)
-    assert_true('Workflow' in response.content, response.content)
-    assert_true('WordCount1' in response.content, response.content)
+    assert_true(b'Bundle' in response.content, response.content)
+    assert_true(b'MyBundle1' in response.content, response.content)
+    assert_true(b'Coordinator' in response.content, response.content)
+    assert_true(b'DailyWordCount1' in response.content, response.content)
+    assert_true(b'Workflow' in response.content, response.content)
+    assert_true(b'WordCount1' in response.content, response.content)
 
 
   def test_list_coordinator(self):
     response = self.c.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[4]]))
     assert_true(u'Coordinator DåilyWordCount5' in response.content.decode('utf-8', 'replace'), response.content.decode('utf-8', 'replace'))
-    assert_true('Workflow' in response.content, response.content)
+    assert_true(b'Workflow' in response.content, response.content)
 
     # Test action list
     response = self.c.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[5]]) + "?format=json&offset=1")
-    assert_true('00000013-120706144403213-oozie-oozi-C@1' in response.content, response.content)
-    assert_true('00000013-120706144403213-oozie-oozi-C@2' in response.content, response.content)
-    assert_true('00000013-120706144403213-oozie-oozi-C@3' in response.content, response.content)
-    assert_true('00000013-120706144403213-oozie-oozi-C@4' in response.content, response.content)
+    assert_true(b'00000013-120706144403213-oozie-oozi-C@1' in response.content, response.content)
+    assert_true(b'00000013-120706144403213-oozie-oozi-C@2' in response.content, response.content)
+    assert_true(b'00000013-120706144403213-oozie-oozi-C@3' in response.content, response.content)
+    assert_true(b'00000013-120706144403213-oozie-oozi-C@4' in response.content, response.content)
 
 
   def test_list_bundle(self):
     response = self.c.get(reverse('oozie:list_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0]]))
-    assert_true('Bundle MyBundle1' in response.content, response.content)
-    assert_true('Coordinators' in response.content, response.content)
+    assert_true(b'Bundle MyBundle1' in response.content, response.content)
+    assert_true(b'Coordinators' in response.content, response.content)
 
   def test_workflow_timezones(self):
     job = MockOozieApi.get_job(MockOozieApi(), '0000007-120725142744176-oozie-oozi-W')
@@ -3563,133 +3636,133 @@ class TestDashboard(OozieMockBase):
 
   def test_workflows_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_workflows') + '?format=json&status=SUCCEEDED')
-    assert_true('WordCount1' in response.content, response.content)
+    assert_true(b'WordCount1' in response.content, response.content)
 
     # Rerun
     response = self.c.get(reverse('oozie:rerun_oozie_job', kwargs={'job_id': MockOozieApi.WORKFLOW_IDS[0],
                                                                    'app_path': MockOozieApi.JSON_WORKFLOW_LIST[0]['appPath']}))
-    assert_false('Permission denied.' in response.content, response.content)
+    assert_false(b'Permission denied.' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_workflows') + '?format=json&status=SUCCEEDED')
-    assert_false('WordCount1' in response.content, response.content)
+    assert_false(b'WordCount1' in response.content, response.content)
 
     # Rerun
     response = client_not_me.get(reverse('oozie:rerun_oozie_job', kwargs={'job_id': MockOozieApi.WORKFLOW_IDS[0],
                                                                           'app_path': MockOozieApi.JSON_WORKFLOW_LIST[0]['appPath']}))
-    assert_true('Permission denied.' in response.content, response.content)
+    assert_true(b'Permission denied.' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_workflows')+"?format=json&status=SUCCEEDED")
-    assert_true('WordCount1' in response.content, response.content)
+    assert_true(b'WordCount1' in response.content, response.content)
 
     # Rerun
     response = client_not_me.get(reverse('oozie:rerun_oozie_job', kwargs={'job_id': MockOozieApi.WORKFLOW_IDS[0],
                                                                           'app_path': MockOozieApi.JSON_WORKFLOW_LIST[0]['appPath']}))
-    assert_true('Permission denied.' in response.content, response.content)
+    assert_true(b'Permission denied.' in response.content, response.content)
 
   def test_workflow_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]))
-    assert_true('WordCount1' in response.content, response.content)
-    assert_false('Permission denied' in response.content, response.content)
+    assert_true(b'WordCount1' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_workflow_action', args=['XXX']))
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]))
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
     response = client_not_me.get(reverse('oozie:list_oozie_workflow_action', args=['XXX']))
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]))
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
 
   def test_coordinators_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_coordinators')+"?format=json&status=SUCCEEDED")
-    assert_true('DailyWordCount1' in response.content, response.content)
+    assert_true(b'DailyWordCount1' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_coordinators')+"?format=json&status=SUCCEEDED")
-    assert_false('DailyWordCount1' in response.content, response.content)
+    assert_false(b'DailyWordCount1' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_coordinators')+"?format=json&status=SUCCEEDED")
-    assert_true('DailyWordCount1' in response.content, response.content)
+    assert_true(b'DailyWordCount1' in response.content, response.content)
 
 
   def test_coordinator_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[0]]))
-    assert_true('DailyWordCount1' in response.content, response.content)
-    assert_false('Permission denied' in response.content, response.content)
+    assert_true(b'DailyWordCount1' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[0]]))
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_coordinator', args=[MockOozieApi.COORDINATOR_IDS[0]]))
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
 
   def test_bundles_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&status=SUCCEEDED")
-    assert_true('MyBundle1' in response.content, response.content)
+    assert_true(b'MyBundle1' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_bundles')+"?format=json&status=SUCCEEDED")
-    assert_false('MyBundle1' in response.content, response.content)
+    assert_false(b'MyBundle1' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_bundles')+"?format=json&status=SUCCEEDED")
-    assert_true('MyBundle1' in response.content, response.content)
+    assert_true(b'MyBundle1' in response.content, response.content)
 
 
   def test_bundle_permissions(self):
     response = self.c.get(reverse('oozie:list_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0]]))
-    assert_true('MyBundle1' in response.content, response.content)
-    assert_false('Permission denied' in response.content, response.content)
+    assert_true(b'MyBundle1' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
     # Login as someone else
     client_not_me = make_logged_in_client(username='not_me', is_superuser=False, groupname='test', recreate=True)
     grant_access("not_me", "not_me", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0]]))
-    assert_true('Permission denied' in response.content, response.content)
+    assert_true(b'Permission denied' in response.content, response.content)
 
     # Add read only access
     add_permission("not_me", "dashboard_jobs_access", "dashboard_jobs_access", "oozie")
 
     response = client_not_me.get(reverse('oozie:list_oozie_bundle', args=[MockOozieApi.BUNDLE_IDS[0]]))
-    assert_false('Permission denied' in response.content, response.content)
+    assert_false(b'Permission denied' in response.content, response.content)
 
 
   def test_good_workflow_status_graph(self):
@@ -3719,7 +3792,7 @@ class TestDashboard(OozieMockBase):
 
   def test_list_oozie_sla(self):
     response = self.c.get(reverse('oozie:list_oozie_sla'))
-    assert_true('Oozie Dashboard' in response.content, response.content)
+    assert_true(b'Oozie Dashboard' in response.content, response.content)
 
     response = self.c.get(reverse('oozie:list_oozie_sla') + "?format=json")
     for sla in MockOozieApi.WORKFLOWS_SLAS:
@@ -3727,7 +3800,7 @@ class TestDashboard(OozieMockBase):
 
     response = self.c.post(reverse('oozie:list_oozie_sla') + "?format=json", {'job_name': 'kochang'})
     for sla in MockOozieApi.WORKFLOWS_SLAS:
-      assert_true('MISS' in response.content, response.content)
+      assert_true(b'MISS' in response.content, response.content)
 
 
 class GeneralTestsWithOozie(OozieBase):

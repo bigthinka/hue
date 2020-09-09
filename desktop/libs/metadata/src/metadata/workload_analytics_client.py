@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import object
 import logging
 
 from django.utils.translation import ugettext as _
@@ -25,13 +26,13 @@ from notebook.connectors.altus import _exec
 LOG = logging.getLogger(__name__)
 
 
-class WorkfloadAnalyticsClient():
+class WorkfloadAnalyticsClient(object):
 
   def __init__(self, user):
     self.user = user
 
-  def get_impala_query(self, cluster_id, query_id):
-    return WorkloadAnalytics(self.user).get_impala_query(cluster_id=cluster_id, query_id=query_id)
+  def get_impala_query(self, cluster, query_id):
+    return WorkloadAnalytics(self.user).get_impala_query(cluster=cluster, query_id=query_id)
 
   def list_uploads(self):
     return WorkloadAnalytics(self.user).list_uploads()
@@ -47,12 +48,12 @@ class WorkfloadAnalyticsClient():
 
 
 
-class WorkloadAnalytics():
+class WorkloadAnalytics(object):
 
   def __init__(self, user): pass
 
-  def get_impala_query(self, cluster_id, query_id):
-    parameters = {'clusterId': cluster_id, 'queryId': query_id}
+  def get_impala_query(self, cluster, query_id):
+    parameters = {'clusterId': cluster.get('id'), 'queryId': query_id}
 
     return _exec('wa', 'getImpalaQuery', parameters=parameters)
 

@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import filter
+from builtins import range
 import itertools
 import logging
 import re
@@ -23,29 +25,40 @@ from datetime import datetime
 
 from django.utils.translation import ugettext as _
 
+from desktop.lib import export_csvxls
+from libanalyze import analyze as analyzer, rules
+from notebook.conf import ENABLE_QUERY_ANALYSIS
+
 from jobbrowser.apis.base_api import Api
 
+ANALYZER = rules.TopDownAnalysis() # We need to parse some files so save as global
 LOG = logging.getLogger(__name__)
-
 
 try:
   from beeswax.models import Session
   from impala.server import get_api as get_impalad_api, _get_impala_server_url
-except Exception, e:
+except Exception as e:
   LOG.exception('Some application are not enabled: %s' % e)
 
-def _get_api(user):
-  session = Session.objects.get_session(user, application='impala')
-  server_url = _get_impala_server_url(session)
+
+def _get_api(user, cluster=None):
+  if cluster and cluster.get('type') == 'altus-dw':
+    server_url = 'http://impala-coordinator-%(name)s:25000' % cluster
+  else:
+    # TODO: multi computes if snippet.get('compute') or snippet['type'] has computes
+    application = cluster.get('interface', 'impala')
+    session = Session.objects.get_session(user, application=application)
+    server_url = _get_impala_server_url(session)
   return get_impalad_api(user=user, url=server_url)
+
 
 class QueryApi(Api):
 
-  def __init__(self, user, impala_api=None):
+  def __init__(self, user, impala_api=None, cluster=None):
     if impala_api:
       self.api = impala_api
     else:
-      self.api = _get_api(user)
+      self.api = _get_api(user, cluster)
 
   def apps(self, filters):
     kwargs = {}
@@ -124,7 +137,8 @@ class QueryApi(Api):
         'profile': '',
         'plan': '',
         'backends': '',
-        'finstances': ''
+        'finstances': '',
+        'metrics': ''
       }
     })
 
@@ -145,7 +159,6 @@ class QueryApi(Api):
 
     return message;
 
-
   def logs(self, appid, app_type, log_name=None, is_embeddable=False):
     return {'logs': ''}
 
@@ -154,6 +167,8 @@ class QueryApi(Api):
       return self._memory(appid, app_type, app_property, app_filters)
     elif app_property == 'profile':
       return self._query_profile(appid)
+    elif app_property == 'download-profile':
+      return export_csvxls.make_response([self._query_profile(appid)['profile']], 'txt', 'query-profile_%s' % appid)
     elif app_property == 'backends':
       return self._query_backends(appid)
     elif app_property == 'finstances':
@@ -161,14 +176,84 @@ class QueryApi(Api):
     else:
       return self._query(appid)
 
+
+  def profile_encoded(self, appid):
+    return self.api.get_query_profile_encoded(query_id=appid)
+
   def _memory(self, appid, app_type, app_property, app_filters):
     return self.api.get_query_memory(query_id=appid);
+
+  def _metrics(self, appid):
+    query_profile = self.api.get_query_profile_encoded(appid)
+    profile = analyzer.analyze(analyzer.parse_data(query_profile))
+    ANALYZER.pre_process(profile)
+    metrics = analyzer.metrics(profile)
+
+    if ENABLE_QUERY_ANALYSIS.get():
+      result = ANALYZER.run(profile)
+      if result and result[0]:
+        for factor in result[0]['result']:
+          if factor['reason'] and factor['result_id'] and metrics['nodes'].get(factor['result_id']):
+            metrics['nodes'][factor['result_id']]['health'] = factor['reason']
+    return metrics
 
   def _query(self, appid):
     query = self.api.get_query(query_id=appid)
     query['summary'] = query.get('summary').strip() if query.get('summary') else ''
     query['plan'] = query.get('plan').strip() if query.get('plan') else ''
+    try:
+      query['metrics'] = self._metrics(appid)
+    except Exception as e:
+      query['metrics'] = {'nodes' : {}}
+      LOG.exception('Could not parse profile: %s' % e)
+
+    if query.get('plan_json'):
+      def get_exchange_icon (o):
+        if re.search(r'broadcast', o['label_detail'], re.IGNORECASE):
+          return { 'svg': 'hi-broadcast' }
+        elif re.search(r'hash', o['label_detail'], re.IGNORECASE):
+          return { 'svg': 'hi-random' }
+        else:
+          return { 'svg': 'hi-exchange' }
+      def get_sigma_icon (o):
+        if re.search(r'streaming', o['label_detail'], re.IGNORECASE):
+          return { 'svg': 'hi-sigma' }
+        else:
+          return { 'svg': 'hi-sigma' }
+      mapping = {
+        'TOP-N': { 'type': 'TOPN', 'icon': { 'svg': 'hi-filter' } },
+        'SORT': { 'type': 'SORT', 'icon': { 'svg': 'hi-sort' } },
+        'MERGING-EXCHANGE': {'type': 'EXCHANGE', 'icon': { 'fn': get_exchange_icon } },
+        'EXCHANGE': { 'type': 'EXCHANGE', 'icon': { 'fn': get_exchange_icon } },
+        'SCAN HDFS': { 'type': 'SCAN_HDFS', 'icon': { 'svg': 'hi-copy' } },
+        'SCAN KUDU': { 'type': 'SCAN_KUDU', 'icon': { 'svg': 'hi-table' } },
+        'SCAN HBASE': { 'type': 'SCAN_HBASE', 'icon': { 'font': 'fa-th-large' } },
+        'HASH JOIN': { 'type': 'HASH_JOIN', 'icon': { 'svg': 'hi-join' } },
+        'AGGREGATE': { 'type': 'AGGREGATE', 'icon': { 'fn': get_sigma_icon } },
+        'NESTED LOOP JOIN': { 'type': 'LOOP_JOIN', 'icon': { 'svg': 'hi-nested-loop' } },
+        'SUBPLAN': { 'type': 'SUBPLAN', 'icon': { 'svg': 'hi-map' } },
+        'UNNEST': { 'type': 'UNNEST', 'icon': { 'svg': 'hi-unnest' } },
+        'SINGULAR ROW SRC': { 'type': 'SINGULAR', 'icon': { 'svg': 'hi-vertical-align' } },
+        'ANALYTIC': { 'type': 'SINGULAR', 'icon': { 'svg': 'hi-timeline' } },
+        'UNION': { 'type': 'UNION', 'icon': { 'svg': 'hi-merge' } }
+      }
+      def process(node, mapping=mapping):
+        node['id'], node['name'] = node['label'].split(':')
+        details = mapping.get(node['name'])
+        if details:
+          icon = details['icon']
+          if icon and icon.get('fn'):
+            icon = icon['fn'](node)
+          node['icon'] = icon
+
+      for node in query['plan_json']['plan_nodes']:
+        self._for_each_node(node, process)
     return query
+
+  def _for_each_node(self, node, fn):
+    fn(node)
+    for child in node['children']:
+      self._for_each_node(child, fn)
 
   def _query_profile(self, appid):
     return self.api.get_query_profile(query_id=appid)
@@ -211,7 +296,7 @@ class QueryApi(Api):
       def make_lambda(name, value):
         return lambda app: app[name] == value
 
-      for key, name in filter_names.items():
+      for key, name in list(filter_names.items()):
           text_filter = re.search(r"\s*("+key+")\s*:([^ ]+)", filters.get("text"))
           if text_filter and text_filter.group(1) == key:
             filter_list.append(make_lambda(name, text_filter.group(2).strip()))
@@ -227,5 +312,5 @@ class QueryApi(Api):
 
   def _n_filter(self, filters, tuples):
     for f in filters:
-      tuples = filter(f, tuples)
+      tuples = list(filter(f, tuples))
     return tuples

@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from builtins import object
 import logging
 
 from collections import defaultdict
@@ -79,14 +80,13 @@ class PrivilegeChecker(object):
   """
 
   def __init__(self, user, api_v1=None, api_v2=None):
-    self.user = user
-    self.api_v1 = api_v1 if api_v1 else get_api_v1(self.user)
-    self.api_v2 = api_v2 if api_v2 else get_api_v2(self.user, component='solr')
+    api_v1 = api_v1 if api_v1 else get_api_v1(user)
+    api_v2 = api_v2 if api_v2 else get_api_v2(user, component='solr')
 
-    privileges_v1 = self._get_privileges_for_user(self.api_v1)
+    privileges_v1 = self._get_privileges_for_user(api_v1)
     self.privilege_hierarchy_v1 = self._to_privilege_hierarchy_v1(privileges_v1)
 
-    privileges_v2 = self._get_privileges_for_user(self.api_v2, serviceName=get_hive_sentry_provider())
+    privileges_v2 = self._get_privileges_for_user(api_v2, serviceName=get_hive_sentry_provider())
     self.privilege_hierarchy_v2 = self._to_privilege_hierarchy_v2(privileges_v2)
 
 
@@ -115,7 +115,7 @@ class PrivilegeChecker(object):
         try:
           if self._is_object_action_authorized_v1(hierarchy=self.privilege_hierarchy_v1, object=authorizable, action=action):
             yield object
-        except KeyError, e:
+        except KeyError as e:
           LOG.warn('Skipping %s: %s' % (authorizable, e))
 
     if v2_authorizables:
@@ -123,7 +123,7 @@ class PrivilegeChecker(object):
         try:
           if self._is_object_action_authorized_v2(hierarchy=self.privilege_hierarchy_v2, object=authorizable, action=action):
             yield object
-        except KeyError, e:
+        except KeyError as e:
           LOG.warn('Skipping %s: %s' % (authorizable, e))
 
 
@@ -165,7 +165,6 @@ class PrivilegeChecker(object):
     key named SENTRY_PRIVILEGE_KEY.
     NOTE: This assumes no objects share the same name as SENTRY_PRIVILEGE_KEY
     """
-    tree = lambda: defaultdict(tree)
     hierarchy = tree()
 
     for privilege in privileges:
@@ -191,7 +190,6 @@ class PrivilegeChecker(object):
     key named SENTRY_PRIVILEGE_KEY.
     NOTE: This assumes no objects share the same name as SENTRY_PRIVILEGE_KEY
     """
-    tree = lambda: defaultdict(tree)
     hierarchy = tree()
 
     for privilege in privileges:
@@ -251,3 +249,7 @@ class PrivilegeChecker(object):
     # A privilege hierarchy exists and at least one of the granted privileges is greater than or equal to requested action
     is_authorized = privileges_applied and max(privileges_applied.values()) >= requested_action_level
     return is_authorized
+
+
+def tree():
+  return defaultdict(tree)

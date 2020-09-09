@@ -15,44 +15,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from past.builtins import basestring
+from builtins import object
 import json
 import logging
 import threading
 
 from desktop.lib.rest.http_client import HttpClient
 from desktop.lib.rest.resource import Resource
-
 from beeswax.server.dbms import QueryServerException
 from beeswax.server.hive_server2_lib import HiveServerClient
 
 from ImpalaService import ImpalaHiveServer2Service
-from impala.impala_flags import get_webserver_certificate_file
-from impala.conf import DAEMON_API_USERNAME, DAEMON_API_PASSWORD
+from impala.impala_flags import get_webserver_certificate_file, is_webserver_spnego_enabled, is_kerberos_enabled
+from impala.conf import DAEMON_API_USERNAME, DAEMON_API_PASSWORD, DAEMON_API_AUTH_SCHEME, COORDINATOR_URL
 
 
 LOG = logging.getLogger(__name__)
 
-API_CACHE = None
-API_CACHE_LOCK = threading.Lock()
-
 
 def get_api(user, url):
-  global  API_CACHE
-  if API_CACHE is None:
-    API_CACHE_LOCK.acquire()
-    try:
-      if API_CACHE is None:
-        API_CACHE = ImpalaDaemonApi(url)
-    finally:
-      API_CACHE_LOCK.release()
-  API_CACHE.set_user(user)
-  return API_CACHE
+  api = ImpalaDaemonApi(url)
+  api.set_user(user)
+  return api
 
 
 def _get_impala_server_url(session):
-  impala_settings = session.get_formatted_properties()
-  http_addr = next((setting['value'] for setting in impala_settings if setting['key'].lower() == 'http_addr'), None)
-  # Remove scheme if found
+  properties = session.get_properties()
+  http_addr = ""
+  if COORDINATOR_URL.get():
+    http_addr = COORDINATOR_URL.get()
+  else:
+    http_addr = properties.get('coordinator_host', properties.get('http_addr'))
   http_addr = http_addr.replace('http://', '').replace('https://', '')
   return ('https://' if get_webserver_certificate_file() else 'http://') + http_addr
 
@@ -77,7 +71,7 @@ class ImpalaServerClient(HiveServerClient):
     # GetExecSummary() only works for closed queries
     try:
       self.close_operation(operation_handle)
-    except QueryServerException, e:
+    except QueryServerException as e:
       LOG.warn('Failed to close operation for query handle, query may be invalid or already closed.')
 
     resp = self.call(self._client.GetExecSummary, req)
@@ -95,7 +89,7 @@ class ImpalaServerClient(HiveServerClient):
     # TGetRuntimeProfileReq() only works for closed queries
     try:
       self.close_operation(operation_handle)
-    except QueryServerException, e:
+    except QueryServerException as e:
       LOG.warn('Failed to close operation for query handle, query may be invalid or already closed.')
 
     resp = self.call(self._client.GetRuntimeProfile, req)
@@ -133,7 +127,7 @@ class ImpalaServerClient(HiveServerClient):
           summary_dict['nodes'].append(node_dict)
 
       return summary_dict
-    except Exception, e:
+    except Exception as e:
       raise ImpalaServerClientException('Failed to serialize the TExecSummary object: %s' % str(e))
 
 
@@ -142,14 +136,22 @@ class ImpalaDaemonApi(object):
   def __init__(self, server_url):
     self._url = server_url
     self._client = HttpClient(self._url, logger=LOG)
-    # You can set username/password for Impala Web UI which overrides kerberos
-    if DAEMON_API_USERNAME.get() is not None and DAEMON_API_PASSWORD.get() is not None:
-      self._client.set_digest_auth(DAEMON_API_USERNAME.get(), DAEMON_API_PASSWORD.get())
-
     self._root = Resource(self._client)
-    self._security_enabled = False
+    self._security_enabled = is_kerberos_enabled()
+    self._webserver_spnego_enabled = is_webserver_spnego_enabled()
     self._thread_local = threading.local()
 
+    # You can set username/password for Impala Web UI which overrides kerberos
+    if DAEMON_API_USERNAME.get() is not None and DAEMON_API_PASSWORD.get() is not None:
+      if DAEMON_API_AUTH_SCHEME.get().lower() == 'basic':
+        self._client.set_basic_auth(DAEMON_API_USERNAME.get(), DAEMON_API_PASSWORD.get())
+        LOG.info("Using username and password for basic authentication")
+      else:
+        self._client.set_digest_auth(DAEMON_API_USERNAME.get(), DAEMON_API_PASSWORD.get())
+        LOG.info('Using username and password for digest authentication')
+    elif self._webserver_spnego_enabled or self._security_enabled:
+      self._client.set_kerberos_auth()
+      LOG.info('Using kerberos principal for authentication')
 
   def __str__(self):
     return "ImpalaDaemonApi at %s" % self._url
@@ -188,7 +190,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi did not return valid JSON: %s' % e)
 
 
@@ -204,7 +206,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi did not return valid JSON: %s' % e)
 
 
@@ -220,7 +222,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi query_profile did not return valid JSON: %s' % e)
 
   def get_query_memory(self, query_id):
@@ -235,7 +237,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi query_memory did not return valid JSON: %s' % e)
 
   def kill(self, query_id):
@@ -249,7 +251,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi kill did not return valid JSON: %s' % e)
 
   def get_query_backends(self, query_id):
@@ -264,7 +266,7 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi query_backends did not return valid JSON: %s' % e)
 
   def get_query_finstances(self, query_id):
@@ -279,5 +281,27 @@ class ImpalaDaemonApi(object):
         return json.loads(resp)
       else:
         return resp
-    except ValueError, e:
+    except ValueError as e:
       raise ImpalaDaemonApiException('ImpalaDaemonApi query_finstances did not return valid JSON: %s' % e)
+
+  def get_query_summary(self, query_id):
+    params = {
+      'query_id': query_id,
+      'json': 'true'
+    }
+
+    resp = self._root.get('query_summary', params=params)
+    try:
+      if isinstance(resp, basestring):
+        return json.loads(resp)
+      else:
+        return resp
+    except ValueError as e:
+      raise ImpalaDaemonApiException('ImpalaDaemonApi query_summary did not return valid JSON: %s' % e)
+
+  def get_query_profile_encoded(self, query_id):
+    params = {
+      'query_id': query_id
+    }
+
+    return self._root.get('query_profile_encoded', params=params)
