@@ -1319,6 +1319,10 @@
   # Port of the Impala Server
   ## server_port=21050
 
+  # Endpoint of the Impala Proxy Server, for example: '/endpoint'
+  # Note that SERVER_PORT will be used when set.
+  ## proxy_endpoint=
+
   # URL of the Impala Coordinator Server.
   ## coordinator_url=localhost:25000
 
@@ -1465,6 +1469,9 @@
 
   # Redirect client to WebHdfs or S3 for file download. Note: Turning this on will override notebook/redirect_whitelist for user selected file downloads on WebHdfs & S3.
   ## redirect_download=false
+
+  # Optionally set this if you want a different home directory path. e.g. s3a://gethue.
+  ## remote_storage_home=s3a://gethue
 
 
 ###########################################################################
@@ -1631,6 +1638,12 @@
   # Show the Hive section for listing the query history and providing more troubleshooting information.
   ## enable_hive_query_browser=false
 
+  # Show the Queries section for listing Hive/Impala query history and providing more troubleshooting information.
+  ## enable_queries_list=false
+
+  [[query_store]]
+    # URL of Query Store API server.
+    ##server_url=http://localhost:8080/
 
 ###########################################################################
 # Settings to configure Sentry / Security App.
@@ -1911,6 +1924,9 @@
 
   # Signed certificate to send along with encrypted metadata.
   ## cert_file=
+
+  # If your computer and another computer that you are communicating with are not in synch regarding the computer clock, then here you can state how big a difference you are prepared to accept in milliseconds.
+  ## accepted_time_diff=0
 
   # Path to a file containing the password private key.
   ## key_file_password=/path/key

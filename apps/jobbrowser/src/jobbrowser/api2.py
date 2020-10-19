@@ -19,15 +19,16 @@ import json
 import logging
 
 from django.http import HttpResponse
+from django.utils.translation import ugettext as _
 
 from desktop.lib.i18n import smart_unicode
 from desktop.lib.django_util import JsonResponse
-from django.utils.translation import ugettext as _
+from desktop.lib.rest.http_client import HttpClient
+from desktop.lib.rest.resource import Resource
 from desktop.views import serve_403_error
 
 from jobbrowser.apis.base_api import get_api
-from jobbrowser.conf import DISABLE_KILLING_JOBS
-
+from jobbrowser.conf import DISABLE_KILLING_JOBS, QUERY_STORE
 
 LOG = logging.getLogger(__name__)
 
@@ -55,7 +56,11 @@ def jobs(request, interface=None):
 
   cluster = json.loads(request.POST.get('cluster', '{}'))
   interface = interface or json.loads(request.POST.get('interface'))
-  filters = dict([(key, value) for _filter in json.loads(request.POST.get('filters', '[]')) for key, value in list(_filter.items()) if value])
+  filters = dict([(key, value) for _filter in json.loads(
+      request.POST.get('filters', '[]')) for key, value in list(_filter.items()) if value
+  ])
+  if interface == 'queries-hive':
+    filters = json.loads(request.body)
 
   jobs = get_api(request.user, interface, cluster=cluster).apps(filters)
 
@@ -63,7 +68,10 @@ def jobs(request, interface=None):
   response['total'] = jobs.get('total')
   response['status'] = 0
 
-  return JsonResponse(response)
+  if interface == 'queries-hive':
+    return JsonResponse(response['apps'])
+  else:
+    return JsonResponse(response)
 
 
 @api_error_handler
@@ -72,12 +80,15 @@ def job(request, interface=None):
 
   cluster = json.loads(request.POST.get('cluster', '{}'))
   interface = interface or json.loads(request.POST.get('interface'))
-  app_id = json.loads(request.POST.get('app_id'))
+  if interface == 'queries-hive':
+    app_id = json.loads(request.body)['queryId']
+  else:
+    app_id = json.loads(request.POST.get('app_id'))
 
   if interface == 'schedules':
     offset = json.loads(request.POST.get('pagination', '{"offset": 1}')).get('offset')
     response_app = get_api(request.user, interface, cluster=cluster).app(app_id, offset=offset)
-  else :
+  else:
     response_app = get_api(request.user, interface, cluster=cluster).app(app_id)
 
   if response_app.get('status') == -1 and response_app.get('message'):
@@ -86,7 +97,10 @@ def job(request, interface=None):
     response['app'] = response_app
     response['status'] = 0
 
-  return JsonResponse(response)
+  if interface == 'queries-hive':
+    return JsonResponse(response['app'])
+  else:
+    return JsonResponse(response)
 
 
 @api_error_handler
@@ -117,7 +131,9 @@ def logs(request):
   app_type = json.loads(request.POST.get('type'))
   log_name = json.loads(request.POST.get('name'))
 
-  response['logs'] = get_api(request.user, interface, cluster=cluster).logs(app_id, app_type, log_name, json.loads(request.GET.get('is_embeddable', 'false').lower()))
+  response['logs'] = get_api(request.user, interface, cluster=cluster).logs(
+      app_id, app_type, log_name, json.loads(request.GET.get('is_embeddable', 'false').lower())
+  )
   response['status'] = 0
 
   return JsonResponse(response)
@@ -132,7 +148,10 @@ def profile(request):
   app_id = json.loads(request.POST.get('app_id'))
   app_type = json.loads(request.POST.get('app_type'))
   app_property = json.loads(request.POST.get('app_property'))
-  app_filters = dict([(key, value) for _filter in json.loads(request.POST.get('app_filters', '[]')) for key, value in list(_filter.items()) if value])
+  app_filters = dict([
+      (key, value) for _filter in json.loads(request.POST.get('app_filters', '[]'))
+      for key, value in list(_filter.items()) if value
+  ])
 
   api = get_api(request.user, interface, cluster=cluster)
   api._set_request(request) # For YARN
@@ -145,3 +164,14 @@ def profile(request):
     response[app_property] = resp
     response['status'] = 0
     return JsonResponse(response)
+
+
+@api_error_handler
+def query_store_proxy(request, path=None):
+  content_type = 'application/json; charset=UTF-8'
+  headers = {'X-Requested-By': 'das', 'Content-Type': content_type}
+
+  client = HttpClient(QUERY_STORE.SERVER_URL.get())
+  resource = Resource(client)
+
+  return JsonResponse(resource.invoke(request.method, path, request.GET.dict(), request.body, headers));

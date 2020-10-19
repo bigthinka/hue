@@ -64,9 +64,8 @@ RUN ./build/env/bin/pip install \
   django_redis \
   flower \
   pyhive \
+  git+https://github.com/bryanyang0528/ksql-python \
   gevent \
-  # For Phoenix Python 2
-  gssapi==1.5.1 protobuf requests-gssapi \
   # Needed for Jaeger
   threadloop \
   thrift-sasl==0.2.1

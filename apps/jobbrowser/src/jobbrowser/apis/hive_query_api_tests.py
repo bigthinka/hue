@@ -20,6 +20,7 @@ import json
 import logging
 import sys
 
+from django.db import connection
 from django.urls import reverse
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_equal, assert_true, assert_raises
@@ -31,6 +32,7 @@ from useradmin.models import User
 
 from jobbrowser.apis.hive_query_api import HiveQueryApi, HiveQueryClient
 from jobbrowser.models import HiveQuery
+
 
 if sys.version_info[0] > 2:
   from unittest.mock import patch, Mock
@@ -49,56 +51,119 @@ class TestHiveQueryApi():
 
     self.client = make_logged_in_client(username="test", groupname="default", recreate=True, is_superuser=False)
     self.user = rewrite_user(User.objects.get(username="test"))
+    self.filters = {
+      "endTime": 10,
+      "facets": [{"field": "status", "values": ["SUCCESS"]}],
+      "limit": 2,
+      "offset": 0,
+      "sortText": "",
+      "startTime": 1,
+      "text": "select"
+    }
+
+    with connection.schema_editor() as schema_editor:
+      schema_editor.create_model(HiveQuery)
+
+      if HiveQuery._meta.db_table not in connection.introspection.table_names():
+        raise ValueError("Table `{table_name}` is missing in test database.".format(table_name=HiveQuery._meta.db_table))
+
+  def tearDown(self):
+    with connection.schema_editor() as schema_editor:
+      schema_editor.delete_model(HiveQuery)
 
 
-  def test_apps_empty(self):
-    with patch('jobbrowser.apis.hive_query_api.HiveQueryClient.get_queries') as get_queries:
-      with patch('jobbrowser.apis.hive_query_api.HiveQueryClient.get_query_count') as get_query_count:
-        get_queries.return_value = []
-        get_query_count.return_value = 0
+  def test_search_pagination(self):
+    with patch('jobbrowser.apis.hive_query_api.HiveQueryClient._get_all_queries') as _get_all_queries:
 
-        app_filters = []
+      HiveQuery.objects.create(query_id='1', start_time=6, end_time=8, query="select * from employee1", status="SUCCESS")
+      HiveQuery.objects.create(query_id='2', start_time=4, end_time=8, query="select * from employee2", status="ERROR")
+      HiveQuery.objects.create(query_id='3', start_time=7, end_time=9, query="select * from employee3)", status="SUCCESS")
+      HiveQuery.objects.create(query_id='4', start_time=2, end_time=9, query="select * from employee4", status="SUCCESS")
+      HiveQuery.objects.create(query_id='5', start_time=8, end_time=9, query="create table xyz2()", status="SUCCESS")
+      HiveQuery.objects.create(query_id='6', start_time=1, end_time=12, query="create table xyz3()", status="SUCCESS")
 
-        queries = HiveQueryApi(self.user).apps(app_filters)
+      _get_all_queries.return_value = HiveQuery.objects.order_by('-start_time')
 
-        assert_equal({'apps': [], 'total': 0}, queries)
+      _data = json.dumps(self.filters)
+      response = self.client.post("/jobbrowser/api/jobs/queries-hive", content_type='application/json', data=_data)
+      data = json.loads(response.content)
+
+      assert_equal(2, len(data['queries'])) # pagination
+      assert_equal('3', data['queries'][0]['queryId']) # query id (with order_by)
+      assert_equal("SUCCESS", data['queries'][0]['status']) # facet selection
+      assert_true("select" in data['queries'][0]['query']) # search text
+      assert_equal(3, data['meta']['size']) # total filtered queries count
+      assert_equal(2, data['meta']['limit']) # limit value of filter
 
 
-  def test_app(self):
-    with patch('jobbrowser.apis.hive_query_api.HiveQueryClient.get_query') as get_query:
-      query_id = 'd94d2fb4815a05c4:b1ccec1500000000'
+  # TODO
+  # def test_app(self):
+  #   with patch('jobbrowser.apis.hive_query_api.HiveQueryClient.get_query') as get_query:
+  #     query_id = 'd94d2fb4815a05c4:b1ccec1500000000'
 
-      get_query.return_value = Mock(
-        query_id=query_id,
-        query='SELECT'
-      )
+  #     get_query.return_value = Mock(
+  #       query_id=query_id,
+  #       query='SELECT'
+  #     )
 
-      query = HiveQueryApi(self.user).app(query_id)
+  #     query = HiveQueryApi(self.user).app(query_id)
 
-      assert_equal(query_id, query['id'])
+  #     assert_equal(query_id, query['id'])
 
 
 class TestHiveQueryClient():
 
   def setUp(self):
-    if not QUERY_DATABASE.HOST.get() or True:  # Note: table migrations / non auto model to add before it can be enabled
+    if not QUERY_DATABASE.HOST.get():
       raise SkipTest
 
     self.client = make_logged_in_client(username="test", groupname="default", recreate=True, is_superuser=False)
     self.user = rewrite_user(User.objects.get(username="test"))
+    self.filters = {
+      'endTime': 1602146114116,
+      'facets': [],
+      'limit': 2,
+      'offset': 0,
+      'sortText': "startTime:DESC",
+      'startTime': 1601541314116,
+      'text': "select"
+    }
+    self.query1 = HiveQuery()
+    self.query2 = HiveQuery()
+    self.query3 = HiveQuery()
+
+    with connection.schema_editor() as schema_editor:
+      schema_editor.create_model(HiveQuery)
+
+      if HiveQuery._meta.db_table not in connection.introspection.table_names():
+        raise ValueError("Table `{table_name}` is missing in test database.".format(table_name=HiveQuery._meta.db_table))
+
+  def tearDown(self):
+    with connection.schema_editor() as schema_editor:
+      schema_editor.delete_model(HiveQuery)
+
+
+  def test__get_all_queries(self):
+    HiveQueryClient()._get_all_queries()
 
 
   def test_get_query_count(self):
-    HiveQueryClient().get_query_count()
+    with patch('jobbrowser.apis.hive_query_api.HiveQueryClient._get_queries') as _get_queries:
+
+      _get_queries.return_value = [self.query1, self.query2, self.query3]
+      filtered_query_count = HiveQueryClient().get_query_count(self.filters)
+
+      assert_equal(3, filtered_query_count)
 
 
   def test_get_queries(self):
-    HiveQueryClient().get_queries(limit=100)
-
-    HiveQueryClient().get_queries(limit=10)
+    HiveQueryClient().get_queries(self.filters)
 
 
   def test_get_query(self):
-    query_id = 'd94d2fb4815a05c4:b1ccec1500000000'
+    with patch('jobbrowser.apis.hive_query_api.HiveQueryClient.get_query') as get_query:
+      query_id = 'd94d2fb4815a05c4:b1ccec1500000000'
+      self.query1.query_id = query_id
+      get_query.return_value = self.query1
 
-    assert_raises(HiveQuery.DoesNotExist, HiveQueryClient().get_query, query_id=query_id)
+      assert_equal(HiveQueryClient().get_query(query_id).query_id, query_id)

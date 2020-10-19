@@ -8,7 +8,7 @@
 Query. Explore. Share.
 ----------------------
 
-Hue is a mature open source SQL Assistant for [querying](https://docs.gethue.com/user/querying/) any [Databases & Data Warehouses](https://docs.gethue.com/administrator/configuration/connectors/) and collaborating: [gethue.com](http://gethue.com)
+Hue Editor is a mature open source SQL Assistant for [querying](https://docs.gethue.com/user/querying/) any [Databases & Data Warehouses](https://docs.gethue.com/administrator/configuration/connectors/) and collaborating: [gethue.com](http://gethue.com)
 
 Many companies and organizations use Hue to quickly answer questions via self-service querying e.g.:
 
@@ -20,7 +20,7 @@ are executing 100s of 1000s of queries daily. It also [ships](https://docs.gethu
 Hue is also ideal for building your own [Cloud SQL Editor](https://docs.gethue.com/developer/api/) and any [contributions](https://docs.gethue.com/developer/) are welcome.
 
 
-![Hue Editor](https://cdn.gethue.com/uploads/2020/04/hue-4.7.png)
+![Hue Editor](https://cdn.gethue.com/uploads/2020/09/hue-4.8.png)
 
 Getting Started
 ---------------

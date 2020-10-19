@@ -1,0 +1,115 @@
+/*
+ Licensed to Cloudera, Inc. under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  Cloudera, Inc. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+// All standard colors --------------------------------------
+
+$fluid-blue-050:                  #e6f7ff;
+$fluid-blue-100:                  #a3dfff;
+$fluid-blue-200:                  #7accff;
+$fluid-blue-300:                  #51b5fc;
+$fluid-blue-400:                  #008cff;
+$fluid-blue-500:                  #006ee3;
+$fluid-blue-600:                  #005bbd;
+$fluid-blue-700:                  #004496;
+$fluid-blue-800:                  #002f70;
+$fluid-blue-900:                  #001c4a;
+
+$fluid-gray-040:                  #fafbfc;
+$fluid-gray-050:                  #f4f5f6;
+$fluid-gray-100:                  #f1f2f3;
+$fluid-gray-200:                  #eaebec;
+$fluid-gray-300:                  #d6d8db;
+$fluid-gray-400:                  #adb2b6;
+$fluid-gray-500:                  #989ea4;
+$fluid-gray-600:                  #838b92;
+$fluid-gray-700:                  #5a656d;
+$fluid-gray-800:                  #333e47;
+$fluid-gray-900:                  #1c2429;
+
+$fluid-green-050:                 #f2ffeb;
+$fluid-green-100:                 #cbf1b5;
+$fluid-green-200:                 #aee390;
+$fluid-green-300:                 #82c25d;
+$fluid-green-400:                 #5aa232;
+$fluid-green-500:                 #3a870e;
+$fluid-green-600:                 #2c6c08;
+$fluid-green-700:                 #1a4700;
+$fluid-green-800:                 #163c00;
+$fluid-green-900:                 #133300;
+
+$fluid-orange-050:                #fff0d9;
+$fluid-orange-100:                #ffd599;
+$fluid-orange-200:                #ffa319;
+$fluid-orange-300:                #ff8400;
+$fluid-orange-400:                #f96702;
+$fluid-orange-500:                #b34d00;
+$fluid-orange-600:                #8c3800;
+$fluid-orange-700:                #662500;
+$fluid-orange-800:                #401500;
+$fluid-orange-900:                #260d00;
+
+$fluid-red-050:                   #fff2f2;
+$fluid-red-100:                   #fdcfcf;
+$fluid-red-200:                   #faadac;
+$fluid-red-300:                   #f36d6b;
+$fluid-red-400:                   #e83934;
+$fluid-red-500:                   #d9150c;
+$fluid-red-600:                   #bf1408;
+$fluid-red-700:                   #990d00;
+$fluid-red-800:                   #670901;
+$fluid-red-900:                   #3f0600;
+
+$fluid-yellow-050:                #fffaed;
+$fluid-yellow-100:                #fff1cc;
+$fluid-yellow-200:                #ffd664;
+$fluid-yellow-300:                #fdc926;
+$fluid-yellow-400:                #d99f18;
+$fluid-yellow-500:                #a16908;
+$fluid-yellow-600:                #804a00;
+$fluid-yellow-700:                #663a00;
+$fluid-yellow-800:                #4d2b00;
+$fluid-yellow-900:                #331d00;
+
+$fluid-purple-050:                #f4f1fa;
+$fluid-purple-100:                #d5c9ed;
+$fluid-purple-200:                #ab93dc;
+$fluid-purple-300:                #9678d3;
+$fluid-purple-400:                #8263c2;
+$fluid-purple-500:                #6f47bf;
+$fluid-purple-600:                #552da6;
+$fluid-purple-700:                #4a1ca6;
+$fluid-purple-800:                #33058d;
+$fluid-purple-900:                #1e005a;
+
+$fluid-black:                     #000;
+$fluid-white:                     #fff;
+
+$fluid-mint:                      #1fcfb8;
+$fluid-slate:                     #305868;
+
+$hue-primary-color-dark:          #0b7fad;
+$hue-primary-color-light:         #dbe8f1;
+$hue-trunk:                       $fluid-purple-300;
+
+$hue-action-primary:              $fluid-blue-500;
+$hue-action-primary-hover:        #00609b;
+$hue-action-disabled:             rgba(0,0,0,.26);
+$hue-border-color:                $fluid-gray-300;
+$hue-disabled-color:              $fluid-gray-100;
+$hue-error-color:                 $fluid-red-500;
+$hue-warning-color:               $fluid-orange-400;

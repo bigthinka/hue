@@ -25,7 +25,7 @@ from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _t, ugettext as _
 
 from desktop import appmanager
-from desktop.conf import is_oozie_enabled, has_connectors
+from desktop.conf import is_oozie_enabled, has_connectors, is_cm_managed
 from desktop.lib.conf import Config, UnspecifiedConfigSection, ConfigSection, coerce_json_dict, coerce_bool, coerce_csv
 
 
@@ -39,10 +39,12 @@ SHOW_NOTEBOOKS = Config(
     default=True
 )
 
+
 def _remove_duplications(a_list):
   return list(OrderedDict.fromkeys(a_list))
 
-def check_permissions(user, interpreter, user_apps=None):
+
+def check_has_missing_permission(user, interpreter, user_apps=None):
   # TODO: port to cluster config
   if user_apps is None:
     user_apps = appmanager.get_apps_dict(user)  # Expensive method
@@ -75,14 +77,22 @@ def get_ordered_interpreters(user=None):
       for connector in _get_installed_connectors(categories=['editor', 'catalogs'], user=user)
     ]
   else:
+    if is_cm_managed() and INTERPRETERS.get():
+      extra_interpreters = INTERPRETERS.get()
+      _default_interpreters(user)
+    else:
+      extra_interpreters = {}
+
     if not INTERPRETERS.get():
       _default_interpreters(user)
+
     interpreters = INTERPRETERS.get()
+    interpreters.update(extra_interpreters)
 
     user_apps = appmanager.get_apps_dict(user)
     user_interpreters = []
     for interpreter in interpreters:
-      if check_permissions(user, interpreter, user_apps=user_apps):
+      if check_has_missing_permission(user, interpreter, user_apps=user_apps):
         pass  # Not allowed
       else:
         user_interpreters.append(interpreter)
@@ -274,8 +284,11 @@ def _default_interpreters(user):
   apps = appmanager.get_apps_dict(user)
 
   if 'hive' in apps:
+    from beeswax.hive_site import get_hive_execution_engine
+    interpreter_name = 'Impala' if get_hive_execution_engine() == 'impala' else 'Hive'  # Until using a proper dialect for 'FENG'
+
     interpreters.append(('hive', {
-      'name': 'Hive', 'interface': 'hiveserver2', 'options': {}
+      'name': interpreter_name, 'interface': 'hiveserver2', 'options': {}
     }),)
 
   if 'impala' in apps:

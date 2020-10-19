@@ -17,7 +17,7 @@
 
 from django.utils.translation import ugettext_lazy as _
 
-from desktop.lib.conf import Config, coerce_bool
+from desktop.lib.conf import Config, coerce_bool, ConfigSection
 
 
 SHARE_JOBS = Config(
@@ -72,9 +72,28 @@ ENABLE_HIVE_QUERY_BROWSER = Config(
   default=False
 )
 
+ENABLE_QUERIES_LIST = Config(
+  key="enable_queries_list",
+  help=_("Show the Queries section for listing Hive/Impala query history and providing more troubleshooting information."),
+  type=coerce_bool,
+  default=False
+)
+
 ENABLE_HISTORY_V2 = Config(
   key="enable_history_v2",
   help=_("Show the version 2 of job/query History which unifies the all into one."),
   type=coerce_bool,
   default=False
+)
+
+QUERY_STORE = ConfigSection(
+  key="query_store",
+  help=_("""Credentials for query store API."""),
+  members=dict(
+    SERVER_URL=Config(
+      key="server_url",
+      default='http://localhost:8080/',
+      help=_("URL of Query Store API server.")
+    )
+  )
 )

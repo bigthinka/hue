@@ -160,7 +160,7 @@ With LDAPS enabled over HTTPS:
 
     options='{"url": "presto://username:password@localhost:8443/tpch/default","connect_args":"{\"protocol\": \"https\"}"}'
 
-Pass Presto Session properties along with HTTPS: 
+Pass Presto Session properties along with HTTPS:
 
     options='{"url": "presto://username:password@localhost:8443/tpch/default","connect_args":"{\"protocol\": \"https\", \"session_props\": {\"query_max_run_time\": \"1m\"}}"}'
 
@@ -382,28 +382,28 @@ And as always, make sure you have an interpreter configured:
 
 The ksql Python module should be added to the system or Hue Python virtual environment:
 
-    ./build/env/bin/pip install git+https://github.com/romainr/ksql-python
+    ./build/env/bin/pip install git+https://github.com/bryanyang0528/ksql-python
 
-Then give Hue the information about the interpreter and ksql API:
+Then give Hue the information about the interpreter and ksqlDB API:
 
 To add to the list of interpreters:
 
     [[interpreters]]
 
     [[[ksql]]]
-      name=ksql
-      interface=ksql
+    name=ksql
+    interface=ksql
 
     ...
 
     [kafka]
 
-      [[kafka]]
-        # Enable the Kafka integration.
-        is_enabled=true
+    [[kafka]]
+    # Enable the Kafka integration.
+    is_enabled=true
 
-        # Base URL of Kafka Ksql API.
-        ## ksql_api_url=http://127.0.0.1:8088
+    # Base URL of Kafka Ksql API.
+    ## ksql_api_url=http://127.0.0.1:8088
 
 
 Note: the configuration will be much simpler after [HUE-8758](https://issues.cloudera.org/browse/HUE-8758).
@@ -527,6 +527,22 @@ With impersonation:
 4. The UI (and the underlying SQLAlchemy API) cannot distinguish between 'ANY namespace' and 'empty/Default' namespace
 
 
+### Apache Flink
+
+The dialect currently requires the Flink SQL Gateway to submit queries: https://github.com/ververica/flink-sql-gateway/releases. The [tutorial](https://gethue.com/blog/sql-editor-for-apache-flink-sql/) demoes how to set it up.
+
+Then add a Flink interpreter in the Hue configuration:
+
+    [notebook]
+
+    [[interpreters]]
+
+    [[[flink]]]
+    name=Flink
+    interface=flink
+    options='{"url": "http://172.18.0.7:8083"}'
+
+
 ### AWS Redshift
 
 The dialect should be added to the Python system or Hue Python virtual environment:
@@ -555,6 +571,11 @@ Then give Hue the information about the database source:
        name = BigQuery
        interface=sqlalchemy
        options='{"url": "bigquery://project-XXXXXX", "credentials_json": "{\"type\": \"service_account\", ...}"}'
+
+Where to get the Json credentials? By creating a service account:
+
+* https://googleapis.dev/python/google-api-core/latest/auth.html
+* https://console.cloud.google.com/iam-admin/serviceaccounts
 
 Where to get the names? In the 'Resources' panel of Big Query UI:
 

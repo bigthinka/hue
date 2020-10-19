@@ -28,6 +28,7 @@ from useradmin.organization import _fitered_queryset, get_user_request_organizat
 from desktop.conf import CONNECTORS, ENABLE_ORGANIZATIONS
 from desktop.lib.connectors.types import get_connectors_types
 from desktop.lib.exceptions_renderable import PopupException
+from desktop.lib.i18n import smart_unicode
 
 
 LOG = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ else:
   class Connector(BaseConnector): pass
 
 
-def _get_installed_connectors(category=None, categories=None, dialect=None, interface=None, user=None):
+def _get_installed_connectors(category=None, categories=None, dialect=None, interface=None, user=None, connector_id=None):
   from desktop.auth.backend import is_admin
 
   connectors_objects = Connector.objects.all()
@@ -113,7 +114,7 @@ def _get_installed_connectors(category=None, categories=None, dialect=None, inte
         'settings': json.loads(connector.settings),
         'is_demo': False,
       }
-      for connector in connectors_objects
+      for connector in connectors_objects if connector_id is None or connector_id == connector.id
   ]
   connectors = []
 
@@ -135,6 +136,9 @@ def _get_installed_connectors(category=None, categories=None, dialect=None, inte
     connectors = [connector for connector in connectors if connector['dialect'] == dialect]
   if interface is not None:
     connectors = [connector for connector in connectors if connector['interface'] == interface]
+
+  if connector_id and user and not connectors:
+    raise ConnectorNotFoundException(_('Connector %s not found for user %s') % (connector_id, user))
 
   return connectors
 
@@ -173,7 +177,7 @@ def _create_connector_examples():
   skipped = []
 
   for connector in _get_connector_examples():
-    name ='%(nice_name)s (%(dialect)s)' % connector
+    name = '%(nice_name)s (%(dialect)s)' % connector
     if not Connector.objects.filter(name=connector['nice_name']).exists():
       connector = Connector.objects.create(
         name=connector['nice_name'],
@@ -181,7 +185,7 @@ def _create_connector_examples():
         dialect=connector['dialect'],
         settings=json.dumps(connector['settings'])
       )
-      result.append(name)
+      added.append(name)
     else:
       skipped.append(name)
 
@@ -192,7 +196,7 @@ def _get_connector_examples():
   return [
     {
       'id': i,
-      'nice_name':  CONNECTORS.get()[i].NICE_NAME.get() or i,
+      'nice_name': CONNECTORS.get()[i].NICE_NAME.get() or i,
       'description': '',
       'dialect': CONNECTORS.get()[i].DIALECT.get(),
       'interface': CONNECTORS.get()[i].INTERFACE.get(),
@@ -201,3 +205,14 @@ def _get_connector_examples():
     }
     for i in CONNECTORS.get()
   ]
+
+
+class ConnectorNotFoundException(Exception):
+  def __init__(self, message=None):
+    self.message = message or _('No error message, please check the logs.')
+
+  def __str__(self):
+    return str(self.message)
+
+  def __unicode__(self):
+    return smart_unicode(self.message)
