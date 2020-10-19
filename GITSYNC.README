@@ -1,0 +1,15 @@
+#Show all branches including remote
+git branch -a
+
+#Sync fork master with upstream
+git fetch upstream
+git checkout master
+git merge upstream/master
+
+#This might be correct way
+git fetch upstream branch-4.8.0
+git checkout branch-4.8.0
+git push origin
+#now we have the upstream branch in our origin repo, so we can check it out
+git checkout -b ndg-4.8.0 branch-4.8.0
+
