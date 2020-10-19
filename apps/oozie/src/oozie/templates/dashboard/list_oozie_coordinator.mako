@@ -270,7 +270,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
                     <span data-bind="text: title, attr: {'class': statusClass, 'id': 'date-' + $index()}"></span>
                   </a>
                 </td>
-                <td data-bind="css: { disabled: url == '' }"><em data-bind="visible: (errorMessage == null || errorMessage == '') && (missingDependencies == null || missingDependencies == '') && url == ''">${ _('Workflow not available or instantiated yet') }</em><em data-bind="visible: (errorMessage == null || errorMessage == '') && (missingDependencies == null || missingDependencies == '') && url != ''">${_('-')}</em> <span data-bind="visible: errorMessage != null && errorMessage != '', text: errorMessage"></span> <span data-bind="visible:missingDependencies !='' && missingDependencies != null, text: '${ _ko('Missing')} ' + missingDependencies"></span></td>
+                <td data-bind="css: { disabled: url == '' }"><em data-bind="visible: (errorMessage == null || errorMessage == '') && (missingDependencies == null || missingDependencies == '') && url == ''">${ _('Workflow not available or instantiated yet') }</em><em data-bind="visible: (errorMessage == null || errorMessage == '') && (missingDependencies == null || missingDependencies == '') && url != ''">${_('-')}</em> <span data-bind="visible: errorMessage != null && errorMessage != '', text: errorMessage"></span> <span data-bind="visible:missingDependencies !='' && missingDependencies != null, template: {name: 'missingDependenciesTemplate', foreach: missingDependencies}"></span></td>
               </tr>
             </script>
 
@@ -341,7 +341,8 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
                 <td><span data-bind="text: status, attr: {'class': statusClass}"></span></td>
                 <td data-bind="text: errorCode"></td>
                 <td data-bind="text: errorMessage"></td>
-                <td data-bind="text: missingDependencies"></td>
+                <td><span data-bind="template: {name: 'missingDependenciesTemplate', foreach: missingDependencies}"></span>
+                </td>
                 <td data-bind="text: createdTime"></td>
                 <td data-bind="text: lastModifiedTime"></td>
                 <td>
@@ -351,6 +352,9 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
                   <a data-bind="visible:externalId !='', attr: {href: externalIdUrl}, text: externalId"></a>
                 </td>
               </tr>
+            </script>
+            <script id="missingDependenciesTemplate" type="text/html">
+                <a data-bind="attr: {target:'_blank', href: '/emrClusterManager/dependencyMap/redirect?uriTemplate='+$data}, text: $data"></a>
             </script>
 
             <div class="tab-pane" id="details">

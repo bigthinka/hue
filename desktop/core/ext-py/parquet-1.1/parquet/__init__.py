@@ -46,6 +46,11 @@ except ImportError:
     logger.info(
         "Couldn't import snappy. Support for snappy compression disabled.")
 
+try:
+    import lzo
+except ImportError:
+    logger.info(
+        "Couldn't import lzo. Support for lzo compression disabled.")
 
 class ParquetFormatException(Exception):
     """Generic Exception related to unexpected data format when reading parquet file."""
@@ -237,6 +242,10 @@ def _read_page(file_obj, page_header, column_metadata):
     if codec is not None and codec != parquet_thrift.CompressionCodec.UNCOMPRESSED:
         if column_metadata.codec == parquet_thrift.CompressionCodec.SNAPPY:
             raw_bytes = snappy.decompress(bytes_from_file)
+        elif column_metadata.codec == parquet_thrift.CompressionCodec.LZO:
+            print('trying to decompress ...')
+            raw_bytes = lzo.decompress(bytes_from_file)
+            print('decompressed')
         elif column_metadata.codec == parquet_thrift.CompressionCodec.GZIP:
             io_obj = io.BytesIO(bytes_from_file)
             with gzip.GzipFile(fileobj=io_obj, mode='rb') as file_data:

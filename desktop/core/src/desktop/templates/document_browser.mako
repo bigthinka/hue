@@ -111,7 +111,7 @@ from desktop.views import _ko
                       <%
                       from notebook.conf import SHOW_NOTEBOOKS
                       %>
-                      % if SHOW_NOTEBOOKS.get():
+                      % if SHOW_NOTEBOOKS.get() and request.user.has_hue_permission(app='notebook', action='notebook_create_access'):
                         <li>
                           <a title="${_('Notebook')}" data-bind="hueLink: addDirectoryParamToUrl('${ url('notebook:index') }')">
                             <!-- ko template: { name: 'app-icon-template', data: { icon: 'notebook' } } --><!-- /ko --> ${_('Notebook')}

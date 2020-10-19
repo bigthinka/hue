@@ -77,7 +77,7 @@ def is_root(uri):
   """
   Check if URI is S3 root (S3A://)
   """
-  return uri.lower() == S3A_ROOT
+  return uri.lower() == S3A_ROOT or uri.lower() == S3_ROOT
 
 
 def abspath(cd, uri):
@@ -110,11 +110,15 @@ def normpath(path):
   """
   Return normalized path but ignore leading S3A_ROOT prefix if it exists
   """
-  if path.lower().startswith(S3A_ROOT):
+
+  if path.lower().startswith(S3A_ROOT) or path.lower().startswith(S3_ROOT):
+    root = S3A_ROOT
+    if (path.lower().startswith(S3_ROOT)):
+      root = S3_ROOT
     if is_root(path):
       normalized = path
     else:
-      normalized = '%s%s' % (S3A_ROOT, fs_normpath(path[len(S3A_ROOT):]))
+      normalized = '%s%s' % (root, fs_normpath(path[len(root):]))
   else:
     normalized = fs_normpath(path)
   return normalized

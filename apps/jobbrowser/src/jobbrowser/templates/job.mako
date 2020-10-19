@@ -251,10 +251,12 @@ ${ comps.menubar() }
           <li class="nav-header">${_('Duration')}</li>
           <li class="white" id="jobDuration">&nbsp;</li>
           <%
-              output_dir = job.conf_keys.get('mapredOutputDir', "")
-              location_url = location_to_url(output_dir)
-              basename = os.path.basename(output_dir)
-              dir_name = basename.split('/')[-1]
+              dir_name = ''
+              if job.conf_keys:
+                output_dir = job.conf_keys.get('mapredOutputDir', "")
+                location_url = location_to_url(output_dir)
+                basename = os.path.basename(output_dir)
+                dir_name = basename.split('/')[-1]
           %>
           % if dir_name != '':
           <li class="nav-header">${_('Output')}</li>
@@ -375,7 +377,7 @@ ${ comps.menubar() }
                     % endif
                     <tr>
                       <td>${_('Started')}</td>
-                      <td>${job.startTimeFormatted}</td>
+                      <td>${job.startTime}</td>
                     </tr>
                     % if not job.is_retired:
                     <tr>

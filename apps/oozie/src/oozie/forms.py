@@ -40,7 +40,7 @@ LOG = logging.getLogger(__name__)
 
 class ParameterForm(forms.Form):
   name = forms.CharField(max_length=1024, widget=forms.widgets.HiddenInput())
-  value = forms.CharField(max_length=12288, required=False)
+  value = forms.CharField(max_length=50000, required=False)
 
   NON_PARAMETERS = (
       'hue-id-w',

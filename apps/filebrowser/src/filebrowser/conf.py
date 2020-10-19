@@ -16,11 +16,8 @@
 # limitations under the License.
 
 from django.utils.translation import ugettext_lazy as _
-
-from desktop.conf import ENABLE_DOWNLOAD
+from desktop.conf import ENABLE_DOWNLOAD, is_oozie_enabled
 from desktop.lib.conf import Config, coerce_bool
-from desktop.conf import is_oozie_enabled
-
 
 MAX_SNAPPY_DECOMPRESSION_SIZE = Config(
   key="max_snappy_decompression_size",

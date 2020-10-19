@@ -212,7 +212,7 @@ ${ common_home.navbar() }
         <div class="assist" data-bind="component: {
           name: 'assist-panel',
           params: {
-            user: '${user.username}',
+            user: '${user.username.replace("'", "\\'")}',
             sql: {
               navigationSettings: {
                 openItem: false,

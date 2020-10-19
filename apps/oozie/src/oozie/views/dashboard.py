@@ -1064,7 +1064,7 @@ def massaged_coordinator_actions_for_json(coordinator, oozie_bundle):
       'lastModifiedTime': format_time(action.lastModifiedTime),
       'errorCode': action.errorCode,
       'errorMessage': action.errorMessage,
-      'missingDependencies': action.missingDependencies
+      'missingDependencies': action.missingDependencies.split('#')
     }
 
     actions.append(massaged_action)

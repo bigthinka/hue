@@ -80,7 +80,7 @@ function updateSLAChart(slaTable, labels, limit) {
     function getOptions(differenceCellValue, label, color) {
       return {
         data: [
-          [moment($(rows[i]).find("span.nominalTime").html()).valueOf(), (moment(differenceCellValue).valueOf() - moment($(rows[i]).find("span.nominalTime").html()).valueOf())]
+          [moment($(rows[i]).find("span.nominalTime").html(),"ddd, DD MMM YYYY HH:mm:ss Z").valueOf(), (moment(differenceCellValue,"ddd, DD MMM YYYY HH:mm:ss Z").valueOf() - moment($(rows[i]).find("span.nominalTime").html(),"ddd, DD MMM YYYY HH:mm:ss Z").valueOf())]
         ],
         label: label,
         yAxisFormatter: function (val, axis) {

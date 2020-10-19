@@ -374,6 +374,9 @@ def importer_submit(request):
   outputFormat = json.loads(request.POST.get('destination', '{}'))['outputFormat']
   destination = json.loads(request.POST.get('destination', '{}'))
   destination['ouputFormat'] = outputFormat # Workaround a very weird bug
+  # Switch any presto actions to be done by hive
+  if destination['apiHelperType'] == 'presto':
+    destination['apiHelperType'] = 'hive'
   start_time = json.loads(request.POST.get('start_time', '-1'))
 
   if source['inputFormat'] == 'file':

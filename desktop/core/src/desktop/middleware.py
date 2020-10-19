@@ -136,7 +136,7 @@ class ClusterMiddleware(object):
       request.fs = fsmanager.get_filesystem(request.fs_ref)
 
       if request.fs is not None:
-        request.fs.setuser(request.user.username)
+        request.fs.setuser(request.user.usernamefull)
 
     # Deprecated
     request.jt = None

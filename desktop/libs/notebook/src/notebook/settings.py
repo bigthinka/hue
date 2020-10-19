@@ -22,3 +22,9 @@ MENU_INDEX = 43
 ICON = "search/art/icon_notebook_48.png"
 
 IS_URL_NAMESPACED = True
+
+PERMISSION_ACTIONS = (
+  ("notebooks_list_access", "Allow access to manage notebooks from notebooks list which allows any sharing config changes"),
+  ("notebook_create_access", "Allow access to create a notebook from my documents"),
+  ("presto_access", "Allow access to presto from inside a notebook"),
+)
