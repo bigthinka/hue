@@ -117,6 +117,9 @@ def rewrite_user(user):
 
     setattr(user, 'profile', get_profile(user))
     setattr(user, 'auth_backend', user.profile.data.get('auth_backend'))
+    setattr(user, 'usernamefull', user.username)
+    setattr(user, 'username', user.username.replace("'", '').split('@')[0])
+
   return user
 
 
