@@ -27,6 +27,10 @@ class JdbcApiPhoenix(JdbcApi):
 
 class PhoenixAssist(Assist):
 
+  def get_databases(self):
+    dbs, description = query_and_fetch(self.db, 'SELECT DISTINCT(TABLE_SCHEM) FROM SYSTEM.CATALOG ORDER BY TABLE_SCHEM')
+    return [db[0] and db[0].strip() for db in dbs]
+
   def get_tables_full(self, database, table_names=[]):
     tables, description = query_and_fetch(self.db, "SELECT TABLE_NAME, '' AS TABLE_COMMENT FROM SYSTEM.CATALOG where TABLE_TYPE IN ('u','v') AND TABLE_SCHEM IS NULL")
     return [{"comment": table[1] and table[1].strip(), "type": "Table", "name": table[0] and table[0].strip()} for table in tables]
